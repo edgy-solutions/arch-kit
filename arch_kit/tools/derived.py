@@ -164,13 +164,14 @@ def dependencies(record: dict, roadmap: str) -> str:
 def severed(record: dict, sysml: str) -> str:
     """Each capability, in model order, with where its severed behaviour is stated, or its SV- row."""
     caps = {k: (v or {}) for k, v in record["capabilities"].items()}
+    dm = capability_phases.key_names("derived")["degraded_mode"]
     rows, stated, fails = [], 0, []
     for name in capability_phases.model_capabilities(sysml):
         cap = caps.get(name)
-        if cap is None or not cap.get("severed"):
-            fails.append(f"derived: {name} has no severed entry in the record")
+        if cap is None or not cap.get("degraded_mode"):
+            fails.append(f"derived: {name} has no {dm} entry in the record")
             continue
-        value = str(cap["severed"])
+        value = str(cap["degraded_mode"])
         sv = [r for r in cap.get("rows") or [] if str(r).startswith("SV-")]
         if value == capability_phases.NOT_STATED:
             says = "not stated"

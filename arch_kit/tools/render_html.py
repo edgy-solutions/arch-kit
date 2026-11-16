@@ -1162,7 +1162,7 @@ def capability_pages(a: argparse.Namespace, uaf: "rp.Renderer", views: dict, nam
         if phase is None:
             raise CheckError(f"{name}: the record gives it no phase\n")
         label = capability_phases.increment_label(cap, road_rows)
-        lane = str(record["lanes"][cmap[name]])
+        lane = str(record["groups"][cmap[name]])
         head = f'<h1>{esc(name)}</h1><p class="cap-group">Group: {esc(lane)}</p>'
         if label:
             head += f'<p class="cap-increment">Increment: {esc(label)}</p>'
@@ -1192,7 +1192,7 @@ def capability_pages(a: argparse.Namespace, uaf: "rp.Renderer", views: dict, nam
         for text in cap.get("pending") or []:
             items.append(f"<li>Decision pending: {esc(str(text))}</li>")
         decs = f'<h2>Decisions</h2><ul>{"".join(items) or "<li>-</li>"}</ul>'
-        sev = cap.get("severed")
+        sev = cap.get("degraded_mode")
         if sev and sev != capability_phases.NOT_STATED:
             sadr, slab = adr_sections.parse_citation(sev)
             sev_html = (f'<p data-severed>Stated in {link(name, sadr, slab)} '

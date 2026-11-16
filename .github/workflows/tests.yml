@@ -28,7 +28,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - run: pip install pyyaml markdown-it-py==4.0.0
+      - run: pip install pyyaml markdown-it-py==4.0.0 jsonschema==4.26.0
 
       - name: Project-name check
         run: python -m unittest discover -s arch_kit/tools -p 'test_declared_names.py' -v

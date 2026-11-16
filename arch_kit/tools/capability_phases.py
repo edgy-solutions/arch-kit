@@ -24,7 +24,7 @@ own text (capability, entry, anchor, line); it never echoes a readiness line.
 Two keys say how a capability's page reads:
     description   two or three plain sentences, written from the decisions below
     derived_from  citations the description was written from; when absent, from `adrs`
-    severed       required for every capability: the exact string `not stated`, or one
+    severed       (kit key degraded_mode) required for every capability: the exact string `not stated`, or one
                   citation `ADR-NNNN §LABEL` of the record that says how the capability
                   behaves when its link is severed. `not stated` needs an `SV-` id in
                   `rows`; a citation needs none.
@@ -41,6 +41,7 @@ Used by render_profile.py (the St-Rm-P marker) and check_views.py (the
 """
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -50,6 +51,7 @@ from data_exchange import InputError
 
 PHASES = ["measured", "built unmeasured", "accepted design", "proposed", "row"]
 NOT_MEASURED = "not measured"
+SCHEMA = Path(__file__).resolve().parent.parent / "schema" / "record.schema.json"
 
 
 def follow_ups_file():
@@ -66,8 +68,9 @@ def roadmap_file():
 
 OUTPUT_FIELDS = ("phase", "evidence")
 NOT_STATED = "not stated"
+SECTIONS = ("groups", "environments", "entries", "capabilities")
 CAP_KEYS = ("description", "derived_from", "adrs", "built", "measured", "rows", "still_open", "increment",
-            "severed", "pending")
+            "degraded_mode", "pending")
 ADR_ID_RE = re.compile(r"ADR-\d{4}")
 
 
@@ -77,8 +80,31 @@ class CheckError(Exception):
 
 # --- record and model ---------------------------------------------------------
 
+def key_names(tool: str) -> dict[str, str]:
+    """The neutral record keys to the consumer's own, for messages (the loader's KEY_NAMES)."""
+    return project.loader(tool).KEY_NAMES
+
+
+def _validate(path, record: dict) -> None:
+    """Raise InputError for the first place the loader's record breaks the neutral schema."""
+    import jsonschema
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    errors = sorted(jsonschema.Draft202012Validator(schema).iter_errors(record),
+                    key=lambda e: [str(p) for p in e.absolute_path])
+    if not errors:
+        return
+    first = errors[0]
+    where = ".".join(str(p) for p in first.absolute_path) or "(record)"
+    text = f"{where}: {first.message}"
+    for neutral, own in key_names("load_record").items():  # the consumer's words, as in every other message
+        text = re.sub(rf"\b{neutral}\b", own, text)
+    raise InputError(f"{path}: {text}")
+
+
 def load_record(path) -> dict:
-    return project.loader("capability_phases").load_record(path)
+    record = project.loader("capability_phases").load_record(path)
+    _validate(path, record)
+    return record
 
 
 def model_capabilities(sysml_text: str) -> dict[str, str]:
@@ -218,6 +244,7 @@ def check_section(name: str, item, decisions_dir: Path) -> list[str]:
 def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> list[str]:
     """Every failure, one line each. Needs no chart and no readiness doc."""
     decisions_dir = Path(decisions_dir)
+    names = key_names("check_record")
     fails: list[str] = []
     caps = {k: (v or {}) for k, v in record["capabilities"].items()}
     for name in capabilities:
@@ -227,12 +254,13 @@ def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> l
         if name not in capabilities:
             fails.append(f"{name} is in the record and is not a capability in the model")
     for parent in dict.fromkeys(capabilities.values()):
-        if parent not in record["lanes"]:
-            fails.append(f"{parent} has no lanes entry in the record")
+        if parent not in record["groups"]:
+            fails.append(f"{parent} has no {names['groups']} entry in the record")
     for key, entry in record["entries"].items():
         entry = entry or {}
-        if entry.get("lab") not in record["labs"]:
-            fails.append(f"entry {key} names lab {entry.get('lab')}, which labs does not declare")
+        if entry.get("environment") not in record["environments"]:
+            fails.append(f"entry {key} names {names['environment']} {entry.get('environment')}, "
+                         f"which {names['environments']} does not declare")
         for f in OUTPUT_FIELDS:
             if f in entry:
                 fails.append(f"entry {key} has a field '{f}': phase and evidence are computed, not recorded")
@@ -300,22 +328,23 @@ def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> l
             if text is not None and says not in text:
                 fails.append(f"{name}: {adr} does not contain {says!r}")
         sv_rows = [r for r in cap.get("rows") or [] if str(r).startswith("SV-")]
-        severed = cap.get("severed")
-        if not severed:
-            fails.append(f"{name} has no severed entry")
-        elif severed == NOT_STATED:
+        degraded = cap.get("degraded_mode")
+        dm = names["degraded_mode"]
+        if not degraded:
+            fails.append(f"{name} has no {dm} entry")
+        elif degraded == NOT_STATED:
             if not sv_rows:
-                fails.append(f"{name}: severed is not stated and rows names no SV- row")
+                fails.append(f"{name}: {dm} is not stated and rows names no SV- row")
         else:
             try:
-                adr_sections.parse_citation(severed)
+                adr_sections.parse_citation(degraded)
             except ValueError:
-                fails.append(f"{name}: severed {severed!r} is neither '{NOT_STATED}' nor a citation ADR-NNNN §LABEL")
+                fails.append(f"{name}: {dm} {degraded!r} is neither '{NOT_STATED}' nor a citation ADR-NNNN §LABEL")
             else:
-                fails += check_section(name, severed, decisions_dir)
-                check_adr(name, adr_id(severed))
+                fails += check_section(name, degraded, decisions_dir)
+                check_adr(name, adr_id(degraded))
                 if sv_rows:
-                    fails.append(f"{name}: severed is stated in {severed} and rows still names {sv_rows[0]}")
+                    fails.append(f"{name}: {dm} is stated in {degraded} and rows still names {sv_rows[0]}")
         for row in cap.get("rows") or []:
             status = registers.get(row)
             if follow is not None and status is None:
@@ -380,7 +409,7 @@ def resolve_quotes(record: dict, readiness: list[str], entries: dict | None = No
 def evidence_item(record: dict, entries: dict, measured: dict, quote: str) -> str:
     """One piece of evidence, as the Evidence column prints it."""
     _, date, section = entries[measured["entry"]]
-    return f"{date}, lab {record['entries'][measured['entry']]['lab']}, {section}: {quote}"
+    return f"{date}, lab {record['entries'][measured['entry']]['environment']}, {section}: {quote}"
 
 
 def evidence_cells(record: dict, readiness_text: str) -> dict[str, list[str]]:
@@ -427,13 +456,13 @@ def render_table(record: dict, capabilities: dict[str, str], decisions_dir, temp
         cap = caps[name]
         phase = phase_of(cap, statuses)
         counts[phase] += 1
-        lane = str(record["lanes"][parent])
+        lane = str(record["groups"][parent])
         label = increment_label(cap, road_rows)
         if label:
             lane += f", {label}"
         evidence = NOT_MEASURED
         if phase == "measured":
-            used.update(record["entries"][m["entry"]]["lab"] for m in cap["measured"])
+            used.update(record["entries"][m["entry"]]["environment"] for m in cap["measured"])
             evidence = "; ".join(evidence_item(record, entries, m, quotes[(name, k)])
                                  for k, m in enumerate(cap["measured"]))
         built = list(dict.fromkeys(f"templates/{b['template']}" for b in cap.get("built") or []))
@@ -456,7 +485,7 @@ def render_table(record: dict, capabilities: dict[str, str], decisions_dir, temp
            "| Capability | Lane | Phase | Evidence | Built | Decisions | Rows |",
            "|---|---|---|---|---|---|---|", *rows, ""]
     if used:
-        out += [lab_sentence(record["labs"], sorted(used)), ""]
+        out += [lab_sentence(record["environments"], sorted(used)), ""]
     out += ['An entry is the last time the readiness doc records that check. It ran against the chart of that '
             'date, which can be older than the chart this document was rendered from. "Not measured" means '
             'the readiness doc has no entry for the capability, and says nothing about measurements recorded '
