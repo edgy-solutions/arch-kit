@@ -5,7 +5,7 @@ Reads `helm template` output (or a render file) and writes a markdown
 document of who writes and who reads every broker topic, which record kinds
 the egress gate carries, where they may go, and which labels are declared.
 Everything comes from what the render declares: the
-`openddil.io/produces-topics` and `openddil.io/consumer-groups` annotations,
+declared annotations (`exchange.annotations.produces` and `.groups`),
 the ConfigMaps the workloads mount, and the egress ConfigMaps. Nothing is
 measured and nothing is inferred from a name; a declaration that is missing
 is printed as an exception, never filled in.
@@ -44,8 +44,16 @@ import project
 
 EXIT_OK, EXIT_CHECK, EXIT_INPUT = 0, 1, 2
 WORKLOAD_KINDS = {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"}
-PRODUCES = "openddil.io/produces-topics"
-GROUPS = "openddil.io/consumer-groups"
+
+
+def produces_key():
+    return project.need("exchange.annotations.produces", "data_exchange")
+
+
+def groups_key():
+    return project.need("exchange.annotations.groups", "data_exchange")
+
+
 NONE_DECLARED = "none declared"
 NOT_DECLARED = "not declared"
 # ADR-0030's seam between decode and semantics: raw JSON before identity, platform_variant and labels.
@@ -141,7 +149,7 @@ def presentation(layers: list[dict], chart_version: str | None) -> tuple[str | N
     if att is not None and not isinstance(att, (str, bool)):
         raise InputError("values: system.attribution must be a string or a boolean")
     if att is None or att is True:
-        line = "built on OpenDDIL" + (f" {chart_version}" if chart_version else "")
+        line = "built on " + project.need("name", "data_exchange") + (f" {chart_version}" if chart_version else "")
     elif att is False or att == "":
         line = None
     else:
@@ -171,9 +179,9 @@ class Workload:
         ann = {}
         ann.update(meta.get("annotations") or {})
         ann.update((tmpl.get("metadata") or {}).get("annotations") or {})
-        self.has_declaration = PRODUCES in ann or GROUPS in ann
-        self.produces = split_pairs(ann.get(PRODUCES))
-        self.groups = split_pairs(ann.get(GROUPS))
+        self.has_declaration = produces_key() in ann or groups_key() in ann
+        self.produces = split_pairs(ann.get(produces_key()))
+        self.groups = split_pairs(ann.get(groups_key()))
         pod = tmpl.get("spec") or {}
         self.cms: list[str] = []
         for vol in pod.get("volumes") or []:
@@ -341,7 +349,8 @@ def build_model(docs: list[dict], release: str, value_layers: list[dict], chart_
     m.kind_universe = sorted(named)
     for k in m.kind_universe:
         if k in schemas:
-            decl = schemas[k].get("x-openddil") if isinstance(schemas[k].get("x-openddil"), dict) else {}
+            skey = project.need("exchange.schema_key", "data_exchange")
+            decl = schemas[k].get(skey) if isinstance(schemas[k].get(skey), dict) else {}
             m.kinds[k] = {p: decl.get(p) for p in ("key", "label", "owning_tier")}
         else:
             m.kinds[k] = None

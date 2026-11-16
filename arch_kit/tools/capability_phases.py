@@ -47,14 +47,26 @@ from pathlib import Path
 import yaml
 
 import adr_sections
+import project
 from data_exchange import InputError
 from marks import adr_status
 
 PHASES = ["measured", "built unmeasured", "accepted design", "proposed", "row"]
 NOT_MEASURED = "not measured"
-FOLLOW_UPS = "FOLLOW-UPS.md"
-DEBT = "GENERALIZATION-DEBT.md"
-ROADMAP = "ROADMAP-2026-10-29-isolation-increments.md"
+
+
+def follow_ups():
+    return project.need("registers.follow_ups", "capability_phases")
+
+
+def debt():
+    return project.need("registers.debt", "capability_phases")
+
+
+def roadmap():
+    return project.need("registers.roadmap", "capability_phases")
+
+
 REGISTER_HEADER = ["ID", "Subject", "Status"]
 DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 OUTPUT_FIELDS = ("phase", "evidence")
@@ -284,13 +296,13 @@ def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> l
                 fails.append(f"entry {key} has a field '{f}': phase and evidence are computed, not recorded")
 
     index_text = read_text(decisions_dir / "README.md")
-    follow = read_text(decisions_dir / FOLLOW_UPS)
-    debt = read_text(decisions_dir / DEBT)
-    road = read_text(decisions_dir / ROADMAP)
+    follow = read_text(decisions_dir / follow_ups())
+    debt = read_text(decisions_dir / debt())
+    road = read_text(decisions_dir / roadmap())
     registers = register_rows(follow) if follow is not None else {}
     road_rows = roadmap_rows(road) if road is not None else []
-    for label, text in ((f"decisions/{FOLLOW_UPS}", follow), (f"decisions/{DEBT}", debt),
-                        (f"decisions/{ROADMAP}", road), ("decisions/README.md", index_text)):
+    for label, text in ((f"decisions/{follow_ups()}", follow), (f"decisions/{debt()}", debt),
+                        (f"decisions/{roadmap()}", road), ("decisions/README.md", index_text)):
         if text is None:
             fails.append(f"{label} cannot be read")
 
@@ -365,15 +377,15 @@ def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> l
         for row in cap.get("rows") or []:
             status = registers.get(row)
             if follow is not None and status is None:
-                fails.append(f"{name}: row {row} is not in a | ID | Subject | Status | register in decisions/{FOLLOW_UPS}")
+                fails.append(f"{name}: row {row} is not in a | ID | Subject | Status | register in decisions/{follow_ups()}")
             elif status is not None and status.lstrip("* ").lower().startswith("fixed"):
                 fails.append(f"{name}: row {row} is {status}, not open")
             if row.startswith("GD-") and debt is not None and not re.search(
                     rf"(?<![\w-]){re.escape(row)}(?![\w-])", debt):
-                fails.append(f"{name}: row {row} is not in decisions/{DEBT}")
+                fails.append(f"{name}: row {row} is not in decisions/{debt()}")
         increment = cap.get("increment")
         if increment and road is not None and roadmap_row(road_rows, increment) is None:
-            fails.append(f"{name}: increment {increment} is not on a table row of decisions/{ROADMAP}")
+            fails.append(f"{name}: increment {increment} is not on a table row of decisions/{roadmap()}")
         for m in cap.get("measured") or []:
             if (m or {}).get("entry") not in record["entries"]:
                 fails.append(f"{name}: measured names entry {(m or {}).get('entry')}, which entries does not declare")
@@ -537,7 +549,7 @@ def render_table(record: dict, capabilities: dict[str, str], decisions_dir, temp
 
     statuses = statuses_of(record, decisions_dir)
     index_text = read_text(decisions_dir / "README.md") or ""
-    road_rows = roadmap_rows(read_text(decisions_dir / ROADMAP) or "")
+    road_rows = roadmap_rows(read_text(decisions_dir / roadmap()) or "")
     rows, counts, used = [], dict.fromkeys(PHASES, 0), set()
     for name, parent in capabilities.items():
         cap = caps[name]

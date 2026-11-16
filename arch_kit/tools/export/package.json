@@ -1,5 +1,5 @@
 {
-  "name": "openddil-architecture-export",
+  "name": "arch-kit-export",
   "version": "0.0.0",
   "private": true,
   "description": "Build and browser-check tooling for the single-file HTML export of the architecture views.",

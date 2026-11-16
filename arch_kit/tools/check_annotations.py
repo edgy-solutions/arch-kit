@@ -2,7 +2,7 @@
 """check_annotations.py - check the topic and consumer-group annotations of a render.
 
 Reads `helm template` output (or a render file) and checks the two
-annotations `openddil.io/produces-topics` and `openddil.io/consumer-groups`
+annotations the declaration names (`exchange.annotations.produces` and `.groups`)
 that data_exchange.py reads. It does not go in check_views.py because it
 needs a render.
 
@@ -37,13 +37,12 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import project  # noqa: E402
-from data_exchange import (EXIT_CHECK, EXIT_INPUT, EXIT_OK, GROUPS, PRODUCES,  # noqa: E402
+from data_exchange import (EXIT_CHECK, EXIT_INPUT, EXIT_OK, groups_key, produces_key,  # noqa: E402
                            WORKLOAD_KINDS, InputError, Workload, build_model,
                            helm_render, load_docs, load_yaml_file, resolve_release,
                            split_pairs)
 
 DEFAULT_EXCEPTIONS = project.ROOT / "annotation-exceptions.yaml"
-ANNOTATIONS = (PRODUCES, GROUPS)
 BROKER_ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 TOPIC_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
@@ -97,14 +96,14 @@ def check_render(docs: list[dict], release: str, model, ledger) -> list[str]:
         w = Workload(doc, release)
         own = (doc.get("metadata") or {}).get("annotations") or {}
         tmpl = (pod_template(doc).get("metadata") or {}).get("annotations") or {}
-        for ann in ANNOTATIONS:
+        for ann in (produces_key(), groups_key()):
             if ann in own:
                 grammar += check_tokens(w.name, ann, own[ann], "")
             if ann in tmpl:
                 placement.append(f"FAIL: placement: {w.name} carries {ann} in its pod template; "
                                  "put it on the workload's own metadata")
                 grammar += check_tokens(w.name, ann, tmpl[ann], " (pod template)")
-        for ann in ANNOTATIONS:
+        for ann in (produces_key(), groups_key()):
             for src in (own, tmpl):
                 for b, _ in split_pairs(src.get(ann)):
                     if b not in model.brokers:

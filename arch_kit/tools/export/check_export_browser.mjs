@@ -35,7 +35,7 @@ mkdirSync(shots, { recursive: true });
 const PROFILES = ["uaf", "dodaf202", "naf4"];
 // Hard-coded counts, and how they are made up. Change them with the thing they count.
 //   29 views, plus the front page and the declarations page                  = 31
-//   31 capability pages: one per capability in model/openddil.sysml CapabilityTaxonomy
+//   31 capability pages: one per capability in the declared model file (`model.file`) CapabilityTaxonomy
 //   52 decision pages: one per decisions/ADR-*.md (51) plus the roadmap note (1)
 const BASE_PAGES = 31;
 const CAPABILITY_PAGES = 31;

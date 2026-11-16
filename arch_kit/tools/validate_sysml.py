@@ -23,7 +23,6 @@ from typing import Callable
 
 import project
 
-MODEL = project.ROOT / "model" / "openddil.sysml"
 MAIN_CLASS = "org.omg.sysml.interactive.SysMLInteractive"
 TIMEOUT_S = 200
 OUTPUT_CAP = 2_000_000
@@ -67,15 +66,16 @@ def filter_output(raw: str) -> str:
 
 def judge(case: str, output: str) -> str | None:
     """None when the case holds, else what was wrong."""
+    package = "Package " + project.need("model.package", "validate_sysml")
     errors = [ln for ln in output.splitlines() if "ERROR" in ln]
     if case == "good":
         if errors:
             return f"the model did not parse clean: {errors[0][:200]}"
-        if "Package OpenDDIL" not in output:
-            return "the parser did not report Package OpenDDIL"
+        if package not in output:
+            return f"the parser did not report {package}"
         return None
     if not errors:
-        if "Package OpenDDIL" not in output:
+        if package not in output:
             return "the parser reported neither an error nor the package, so it did not read the model"
         return "the fault was accepted, so this parser run proves nothing"
     if case == "link" and not any("NoSuchThing" in ln for ln in errors):
@@ -127,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--jar", required=True)
     ap.add_argument("--library", required=True)
     ap.add_argument("--java", default="java")
-    ap.add_argument("--model", default=str(MODEL))
+    ap.add_argument("--model", default=str(project.model_file("validate_sysml")))
     a = ap.parse_args(argv)
     try:
         model = Path(a.model).read_text(encoding="utf-8")

@@ -11,6 +11,11 @@ current directory. Paths in it are relative to the declaration file's own direct
 
 ROOT, REPO and DECISIONS are the resolved paths; CONFIG is the parsed map. A missing file, a kit
 version other than 1, or a missing path key exits 2 with a one-line message.
+
+The other keys (name, model.file, model.package, exchange.annotations.produces and .groups,
+exchange.schema_key, registers.follow_ups, .debt and .roadmap, readiness.default) are optional at
+load. need("model.file", "validate_sysml") returns the value when a tool uses it, and exits 2 with
+`arch-kit: <decl path>: missing key 'model.file' (needed by validate_sysml)` when it is absent.
 """
 from __future__ import annotations
 
@@ -46,10 +51,30 @@ def _load():
         if key not in paths:
             _die(f"arch-kit: {path}: missing key 'paths.{key}'")
     base = path.resolve().parent
-    return config, {key: (base / str(paths[key])).resolve() for key in KEYS}
+    return config, {key: (base / str(paths[key])).resolve() for key in KEYS}, path
 
 
-CONFIG, _PATHS = _load()
+CONFIG, _PATHS, PATH = _load()
 ROOT = _PATHS["root"]
 REPO = _PATHS["repo"]
 DECISIONS = _PATHS["decisions"]
+
+
+def need(dotted, tool):
+    """The declared value at a dotted key, or exit 2 naming the key and the tool that needs it."""
+    value = CONFIG
+    for part in dotted.split("."):
+        if not isinstance(value, dict) or part not in value:
+            _die(f"arch-kit: {PATH}: missing key '{dotted}' (needed by {tool})")
+        value = value[part]
+    return value
+
+
+def model_file(tool):
+    """The declared model file, resolved against paths.root."""
+    return ROOT / str(need("model.file", tool))
+
+
+def readiness_default(chart_dir, tool):
+    """The declared default readiness doc, relative to the chart directory."""
+    return Path(os.path.normpath(Path(chart_dir) / str(need("readiness.default", tool))))

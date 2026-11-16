@@ -349,9 +349,9 @@ class Decisions:
             if m.group(0) in self.files:
                 raise InputError(f"decisions/ has two files for {m.group(0)}")
             self.files[m.group(0)] = f
-        road = self.dir / capability_phases.ROADMAP
+        road = self.dir / capability_phases.roadmap()
         if not road.is_file():
-            raise InputError(f"decisions/{capability_phases.ROADMAP} does not exist")
+            raise InputError(f"decisions/{capability_phases.roadmap()} does not exist")
         self.files[ROADMAP_KEY] = road
         self.resolved = {k: f.resolve() for k, f in self.files.items()}
         self.raw = {k: f.read_text(encoding="utf-8").replace("\r\n", "\n") for k, f in self.files.items()}
@@ -1134,16 +1134,16 @@ def capability_pages(a: argparse.Namespace, uaf: "rp.Renderer", views: dict, nam
     cmap = capability_phases.model_capabilities(uaf.sysml)
     ddir = dec.dir
     cdir = Path(a.chart)
-    rpath = Path(a.readiness) if getattr(a, "readiness", None) else cdir.parent / "scripts" / "RECORDING-READINESS.md"
+    rpath = Path(a.readiness) if getattr(a, "readiness", None) else project.readiness_default(cdir, "render_html")
     try:
         readiness = rpath.read_text(encoding="utf-8")
     except OSError as e:
         raise InputError(f"cannot read the readiness doc {rpath}: {e.strerror or e}; pass --readiness")
     evidence = capability_phases.evidence_cells(record, readiness)
     statuses = capability_phases.statuses_of(record, ddir)
-    road_rows = capability_phases.roadmap_rows(dec.relabelled(capability_phases.read_text(ddir / capability_phases.ROADMAP) or ""))
+    road_rows = capability_phases.roadmap_rows(dec.relabelled(capability_phases.read_text(ddir / capability_phases.roadmap()) or ""))
     register: dict[str, tuple[str, str]] = {}
-    for f in (capability_phases.FOLLOW_UPS, capability_phases.DEBT):
+    for f in (capability_phases.follow_ups(), capability_phases.debt()):
         text = dec.relabelled(capability_phases.read_text(ddir / f) or "", count=True)
         for k, v in capability_phases.register_subjects(text).items():
             register.setdefault(k, v)
@@ -1342,7 +1342,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--chart", required=True)
     ap.add_argument("--values", action="append", default=[], required=True)
     ap.add_argument("--release", required=True, help="the Helm release name the chart is rendered under")
-    ap.add_argument("--readiness", help="the readiness doc (default: <chart>/../scripts/RECORDING-READINESS.md)")
+    ap.add_argument("--readiness", help="the readiness doc (default: the declared readiness.default, from the chart directory)")
     ap.add_argument("--record", default=str(ROOT / "capability-record.yaml"))
     ap.add_argument("--slots")
     ap.add_argument("--relabel", action="append", default=[],

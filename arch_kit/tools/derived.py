@@ -10,7 +10,7 @@ on a table that cannot be built.
       `depends on` and `folds into` columns, joined to capability-record.yaml
       by each capability's `increment`
   <!-- generated: resource-taxonomy -->        Rs-Tx  package ResourceKit in
-      model/openddil.sysml: what each type specialises, and where it is a part
+      the declared model file (`model.file`): what each type specialises, and where it is a part
   <!-- generated: ontology-dictionary -->      Am-If  ontology/*.yaml: each
       declared term with its entry count and field names, never an entry
   <!-- generated: adr-traceability -->        Am-Tr  decisions/ADR-*.md: each
@@ -306,7 +306,7 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
         title = re.sub(r"^\s*[:—–-]\s*", "", title).strip()
         # The framework's name appears only in the attribution line, which a
         # deployment can drop, so a title prints it as "the framework".
-        title = re.sub(r"\bOpenDDIL\b", "the framework", title)
+        title = re.sub(r"\b" + re.escape(project.need("name", "derived")) + r"\b", "the framework", title)
         try:
             info[adr] = (title, adr_class(adr, text))
         except CheckError as e:
@@ -397,7 +397,7 @@ def build(marker: str, root: Path, record_path: Path, sysml: str, masked: str) -
     if marker == DEPENDENCIES_MARKER:
         record = capability_phases.load_record(record_path)
         try:
-            roadmap = (repo / "decisions" / capability_phases.ROADMAP).read_text(encoding="utf-8")
+            roadmap = (repo / "decisions" / capability_phases.roadmap()).read_text(encoding="utf-8")
         except OSError as e:
             raise InputError(f"cannot read the roadmap note: {e.strerror or e}")
         return dependencies(record, roadmap)

@@ -23,7 +23,7 @@ values, a `system-name` value in --slots is the name; with neither, the
 title is as written in the view.
 
 Transforms on view text: `<!-- model: Pkg -->` becomes a fenced sysml block
-holding that package from model/openddil.sysml; `<!-- generated:
+holding that package from the declared model file (`model.file`); `<!-- generated:
 data-exchange -->` (data_exchange.home only) becomes the document that
 data_exchange.py writes, or a notice when --chart is not given; `<!--
 generated: capability-phases -->` (St-Rm-P only) becomes the table that
@@ -39,7 +39,7 @@ is replaced from the --slots file (a YAML map of slot name to string).
 system, and then --slots may not give another name.
 Unfilled slots stay as written and are counted.
 
---readiness defaults to <chart>/../scripts/RECORDING-READINESS.md. With
+--readiness defaults to the declared `readiness.default`, taken from the chart directory. With
 --chart, a readiness doc that cannot be read is exit 2: the phases never
 fall back to "not measured". The record is checked against the model and the
 decision records on every render, with or without --chart, and any failure
@@ -331,7 +331,7 @@ class Renderer:
         self.dx = self.prof.get("data_exchange") or {}
         self.home = self.dx.get("home")
         self.dx_id = self.dx[self.profile]["id"]
-        sysml_path = ROOT / "model" / "openddil.sysml"
+        sysml_path = project.model_file("render_profile")
         try:
             self.sysml = sysml_path.read_text(encoding="utf-8")
         except OSError as e:
@@ -374,7 +374,7 @@ class Renderer:
                 raise CheckError("".join(f"phases: {f}\n" for f in fails))
             return PHASES_NOTICE
         cdir = Path(self.a.chart)
-        path = Path(self.a.readiness) if self.a.readiness else cdir.parent / "scripts" / "RECORDING-READINESS.md"
+        path = Path(self.a.readiness) if self.a.readiness else project.readiness_default(cdir, "render_profile")
         try:
             readiness = path.read_text(encoding="utf-8")
         except OSError as e:
@@ -524,7 +524,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--allow-no-kinds", metavar="REASON")
     ap.add_argument("--record", default=str(ROOT / "capability-record.yaml"),
                     help="the capability record (default: docs/arch/capability-record.yaml)")
-    ap.add_argument("--readiness", help="the readiness doc (default: <chart>/../scripts/RECORDING-READINESS.md)")
+    ap.add_argument("--readiness", help="the readiness doc (default: the declared readiness.default, from the chart directory)")
     a = ap.parse_args(argv)
     try:
         if a.values and not a.chart:

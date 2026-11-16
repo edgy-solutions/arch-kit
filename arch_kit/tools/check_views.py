@@ -83,7 +83,7 @@ class Tree:
         self.slots = self.yaml(root / "slots.yaml")
         self.views: dict = self.profiles.get("views") or {}
         self.readme = self.text(root / "README.md")
-        self.sysml = self.text(root / "model" / "openddil.sysml")
+        self.sysml = self.text(project.model_file("check_views"))
         self.masked = mask_sysml(self.sysml)
         self.view_text = {vid: self.text(root / e["file"]) for vid, e in self.views.items()
                           if (root / e["file"]).is_file()}
