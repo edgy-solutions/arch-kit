@@ -349,9 +349,9 @@ class Decisions:
             if m.group(0) in self.files:
                 raise InputError(f"decisions/ has two files for {m.group(0)}")
             self.files[m.group(0)] = f
-        road = self.dir / capability_phases.roadmap()
+        road = self.dir / capability_phases.roadmap_file()
         if not road.is_file():
-            raise InputError(f"decisions/{capability_phases.roadmap()} does not exist")
+            raise InputError(f"decisions/{capability_phases.roadmap_file()} does not exist")
         self.files[ROADMAP_KEY] = road
         self.resolved = {k: f.resolve() for k, f in self.files.items()}
         self.raw = {k: f.read_text(encoding="utf-8").replace("\r\n", "\n") for k, f in self.files.items()}
@@ -1141,9 +1141,9 @@ def capability_pages(a: argparse.Namespace, uaf: "rp.Renderer", views: dict, nam
         raise InputError(f"cannot read the readiness doc {rpath}: {e.strerror or e}; pass --readiness")
     evidence = capability_phases.evidence_cells(record, readiness)
     statuses = capability_phases.statuses_of(record, ddir)
-    road_rows = capability_phases.roadmap_rows(dec.relabelled(capability_phases.read_text(ddir / capability_phases.roadmap()) or ""))
+    road_rows = capability_phases.roadmap_rows(dec.relabelled(capability_phases.read_text(ddir / capability_phases.roadmap_file()) or ""))
     register: dict[str, tuple[str, str]] = {}
-    for f in (capability_phases.follow_ups(), capability_phases.debt()):
+    for f in (capability_phases.follow_ups_file(), capability_phases.debt_file()):
         text = dec.relabelled(capability_phases.read_text(ddir / f) or "", count=True)
         for k, v in capability_phases.register_subjects(text).items():
             register.setdefault(k, v)

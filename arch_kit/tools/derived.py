@@ -397,7 +397,7 @@ def build(marker: str, root: Path, record_path: Path, sysml: str, masked: str) -
     if marker == DEPENDENCIES_MARKER:
         record = capability_phases.load_record(record_path)
         try:
-            roadmap = (repo / "decisions" / capability_phases.roadmap()).read_text(encoding="utf-8")
+            roadmap = (repo / "decisions" / capability_phases.roadmap_file()).read_text(encoding="utf-8")
         except OSError as e:
             raise InputError(f"cannot read the roadmap note: {e.strerror or e}")
         return dependencies(record, roadmap)
