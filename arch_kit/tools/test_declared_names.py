@@ -11,12 +11,14 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 KIT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 os.environ.setdefault("ARCH_KIT_CONFIG", str(HERE / "testdata" / "arch-kit.yaml"))
 import data_exchange  # noqa: E402
+import project  # noqa: E402
 
 # The first consumer's name stem, assembled so this file does not hold it.
 STEM = re.compile("d" + "dil", re.IGNORECASE)
@@ -82,6 +84,21 @@ class MissingKey(unittest.TestCase):
         self.assertEqual(p.returncode, 2)
         self.assertEqual(p.stderr.strip(),
                          f"arch-kit: {decl}: missing key 'model.file' (needed by validate_sysml)")
+
+
+class ModelFileRoot(unittest.TestCase):
+    def test_model_file_is_under_the_root_it_is_given(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        a, b = tmp / "A", tmp / "B"
+        for d, text in ((a, "from A"), (b, "from B")):
+            (d / "model").mkdir(parents=True)
+            (d / "model" / "example.sysml").write_text(text, encoding="utf-8")
+        with mock.patch.object(project, "ROOT", a):
+            self.assertEqual(project.model_file("check_views"), a / "model" / "example.sysml")
+            got = project.model_file("check_views", root=b)
+        self.assertEqual(got, b / "model" / "example.sysml")
+        self.assertEqual(got.read_text(encoding="utf-8"), "from B")
 
 
 class DeclaredNamesAreUsed(unittest.TestCase):

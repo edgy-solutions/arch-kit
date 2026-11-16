@@ -70,9 +70,9 @@ def need(dotted, tool):
     return value
 
 
-def model_file(tool):
-    """The declared model file, resolved against paths.root."""
-    return ROOT / str(need("model.file", tool))
+def model_file(tool, root=None):
+    """The declared model file, resolved against root when given, else paths.root."""
+    return (Path(root) if root else ROOT) / str(need("model.file", tool))
 
 
 def readiness_default(chart_dir, tool):
