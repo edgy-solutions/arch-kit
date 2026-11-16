@@ -1,0 +1,47 @@
+# The kit's own tests, on every push and pull request to main.
+#
+# The project-name check runs first as its own step, so its result is visible
+# on the run page. The full suite then runs it again with everything else. A
+# skipped test fails the job: in CI a skipped test is not a pass.
+#
+# Python 3.12, the same as the first consumer's CI.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - run: pip install pyyaml markdown-it-py==4.0.0
+
+      - name: Project-name check
+        run: python -m unittest discover -s arch_kit/tools -p 'test_declared_names.py' -v
+
+      - name: Tests
+        run: |
+          set +e
+          python -m unittest discover -s arch_kit/tools -p 'test_*.py' > "$RUNNER_TEMP/tests.log" 2>&1
+          rc=$?
+          set -e
+          tail -n 8 "$RUNNER_TEMP/tests.log"
+          if [ "$rc" != 0 ]; then exit "$rc"; fi
+          if grep -q 'skipped=' "$RUNNER_TEMP/tests.log"; then
+            echo "tests: some were skipped; in CI a skipped test is not a pass"
+            exit 1
+          fi
