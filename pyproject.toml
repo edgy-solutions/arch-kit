@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arch-kit"
+dynamic = ["version"]
+requires-python = ">=3.10"
+dependencies = ["pyyaml", "markdown-it-py==4.0.0"]
+
+[tool.setuptools]
+packages = ["arch_kit", "arch_kit.tools"]
+
+[tool.setuptools.dynamic]
+version = { attr = "arch_kit.__version__" }
+
+[tool.setuptools.package-data]
+"arch_kit.tools" = ["*.py", "*.txt", "*.mjs", "*.json", "export/*", "testdata/*"]

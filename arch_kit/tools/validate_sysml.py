@@ -21,7 +21,9 @@ import sys
 from pathlib import Path
 from typing import Callable
 
-MODEL = Path(__file__).resolve().parents[1] / "model" / "openddil.sysml"
+import project
+
+MODEL = project.ROOT / "model" / "openddil.sysml"
 MAIN_CLASS = "org.omg.sysml.interactive.SysMLInteractive"
 TIMEOUT_S = 200
 OUTPUT_CAP = 2_000_000

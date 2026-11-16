@@ -48,6 +48,7 @@ import capability_phases
 import data_exchange
 import derived
 import marks
+import project
 from marks import adr_status
 from render_profile import mask_sysml, package_depths
 
@@ -323,7 +324,7 @@ def rule_decision_links(t: Tree) -> list[str]:
     In St-Tx every such link must. In any view a link text with a § must be a citation of the linked
     record that resolves, and a fragment must be the slug of the section it names."""
     fails = []
-    decisions = (t.root.parent.parent / "decisions").resolve()
+    decisions = project.DECISIONS.resolve()
     for vid, text in t.view_text.items():
         for line in outside_fences(COMMENT_RE.sub("", text)):
             for label, target in TEXT_LINK_RE.findall(CODE_SPAN_RE.sub("", line)):
@@ -390,7 +391,7 @@ def rule_sources_table(t: Tree) -> list[str]:
 
 def rule_marks(t: Tree) -> list[str]:
     fails = []
-    decisions = t.root.parent.parent / "decisions"
+    decisions = project.DECISIONS
     for vid, text in t.view_text.items():
         got = sources_table(text)
         if got is None or got[0] != SOURCES_HEADER:
@@ -570,7 +571,7 @@ def rule_phases(t: Tree) -> list[str]:
         capabilities = capability_phases.model_capabilities(t.sysml)
     except capability_phases.InputError as e:
         raise InputError(str(e))
-    decisions = t.root.parent.parent / "decisions"
+    decisions = project.DECISIONS
     return fails + [f"phases: {f}" for f in capability_phases.check_record(record, capabilities, decisions)]
 
 
@@ -596,7 +597,7 @@ def rule_quotes(t: Tree, a: argparse.Namespace) -> list[str]:
     try:
         record = capability_phases.load_record(t.root / "capability-record.yaml")
         capabilities = capability_phases.model_capabilities(t.sysml)
-        decisions = t.root.parent.parent / "decisions"
+        decisions = project.DECISIONS
         readiness = t.text(Path(a.readiness))
         try:
             capability_phases.render_table(record, capabilities, decisions, Path(a.chart) / "templates", readiness)
@@ -617,7 +618,7 @@ def rule_floor(t: Tree, a: argparse.Namespace) -> list[str]:
     try:
         record = capability_phases.load_record(t.root / "capability-record.yaml")
         capabilities = capability_phases.model_capabilities(t.sysml)
-        statuses = capability_phases.statuses_of(record, t.root.parent.parent / "decisions")
+        statuses = capability_phases.statuses_of(record, project.DECISIONS)
         items, _ = capability_floor.render_inputs(a.chart, a.values, a.release)
     except data_exchange.InputError as e:
         raise InputError(str(e))
@@ -639,7 +640,7 @@ PARTIAL_FLAGS = [("--chart", "chart"), ("--values", "values"), ("--release", "re
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Check the architecture views against the rules.")
-    ap.add_argument("--root", default=str(Path(__file__).resolve().parent.parent))
+    ap.add_argument("--root", default=str(project.ROOT))
     ap.add_argument("--chart", help="the chart directory the floor renders and the table reads templates from")
     ap.add_argument("--values", action="append", default=[], help="a values file, in order (repeatable)")
     ap.add_argument("--release", help="the Helm release name")

@@ -36,12 +36,13 @@ from pathlib import Path
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import project  # noqa: E402
 from data_exchange import (EXIT_CHECK, EXIT_INPUT, EXIT_OK, GROUPS, PRODUCES,  # noqa: E402
                            WORKLOAD_KINDS, InputError, Workload, build_model,
                            helm_render, load_docs, load_yaml_file, resolve_release,
                            split_pairs)
 
-DEFAULT_EXCEPTIONS = Path(__file__).resolve().parent.parent / "annotation-exceptions.yaml"
+DEFAULT_EXCEPTIONS = project.ROOT / "annotation-exceptions.yaml"
 ANNOTATIONS = (PRODUCES, GROUPS)
 BROKER_ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 TOPIC_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")

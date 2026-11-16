@@ -27,10 +27,11 @@ from pathlib import Path
 import yaml
 
 import capability_phases
+import project
 
 HERE = Path(__file__).resolve().parent
-ARCH = HERE.parent
-REPO = ARCH.parent.parent
+ARCH = project.ROOT
+REPO = project.REPO
 TOOL = HERE / "check_views.py"
 RECORD = "capability-record.yaml"
 EXIT_OK, EXIT_CHECK, EXIT_INPUT = 0, 1, 2

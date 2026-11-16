@@ -38,6 +38,7 @@ import yaml
 
 import capability_phases
 import marks
+import project
 from capability_phases import CheckError
 from data_exchange import InputError
 
@@ -392,7 +393,7 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
 
 def build(marker: str, root: Path, record_path: Path, sysml: str, masked: str) -> str:
     """The table for one marker. root is docs/arch."""
-    repo = root.parent.parent
+    repo = project.REPO
     if marker == DEPENDENCIES_MARKER:
         record = capability_phases.load_record(record_path)
         try:

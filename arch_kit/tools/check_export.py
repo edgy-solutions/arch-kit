@@ -39,6 +39,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import capability_phases  # noqa: E402
 import check_views  # noqa: E402
+import project  # noqa: E402
 from data_exchange import InputError as DataInputError  # noqa: E402
 import relabel  # noqa: E402
 import render_profile as rp  # noqa: E402
@@ -211,7 +212,7 @@ def check_decisions(raw: str, tree: check_views.Tree) -> list[str]:
     """One page per decision record, each stamped with the commit it was read at."""
     fails: list[str] = []
     pages = {pid: body for pid, body in PAGE_RE.findall(raw) if pid.startswith(("adr-", "decision-"))}
-    directory = tree.root.parent.parent / "decisions"
+    directory = project.DECISIONS
     if directory.is_dir():
         want = sorted(f.name[:8].lower() for f in directory.glob("ADR-*.md")) + ["decision-roadmap"]
         got = sorted(i for i in pages if i != "decision-roadmap") + ["decision-roadmap"] * ("decision-roadmap" in pages)

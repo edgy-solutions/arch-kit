@@ -19,12 +19,14 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import project
+
 CITATION_RE = re.compile(r"^(ADR-\d{4}) §([0-9A-Za-z](?:[\w-]|\.(?=\w))*)$")
 CITATION_IN_TEXT_RE = re.compile(r"(?<![\w-])(ADR-\d{4}) §([0-9A-Za-z](?:[\w-]|\.(?=\w))*)")
 HEADING_RE = re.compile(r"^ {0,3}(#{2,4})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$")
 FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 NUMBER_RE = re.compile(r"^(\d+[a-z]?(?:\.\d+)*)(?=[.\s])")
-DECISIONS = Path(__file__).resolve().parent.parent.parent.parent / "decisions"
+DECISIONS = project.DECISIONS
 
 
 @dataclass(frozen=True)

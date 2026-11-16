@@ -71,10 +71,11 @@ from data_exchange import InputError, presentation  # noqa: E402
 import capability_phases  # noqa: E402
 import derived  # noqa: E402
 import marks  # noqa: E402
+import project  # noqa: E402
 from capability_phases import CheckError  # noqa: E402
 
 EXIT_OK, EXIT_CHECK, EXIT_INPUT = 0, 1, 2
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = project.ROOT
 TOOLS = Path(__file__).resolve().parent
 PROFILE_NAMES = ["uaf", "dodaf202", "naf4"]
 NOTICE = "Not generated: pass --chart and --values to fill this from a bundle."
@@ -366,7 +367,7 @@ class Renderer:
         """The phases table, or the notice. The record is checked either way."""
         record = capability_phases.load_record(self.a.record)
         capabilities = capability_phases.model_capabilities(self.sysml)
-        decisions = ROOT.parent.parent / "decisions"
+        decisions = project.DECISIONS
         if not self.a.chart:
             fails = capability_phases.check_record(record, capabilities, decisions)
             if fails:
@@ -402,7 +403,7 @@ class Renderer:
         for mk, home in derived.HOMES.items():
             if mk in body and vid != home:
                 raise InputError(f"view {vid}: the marker {mk} belongs only in {home}")
-        body = marks.fill(body, (ROOT / entry["file"]).parent, ROOT.parent.parent / "decisions", vid)
+        body = marks.fill(body, (ROOT / entry["file"]).parent, project.DECISIONS, vid)
         body = inline_model(body, self.sysml, self.masked)
         body = rewrite_links(body, (ROOT / entry["file"]).parent, self.out_dir)
         body = fill_slots(body, self.slot_values)

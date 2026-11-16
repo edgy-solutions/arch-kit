@@ -40,6 +40,8 @@ from pathlib import Path
 
 import yaml
 
+import project
+
 EXIT_OK, EXIT_CHECK, EXIT_INPUT = 0, 1, 2
 WORKLOAD_KINDS = {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"}
 PRODUCES = "openddil.io/produces-topics"
@@ -53,7 +55,7 @@ RAW_INGEST_RE = re.compile(r"^ingress-[a-z0-9]+(?:-[a-z0-9]+)*-raw$")
 RAW_INGEST_READERS: frozenset[str] = frozenset()
 STAMP_NOT_MEASURED = ("Declared, not measured: this table reads a render; "
                       "nothing here was observed running.")
-PROFILES_PATH = Path(__file__).resolve().parent.parent / "profiles.yaml"
+PROFILES_PATH = project.ROOT / "profiles.yaml"
 LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
 MEANINGS = {

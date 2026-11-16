@@ -63,6 +63,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import adr_sections  # noqa: E402
 import capability_phases  # noqa: E402
 import check_views  # noqa: E402
+import project  # noqa: E402
 import relabel  # noqa: E402
 import render_profile as rp  # noqa: E402
 from capability_phases import PHASES, CheckError  # noqa: E402
@@ -70,7 +71,7 @@ from data_exchange import InputError  # noqa: E402
 
 EXIT_OK, EXIT_CHECK, EXIT_INPUT = 0, 1, 2
 ROOT = rp.ROOT
-REPO = ROOT.parent.parent
+REPO = project.REPO
 PROFILE_NAMES = rp.PROFILE_NAMES
 DECLARED = ("Declared, not measured: this export reads the views, the model and a chart render, "
             "and read no running system.")
