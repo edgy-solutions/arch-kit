@@ -3,3 +3,18 @@ paths:
   root: .
   repo: .
   decisions: .
+name: Example
+model:
+  file: model/example.sysml
+  package: Example
+exchange:
+  annotations:
+    produces: example.org/produces-topics
+    groups: example.org/consumer-groups
+  schema_key: x-example
+registers:
+  follow_ups: FOLLOW-UPS.md
+  debt: DEBT.md
+  roadmap: ROADMAP.md
+readiness:
+  default: ../scripts/READINESS.md
