@@ -12,13 +12,13 @@ Usage:
         --readiness FILE --barred FILE [--barred FILE ...]
     python docs/arch/tools/check_views.py [--root docs/arch] --allow-partial REASON
 
-Rules: exports, appendix-a, view-files, slots, links, sources-table,
-marks, model, capabilities, trace, outputs, generated, phases, derived,
-quotes, floor.
+Rules: exports, appendix-a, view-files, slots, links, decision-links,
+sources-table, marks, model, capabilities, trace, outputs, generated,
+phases, derived, quotes, floor.
 `quotes` and `floor` need the chart, its values, the release name, the
 readiness doc and the barred list, so a call that omits any of the five
 exits 2. A check that quietly does less is the bug it exists to catch.
---allow-partial REASON runs the first fourteen and says so in its ok line.
+--allow-partial REASON runs the other fifteen and says so in its ok line.
 `slots` also fails on a `none yet` slot with no line in INVENTORY.md's slot
 table, and on a line there for a slot that has a source.
 `marks` reads the status line of every record in decisions/ that a Sources row
