@@ -1252,7 +1252,7 @@ def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
     rows = appendix_ids(ROOT)
     prov = provenance(a, date)
     rules = relabel.load(getattr(a, "relabel", None) or [])
-    dec = Decisions(REPO / "decisions", rules)
+    dec = Decisions(project.DECISIONS, rules)
 
     dx_text, dx_cells = dx_variants({p: r.dx_content() for p, r in renderers.items()})
 

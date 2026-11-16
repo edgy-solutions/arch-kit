@@ -2,6 +2,7 @@
 """Tests for marks.py: what a status line fixes, and the fill that reads it."""
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 import tempfile
@@ -10,6 +11,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+os.environ.setdefault("ARCH_KIT_CONFIG", str(HERE / "testdata" / "arch-kit.yaml"))
 
 import marks  # noqa: E402
 from data_exchange import InputError  # noqa: E402

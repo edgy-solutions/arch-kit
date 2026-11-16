@@ -6,6 +6,7 @@ Run from the worktree root:
 Synthetic documents, models and records. No helm, no chart.
 """
 import copy
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -13,6 +14,7 @@ from types import SimpleNamespace
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+os.environ.setdefault("ARCH_KIT_CONFIG", str(HERE / "testdata" / "arch-kit.yaml"))
 import capability_floor as cf  # noqa: E402
 import capability_phases as cp  # noqa: E402
 

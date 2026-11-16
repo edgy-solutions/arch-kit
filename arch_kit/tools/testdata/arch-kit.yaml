@@ -1,0 +1,5 @@
+kit: 1
+paths:
+  root: .
+  repo: .
+  decisions: .
