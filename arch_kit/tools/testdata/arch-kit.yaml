@@ -18,3 +18,4 @@ registers:
   roadmap: ROADMAP.md
 readiness:
   default: ../scripts/READINESS.md
+loader: loader.py

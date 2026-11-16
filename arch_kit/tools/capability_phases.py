@@ -44,12 +44,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import yaml
-
 import adr_sections
 import project
 from data_exchange import InputError
-from marks import adr_status
 
 PHASES = ["measured", "built unmeasured", "accepted design", "proposed", "row"]
 NOT_MEASURED = "not measured"
@@ -67,11 +64,8 @@ def roadmap_file():
     return project.need("registers.roadmap", "capability_phases")
 
 
-REGISTER_HEADER = ["ID", "Subject", "Status"]
-DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 OUTPUT_FIELDS = ("phase", "evidence")
 NOT_STATED = "not stated"
-SECTIONS = ("lanes", "labs", "entries", "capabilities")
 CAP_KEYS = ("description", "derived_from", "adrs", "built", "measured", "rows", "still_open", "increment",
             "severed", "pending")
 ADR_ID_RE = re.compile(r"ADR-\d{4}")
@@ -84,51 +78,25 @@ class CheckError(Exception):
 # --- record and model ---------------------------------------------------------
 
 def load_record(path) -> dict:
-    try:
-        with open(path, encoding="utf-8") as f:
-            record = yaml.safe_load(f)
-    except (OSError, yaml.YAMLError) as e:
-        raise InputError(f"cannot read {path}: {e}")
-    if not isinstance(record, dict):
-        raise InputError(f"{path}: expected a map")
-    for key in SECTIONS:
-        if not isinstance(record.get(key), dict):
-            raise InputError(f"{path}: '{key}' is missing or is not a map")
-    return record
+    return project.loader("capability_phases").load_record(path)
 
 
 def model_capabilities(sysml_text: str) -> dict[str, str]:
-    """Concrete capability name to its direct parent, in model order, from CapabilityTaxonomy."""
-    from render_profile import mask_sysml, match_brace  # render_profile imports this module
-    masked = mask_sysml(sysml_text)
-    m = re.search(r"\bpackage\s+CapabilityTaxonomy\s*\{", masked)
-    if not m:
-        raise InputError("the model has no package CapabilityTaxonomy")
-    body = masked[m.end():match_brace(masked, m.end() - 1)]
-    return {c.group(1): c.group(2)
-            for c in re.finditer(r"^\s*occurrence\s+def\s+(\w+)\s*:>\s*(\w+)\s*;", body, re.M)}
+    return project.loader("capability_phases").model_capabilities(sysml_text)
 
 
 # --- reading the decisions ----------------------------------------------------
 
 def read_text(path: Path) -> str | None:
-    try:
-        return path.read_text(encoding="utf-8")
-    except OSError:
-        return None
+    return project.loader("capability_phases").read_text(path)
 
 
 def adr_file(decisions_dir: Path, adr: str) -> Path | None:
-    found = sorted(Path(decisions_dir).glob(f"{adr}-*.md"))
-    return found[0] if len(found) == 1 else None
+    return project.loader("capability_phases").adr_file(decisions_dir, adr)
 
 
 def adr_lead(decisions_dir: Path, adr: str) -> str | None:
-    """The file's status, lowercased, leading `*` and space stripped; None if there is no file or status."""
-    path = adr_file(decisions_dir, adr)
-    text = read_text(path) if path else None
-    status = adr_status(text) if text is not None else None
-    return status.lstrip("* ").lower() if status else None
+    return project.loader("capability_phases").adr_lead(decisions_dir, adr)
 
 
 def adr_id(citation) -> str:
@@ -184,39 +152,15 @@ def split_row(line: str) -> list[str]:
 
 
 def register_rows(text: str) -> dict[str, str]:
-    """Row id to status, for every `| ID | Subject | Status |` register in the text."""
-    out: dict[str, str] = {}
-    lines = text.split("\n")
-    for i, line in enumerate(lines):
-        if not line.lstrip().startswith("|") or split_row(line) != REGISTER_HEADER:
-            continue
-        for nxt in lines[i + 2:]:
-            if not nxt.lstrip().startswith("|"):
-                break
-            cells = split_row(nxt)
-            if len(cells) >= 3:
-                out.setdefault(cells[0], cells[-1])
-    return out
+    return project.loader("capability_phases").register_rows(text)
 
 
 def register_subjects(text: str) -> dict[str, tuple[str, str]]:
-    """Row id to (subject, status), for every `| ID | Subject | Status |` register in the text."""
-    out: dict[str, tuple[str, str]] = {}
-    lines = text.split("\n")
-    for i, line in enumerate(lines):
-        if not line.lstrip().startswith("|") or split_row(line) != REGISTER_HEADER:
-            continue
-        for nxt in lines[i + 2:]:
-            if not nxt.lstrip().startswith("|"):
-                break
-            cells = split_row(nxt)
-            if len(cells) >= 3:
-                out.setdefault(cells[0], (cells[1], cells[-1]))
-    return out
+    return project.loader("capability_phases").register_subjects(text)
 
 
 def roadmap_rows(text: str) -> list[list[str]]:
-    return [split_row(ln) for ln in text.split("\n") if ln.lstrip().startswith("|")]
+    return project.loader("capability_phases").roadmap_rows(text)
 
 
 def roadmap_row(rows: list[list[str]], increment: str) -> list[str] | None:
@@ -234,9 +178,7 @@ def increment_label(cap: dict, road_rows: list[list[str]]) -> str | None:
 
 
 def index_status(index_text: str, adr: str) -> str | None:
-    """The bold status the decisions index gives an ADR, when it begins accepted or proposed."""
-    m = re.search(rf"\[{re.escape(adr)}:[^\n]*?\)\s*—\s*\*\*(accepted|proposed)", index_text, re.I)
-    return m.group(1).lower() if m else None
+    return project.loader("capability_phases").index_status(index_text, adr)
 
 
 def sentences(text: str) -> int:
@@ -412,65 +354,15 @@ def phase_of(cap: dict, statuses: dict[str, str | None]) -> str | None:
 # --- the document -------------------------------------------------------------
 
 def quote_of(lines: list[str], at: int) -> str:
-    """The cited readiness line, as a short quote."""
-    first = lines[at].strip()
-    if first.startswith("|"):
-        cells = [c for c in split_row(first) if c]
-        if cells and re.match(r"^\d+(\.\d+)?$", cells[0]):
-            cells = cells[1:]
-        text = ": ".join(cells)
-    else:
-        parts: list[str] = []
-        for j, raw in enumerate(lines[at:at + 6]):
-            s = raw.strip()
-            if j == 0:
-                s = re.sub(r"^[*-] ", "", s)
-            if ". " in s:
-                parts.append(s[:s.index(". ") + 1])
-                break
-            if s.endswith("."):
-                parts.append(s)
-                break
-            parts.append(s)
-        text = " ".join(parts)
-    return text.replace("**", "").replace("|", "\\|")
+    return project.loader("capability_phases").quote_of(lines, at)
 
 
 def resolve_entries(record: dict, readiness_lines: list[str]) -> tuple[dict, list[str]]:
-    """Entry name to (anchor line index, date, section), and the failures."""
-    found, fails = {}, []
-    for key, entry in record["entries"].items():
-        anchor = (entry or {}).get("anchor")
-        if not anchor:
-            fails.append(f"entry {key} has no anchor")
-            continue
-        hits = [i for i, ln in enumerate(readiness_lines) if anchor in ln]
-        if len(hits) != 1:
-            fails.append(f"entry {key}: anchor {anchor!r} is on {len(hits)} readiness lines, expected one")
-            continue
-        at = hits[0]
-        date = DATE_RE.search(readiness_lines[at])
-        if not date:
-            fails.append(f"entry {key}: the line of anchor {anchor!r} holds no date")
-            continue
-        head = next((j for j in range(at, -1, -1) if readiness_lines[j].startswith("## ")), None)
-        if head is None:
-            fails.append(f"entry {key}: anchor {anchor!r} has no ## heading above it")
-            continue
-        found[key] = (at, date.group(0), readiness_lines[head][3:].split(" — ")[0].strip())
-    return found, fails
+    return project.loader("capability_phases").resolve_entries(record, readiness_lines)
 
 
 def measured_line(readiness_lines: list[str], at: int, text: str) -> list[int]:
-    """Indexes of the lines holding text, from the anchor to the next ## or ### heading."""
-    hits = []
-    for i in range(at, len(readiness_lines)):
-        ln = readiness_lines[i]
-        if i > at and ln.startswith(("## ", "### ")):
-            break
-        if text in ln:
-            hits.append(i)
-    return hits
+    return project.loader("capability_phases").measured_line(readiness_lines, at, text)
 
 
 def lab_sentence(labs: dict, used: list[str]) -> str:
@@ -482,27 +374,7 @@ def lab_sentence(labs: dict, used: list[str]) -> str:
 
 
 def resolve_quotes(record: dict, readiness: list[str], entries: dict | None = None) -> tuple[dict, list[str]]:
-    """(capability, index of its measured citation) to the cited readiness quote, and the failures.
-
-    `readiness` is the document's lines. `entries` is from resolve_entries; given, its failures
-    are the caller's already.
-    """
-    fails: list[str] = []
-    if entries is None:
-        entries, fails = resolve_entries(record, readiness)
-    quotes: dict[tuple[str, int], str] = {}
-    for name, cap in record["capabilities"].items():
-        for k, m in enumerate((cap or {}).get("measured") or []):
-            entry, line = (m or {}).get("entry"), (m or {}).get("line")
-            if entry not in entries or not line:
-                continue  # an unknown entry or an unresolved anchor is already a failure
-            hits = measured_line(readiness, entries[entry][0], line)
-            if len(hits) != 1:
-                fails.append(f"{name}: entry {entry} line {line!r} is on {len(hits)} readiness lines "
-                             "from the anchor to the next heading, expected one")
-            else:
-                quotes[(name, k)] = quote_of(readiness, hits[0])
-    return quotes, fails
+    return project.loader("capability_phases").resolve_quotes(record, readiness, entries=entries)
 
 
 def evidence_item(record: dict, entries: dict, measured: dict, quote: str) -> str:

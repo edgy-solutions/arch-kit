@@ -13,12 +13,13 @@ ROOT, REPO and DECISIONS are the resolved paths; CONFIG is the parsed map. A mis
 version other than 1, or a missing path key exits 2 with a one-line message.
 
 The other keys (name, model.file, model.package, exchange.annotations.produces and .groups,
-exchange.schema_key, registers.follow_ups, .debt and .roadmap, readiness.default) are optional at
+exchange.schema_key, registers.follow_ups, .debt and .roadmap, readiness.default, loader) are optional at
 load. need("model.file", "validate_sysml") returns the value when a tool uses it, and exits 2 with
 `arch-kit: <decl path>: missing key 'model.file' (needed by validate_sysml)` when it is absent.
 """
 from __future__ import annotations
 
+import importlib.util
 import os
 import sys
 from pathlib import Path
@@ -68,6 +69,27 @@ def need(dotted, tool):
             _die(f"arch-kit: {PATH}: missing key '{dotted}' (needed by {tool})")
         value = value[part]
     return value
+
+
+_LOADERS: dict[str, object] = {}
+
+
+def loader(tool):
+    """The declared loader module (`loader:` in the declaration, relative to it), imported once by path.
+
+    It reads the consumer's files and provides the names of arch_kit/tools/seam.py. A missing key
+    exits 2 as need() does; a missing file exits 2 naming the path."""
+    value = str(need("loader", tool))
+    path = (PATH.resolve().parent / value).resolve()
+    if str(path) not in _LOADERS:
+        if not path.is_file():
+            _die(f"arch-kit: {PATH}: loader file {path} not found")
+        spec = importlib.util.spec_from_file_location("arch_kit_loader_" + path.stem, path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        _LOADERS[str(path)] = module
+    return _LOADERS[str(path)]
 
 
 def model_file(tool, root=None):

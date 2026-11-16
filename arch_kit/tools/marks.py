@@ -24,6 +24,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import project
 from data_exchange import InputError
 
 STATUS_TOKEN = "Status line"
@@ -32,30 +33,7 @@ LINK_RE = re.compile(r"\[[^\]\n]*\]\(([^)\s]+)\)")
 
 
 def adr_status(text: str) -> str | None:
-    lines = text.split("\n")
-    for i, line in enumerate(lines):
-        if re.match(r"^##\s+Status\s*$", line):
-            body = []
-            for nxt in lines[i + 1:]:
-                if nxt.startswith("#"):
-                    break
-                body.append(nxt)
-            s = "\n".join(body).strip()
-            return s or None
-    for line in lines:
-        m = re.match(r"^\**Status\**\s*[:\-]?\s*\**\s*(.+)$", line)
-        if m:
-            return m.group(1).strip()
-    for i, line in enumerate(lines):
-        if line.startswith("# "):
-            para = []
-            for nxt in lines[i + 1:]:
-                if nxt.strip():
-                    para.append(nxt.strip())
-                elif para:
-                    break
-            return " ".join(para) or None
-    return None
+    return project.loader("marks").adr_status(text)
 
 
 def fixed_evidence(status: str | None) -> str | None:
