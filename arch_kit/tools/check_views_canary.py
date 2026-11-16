@@ -17,6 +17,7 @@ PyYAML only.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import shutil
 import subprocess
@@ -106,8 +107,9 @@ def run_cases(a: argparse.Namespace, tmp: Path) -> int:
         return out
 
     def run(root: Path, barred: list[str]) -> tuple[int, str]:
+        env = {**os.environ, "ARCH_KIT_CONFIG": str(root / "arch-kit.yaml")}  # the copy's own declaration
         p = subprocess.run([sys.executable, str(TOOL), "--root", str(root), *flags(barred)],
-                           capture_output=True, text=True, encoding="utf-8")
+                           capture_output=True, text=True, encoding="utf-8", env=env)
         return p.returncode, p.stdout + p.stderr
 
     cases = []  # (name, root, barred, expected exit, fragment in stderr, word that must not appear)
