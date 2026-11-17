@@ -46,9 +46,11 @@ import capability_floor
 import adr_sections
 import capability_phases
 import data_exchange
+import declared
 import derived
 import marks
 import project
+import uaf
 from marks import adr_status
 from render_profile import mask_sysml, package_depths
 
@@ -61,13 +63,10 @@ SOURCES_HEADER = "| Claim | Source | Decision | Evidence |"
 SLOT_INVENTORY_HEADER = "| Slot | Declaration that would fill it | Artefact |"
 GEN_MARKER = "<!-- generated: data-exchange -->"
 PHASES_MARKER = "<!-- generated: capability-phases -->"
-PHASES_HOME = "St-Rm-P"
 MODEL_RE = re.compile(r"<!--\s*model:\s*([A-Za-z_]\w*)\s*-->")
 SLOT_RE = re.compile(r"\{\{slot:([A-Za-z0-9_-]+)\}\}")
 LINK_RE = re.compile(r"\[[^\]\n]*\]\(([^)\s]+)\)")
 CODE_SPAN_RE = re.compile(r"`[^`\n]*`")
-REQUIRED_DODAF = ["OV-1", "OV-2", "OV-5a", "OV-5b", "SV-1", "SV-2", "SV-4", "SV-6", "StdV-1", "DIV-2", "CV-2"]
-REQUIRED_VIEWS = ["Op-Cn", "Rs-Sr", "Rs-If", "Sc-Sr", "Sd-Tx", "St-Rm-P", "Rs-Tr"]
 
 
 class InputError(Exception):
@@ -313,7 +312,7 @@ def rule_links(t: Tree) -> list[str]:
 
 
 COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
-CITED_VIEW = "St-Tx"
+CITED_VIEW = uaf.CAPABILITY_TAXONOMY
 DECISION_FILE_RE = re.compile(r"^(ADR-\d{4})-.+\.md$")
 TEXT_LINK_RE = re.compile(r"\[([^\]\n]*)\]\(([^)\s]+)\)")
 
@@ -321,7 +320,7 @@ TEXT_LINK_RE = re.compile(r"\[([^\]\n]*)\]\(([^)\s]+)\)")
 def rule_decision_links(t: Tree) -> list[str]:
     """A link to a decision record names the section it relies on: `[ADR-0045 §6](...)`.
 
-    In St-Tx every such link must. In any view a link text with a § must be a citation of the linked
+    In the capability taxonomy view every such link must. In any view a link text with a § must be a citation of the linked
     record that resolves, and a fragment must be the slug of the section it names."""
     fails = []
     decisions = project.DECISIONS.resolve()
@@ -415,10 +414,13 @@ def rule_marks(t: Tree) -> list[str]:
                 fails.append(f"{where}, which states no status")
                 continue
             lead = status.lstrip("*").lstrip().lower()
-            if r[2] == "Proposed" and not lead.startswith("proposed"):
-                fails.append(f"{where}: row says Proposed, the record's status does not begin with proposed")
-            if lead.startswith("proposed") and r[2] != "Proposed":
-                fails.append(f"{where}: the record's status begins with proposed, row says {r[2]}")
+            for st in declared.statuses("check_views"):
+                if not st.sources_check:
+                    continue
+                if r[2] == st.word and not lead.startswith(st.lead):
+                    fails.append(f"{where}: row says {st.word}, the record's status does not begin with {st.lead}")
+                if lead.startswith(st.lead) and r[2] != st.word:
+                    fails.append(f"{where}: the record's status begins with {st.lead}, row says {r[2]}")
             try:
                 value, each = marks.row_evidence(r[1], t.root / "views", decisions)
             except marks.InputError as e:
@@ -470,59 +472,61 @@ def capability_defs(t: Tree) -> tuple[set[str], set[str]]:
 def rule_capabilities(t: Tree) -> list[str]:
     fails = []
     allp, concrete = capability_defs(t)
-    if "Rs-Tr" not in t.view_text or "St-Tx" not in t.view_text:
-        return ["capabilities: Rs-Tr or St-Tx is missing"]
-    for r in first_table(t.view_text["Rs-Tr"]):
+    trace, taxonomy = uaf.TRACEABILITY, uaf.CAPABILITY_TAXONOMY
+    if trace not in t.view_text or taxonomy not in t.view_text:
+        return [f"capabilities: {trace} or {taxonomy} is missing"]
+    for r in first_table(t.view_text[trace]):
         if len(r) < 4:
             continue
         for name in (c.strip() for c in r[3].split(",")):
             if name and name not in allp:
-                fails.append(f"capabilities: Rs-Tr row '{r[0][:40]}' names capability {name}, which is not an occurrence def in the model")
-    got = sources_table(t.view_text["St-Tx"])
+                fails.append(f"capabilities: {trace} row '{r[0][:40]}' names capability {name}, which is not an occurrence def in the model")
+    got = sources_table(t.view_text[taxonomy])
     blob = "\n".join(" | ".join(r) for r in got[1]) if got else ""
     for name in sorted(concrete):
         if not re.search(r"\b" + re.escape(name) + r"\b", blob):
-            fails.append(f"capabilities: {name} is a capability in the model and appears in no St-Tx Sources row")
+            fails.append(f"capabilities: {name} is a capability in the model and appears in no {taxonomy} Sources row")
     return fails
 
 
 def rule_trace(t: Tree) -> list[str]:
     fails = []
-    for need in ("Rs-Tr", "Op-Pr", "Rs-Pr"):
+    trace, op_pr, rs_pr = uaf.TRACEABILITY, uaf.OPERATIONAL_PROCESSES, uaf.RESOURCE_PROCESSES
+    for need in (trace, op_pr, rs_pr):
         if need not in t.view_text:
             return [f"trace: view {need} is missing"]
-    trace_rows = first_table(t.view_text["Rs-Tr"])
+    trace_rows = first_table(t.view_text[trace])
     in_trace = set()
     for r in trace_rows:
         m = re.match(r"A\d+(?:\.\d+)?\b", r[0]) if r else None
         if m:
             in_trace.add(m.group(0))
-    opp = t.view_text["Op-Pr"]
+    opp = t.view_text[op_pr]
     for activity in sorted(in_trace):
         if not re.search(r"(?<![\w.])" + re.escape(activity) + r"(?![\w]|\.\d)", opp):
-            fails.append(f"trace: Rs-Tr names activity {activity}, which Op-Pr does not hold")
+            fails.append(f"trace: {trace} names activity {activity}, which {op_pr} does not hold")
     acts = set(re.findall(r'"(A\d+(?:\.\d+)?) ', opp))
     for activity in sorted(acts):
         if not any(o.startswith(activity + ".") for o in acts) and activity not in in_trace:
-            fails.append(f"trace: Op-Pr leaf activity {activity} is in no Rs-Tr row")
-    funcs = {m.group(0) for r in first_table(t.view_text["Rs-Pr"]) if r
+            fails.append(f"trace: {op_pr} leaf activity {activity} is in no {trace} row")
+    funcs = {m.group(0) for r in first_table(t.view_text[rs_pr]) if r
              for m in [re.match(r"F\d+\b", r[0])] if m}
     for r in trace_rows:
         if len(r) < 2:
             continue
         for f in re.findall(r"\bF\d+\b", r[1]):
             if f not in funcs:
-                fails.append(f"trace: Rs-Tr row '{r[0][:40]}' names function {f}, which is not a row in Rs-Pr")
+                fails.append(f"trace: {trace} row '{r[0][:40]}' names function {f}, which is not a row in {rs_pr}")
     return fails
 
 
 def rule_outputs(t: Tree) -> list[str]:
     fails = []
     dodaf = {x for e in t.views.values() for x in ((e.get("exports") or {}).get("dodaf202") or [])}
-    for x in REQUIRED_DODAF:
+    for x in declared.views("check_views")["required_dodaf"]:
         if x not in dodaf:
             fails.append(f"outputs: no view exports {x} under dodaf202")
-    for v in REQUIRED_VIEWS:
+    for v in declared.views("check_views")["required"]:
         if v not in t.views:
             fails.append(f"outputs: view {v} is missing")
     dx = t.profiles.get("data_exchange") or {}
@@ -556,16 +560,17 @@ def rule_generated(t: Tree) -> list[str]:
 
 
 def rule_phases(t: Tree) -> list[str]:
+    phases_home = declared.home("capability-phases", "check_views")
     where = {vid: text.count(PHASES_MARKER) for vid, text in t.view_text.items() if PHASES_MARKER in text}
     total = sum(where.values())
     fails = []
     if total != 1:
         fails.append(f"phases: the capability-phases marker appears {total} times, expected once")
     for vid in sorted(where):
-        if vid != PHASES_HOME:
-            fails.append(f"phases: the capability-phases marker is in {vid}, not in {PHASES_HOME}")
-    if total == 1 and PHASES_HOME not in where:
-        fails.append(f"phases: the capability-phases marker is not in {PHASES_HOME}")
+        if vid != phases_home:
+            fails.append(f"phases: the capability-phases marker is in {vid}, not in {phases_home}")
+    if total == 1 and phases_home not in where:
+        fails.append(f"phases: the capability-phases marker is not in {phases_home}")
     try:
         record = capability_phases.load_record(t.root / "capability-record.yaml")
         capabilities = capability_phases.model_capabilities(t.sysml)
