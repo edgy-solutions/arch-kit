@@ -24,6 +24,29 @@ paths:
 If the file is missing, `kit` is not 1, or one of the three paths is missing, the tool exits 2. It prints one line
 naming the file and the key.
 
+### The portal
+
+```yaml
+portal:
+  hosting: ci-artifact     # ci-artifact | static-site | none
+  audience: public         # public | private
+```
+
+`portal`, `portal.hosting` and `portal.audience` are all required. The tools that read them, `render_html` and
+`check_export`, exit 2 when one is missing, naming the key, so that leaving `portal` out cannot switch the public
+checks off. Any other value exits 2 and the message lists the allowed values.
+
+| Key | Value | Meaning |
+|---|---|---|
+| `portal.hosting` | `ci-artifact` | the export is published as a CI build artifact |
+| | `static-site` | the export is published as a static site |
+| | `none` | the export is not published |
+| `portal.audience` | `public` | anyone may read it: `render_html` needs at least one `--relabel` and one `--barred`, and `check_export` needs at least one `--relabel` (and `--barred`, which it always needs) |
+| | `private` | the tools behave as they do without the rule |
+
+`hosting` is declared and validated only. No tool changes what it does because of it. The Action added in step S6
+reads it to decide what to publish. `audience` drives the rule above.
+
 ## Keys a tool needs when it uses them
 
 These keys are optional when the declaration loads. A tool that needs an absent key exits 2 with:

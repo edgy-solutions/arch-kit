@@ -161,3 +161,38 @@ def views(tool: str) -> dict:
 def home(name: str, tool: str) -> str:
     """The view that holds the generated section `name` (views.homes)."""
     return views(tool)["homes"].get(name) or project.need("views.homes." + name, tool)
+
+
+HOSTINGS = ("ci-artifact", "static-site", "none")
+AUDIENCES = ("public", "private")
+
+
+def _portal(field: str, allowed: tuple, tool: str) -> str:
+    key = "portal." + field
+    if not isinstance(project.need("portal", tool), dict):
+        _bad("portal", "must be a map")
+    value = project.need(key, tool)
+    if value not in allowed:
+        _bad(key, f"{value!r} is not one of {', '.join(allowed)}")
+    return value
+
+
+def portal_hosting(tool: str) -> str:
+    """Where the portal is served: ci-artifact, static-site or none. Declared and validated only; the Action reads it."""
+    return _portal("hosting", HOSTINGS, tool)
+
+
+def portal_audience(tool: str) -> str:
+    """Who may read the portal: public or private. A public audience makes check_export and render_html require lists."""
+    return _portal("audience", AUDIENCES, tool)
+
+
+def require_public_lists(tool: str, **given: bool) -> None:
+    """Exit 2 when the audience is public and a list the tool needs is not given. `given` maps a flag to whether it was."""
+    portal_hosting(tool)
+    if portal_audience(tool) != "public":
+        return
+    names = {"relabel": "a relabel list (--relabel)", "barred": "a barred list (--barred)"}
+    for flag, present in given.items():
+        if not present:
+            project.die(f"error: the portal's audience is public: {tool} needs {names[flag]}")

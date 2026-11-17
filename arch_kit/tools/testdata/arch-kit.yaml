@@ -91,3 +91,6 @@ export:
     min_pages: 3
     min_tables: 2
     min_tokens: 10
+portal:
+  hosting: ci-artifact
+  audience: private

@@ -40,6 +40,7 @@ import capability_phases  # noqa: E402
 import export_text  # noqa: E402
 from export_text import plain  # noqa: E402,F401
 import check_views  # noqa: E402
+import declared  # noqa: E402
 import project  # noqa: E402
 from data_exchange import InputError as DataInputError  # noqa: E402
 import relabel  # noqa: E402
@@ -248,6 +249,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--barred", action="append", default=[], required=True)
     ap.add_argument("--relabel", action="append", default=[], help="a relabel list the export was rendered with")
     a = ap.parse_args(argv)
+    declared.require_public_lists("check_export", relabel=bool(a.relabel))
     try:
         try:
             data = Path(a.export).read_bytes()
