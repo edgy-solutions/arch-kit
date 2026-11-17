@@ -36,6 +36,7 @@ So a project that never runs the data-exchange generator does not need to declar
 
 | Key | What it names | Needed by |
 |---|---|---|
+| `loader` | The project's loader module, relative to the declaration file (see [the loader](#the-loader)) | every tool that reads the capability record, a decision record or a register: `capability_phases` and `marks`, and through them `check_views`, `render_html`, `render_profile`, `derived`, `capability_floor`, `check_export` and `check_views_canary` |
 | `name` | The framework or system's display name. It is the default attribution line ("built on NAME") and is shortened to "the framework" in decision titles | `data_exchange`, `derived` |
 | `model.file` | The SysML v2 model, relative to `paths.root` (or to `--root` where a tool takes one) | `check_views`, `render_profile`, `validate_sysml` |
 | `model.package` | The model's top-level package name, which the reference parser must report | `validate_sysml` |
@@ -57,6 +58,7 @@ paths:
   root: .
   repo: .
   decisions: .
+loader: loader.py
 name: Example
 model:
   file: model/example.sysml
@@ -73,6 +75,52 @@ registers:
 readiness:
   default: ../scripts/READINESS.md
 ```
+
+## The loader
+
+The kit holds the rules and the rendering, but not the project's file formats. Reading the project's files is the
+loader's job. The loader is a Python module that the project writes, and `loader:` declares it. The kit imports it
+once, by path.
+
+The loader provides the names in `arch_kit/tools/seam.py`, where they are written as a `typing.Protocol` with one line
+each:
+- `load_record`: the capability record;
+- `model_capabilities`: the capabilities in the model;
+- the decision records: `read_text`, `adr_file`, `adr_lead`, `adr_status` and `index_status`;
+- the registers and the roadmap: `register_rows`, `register_subjects` and `roadmap_rows`;
+- the readiness document: `resolve_entries`, `quote_of`, `measured_line` and `resolve_quotes`;
+- `KEY_NAMES`, a map from each neutral key to the project's own name for it.
+
+The kit's tests check that every name exists on the kit's own fixture loader, `arch_kit/tools/testdata/loader.py`.
+That file is a minimal working loader for a made-up format, and a starting point for writing one.
+
+### The neutral record
+
+`load_record` returns the record with these keys, whatever the project calls them on disk:
+
+| Neutral key | What it holds |
+|---|---|
+| `groups` | for each parent capability in the model, the group it belongs to, shown beside its capabilities |
+| `environments` | the environments a measurement can run in. Every entry must name one of them |
+| `entries.<key>.environment` | the environment that entry's measurement ran in |
+| `capabilities.<name>.degraded_mode` | what the capability does when it is cut off |
+
+All other keys keep the names that `arch_kit/schema/record.schema.json` gives them. The loader maps the keys after it
+parses the file. It should refuse a file that already uses a neutral key, so that two names never mean the same thing.
+
+The kit validates the returned record against `arch_kit/schema/record.schema.json` (JSON Schema draft 2020-12), with
+`jsonschema==4.26.0`. Messages print the project's own key names through `KEY_NAMES`, including schema errors, so
+the output reads in the project's own words.
+
+### When it fails
+
+All of these exit 2:
+
+| Failure | Message |
+|---|---|
+| No `loader` key | `arch-kit: <declaration>: missing key 'loader' (needed by <tool>)` |
+| The file does not exist | `arch-kit: <declaration>: loader file <path> not found` |
+| The record breaks the schema | `<record>: <where>: <what>`, for the first place it breaks |
 
 ## What is not declared yet
 
