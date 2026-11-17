@@ -27,5 +27,67 @@ labels:
     open_row_prefix: IS-
   group:
     column: Team
+  phase:
+    column: Stage
   environment:
     word: site
+phases:                        # a different order and different names from the first consumer's
+  - name: verified
+    when: [measured]
+    badge: r
+  - name: shipped
+    when: [built]
+    badge: p
+  - name: draft
+    when: [{status: Proposed}, still-open, pending]
+    badge: a
+  - name: agreed
+    when: [{status: Accepted}]
+    badge: b
+  - name: listed
+    when: [rows]
+    badge: m
+floor: shipped
+statuses:
+  - word: Accepted
+    lead: accepted
+    in_force: true
+  - word: Proposed
+    lead: proposed
+    in_force: true
+    sources_check: true
+  - word: Superseded
+    lead: superseded
+    in_force: false
+  - word: Rejected
+    lead: rejected
+    in_force: false
+  - word: Deprecated
+    lead: deprecated
+    in_force: false
+  - word: Withdrawn
+    lead: withdrawn
+    in_force: false
+views:
+  required: [Aa-One, Bb-Two]
+  required_dodaf: [XV-1, XV-2]
+  homes:
+    capability-phases: Pp-Home
+    dependencies: Dd-Dep
+    taxonomy: Tt-Tax
+    dictionary: Ii-Dict
+    trace: Zz-Trace
+    isolated-behaviour: Cc-Cap
+  capability_links: [Cc-Cap, Pp-Home]
+export:
+  browser:
+    views:
+      table: Aa-One
+      diagram: Bb-Two
+      profile_only: Cc-Cap
+    search:
+      phrase: which gadget feeds which
+      finds: Aa-One
+    min_pages: 3
+    min_tables: 2
+    min_tokens: 10

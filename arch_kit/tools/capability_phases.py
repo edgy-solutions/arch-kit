@@ -7,13 +7,14 @@ register rows, readiness entries. Nothing in the record states a phase or
 evidence; both are computed here, and every citation has to resolve against
 the file it names or the render fails.
 
-Phases, highest first:
+Phases are declared (`phases` and `floor` in the declaration, see declared.py), strongest first.
+A capability takes the first phase whose rule it meets. The rules are fixed:
     measured          cites a readiness entry under `measured`
-    built unmeasured  cites a chart template under `built`, and no readiness entry
-    accepted design   cites an ADR whose Status begins with accepted
-    proposed          cites an ADR whose Status begins with proposed, or a
-                      `still_open` citation, or a `pending` entry
-    row               cites only rows in a register
+    built             cites a chart template under `built`
+    {status: WORD}    cites a decision whose Status begins with that declared status's lead
+    still-open        has a `still_open` citation
+    pending           has a `pending` entry
+    rows              cites rows in a register
 A capability that cites none of these has no phase, and that is a failure.
 
 Evidence comes from the readiness doc only: an entry is an anchor line that
@@ -30,14 +31,14 @@ Two keys say how a capability's page reads:
                   open-row prefix (`labels.degraded_mode.open_row_prefix`) in
                   `rows`; a citation needs none.
     pending       optional list of non-empty strings naming the sources a decision waits
-                  on. A capability with it is at least `proposed`, and needs no
+                  on. A capability with it meets the `pending` rule, and needs no
                   `derived_from` or `adrs`.
 A decision is cited by section: `ADR-0038 §1`, in `adrs`, `derived_from` and
 `still_open[].adr`. The label is the number a heading starts with, or the
 GitHub slug of a heading with none (adr_sections.py lists them). A bare
 `ADR-0038` cites no section, and a section that does not resolve fails.
 
-Used by render_profile.py (the St-Rm-P marker) and check_views.py (the
+Used by render_profile.py (the capability-phases marker) and check_views.py (the
 `phases` rule). This module writes no file. Stdlib and PyYAML only.
 """
 from __future__ import annotations
@@ -47,10 +48,10 @@ import re
 from pathlib import Path
 
 import adr_sections
+import declared
 import project
 from data_exchange import InputError
 
-PHASES = ["measured", "built unmeasured", "accepted design", "proposed", "row"]
 NOT_MEASURED = "not measured"
 SCHEMA = Path(__file__).resolve().parent.parent / "schema" / "record.schema.json"
 
@@ -291,8 +292,9 @@ def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> l
         if adr not in seen_adrs:
             if index_text is not None and f"[{adr}:" not in index_text:
                 fails.append(f"{name}: {adr} is not in decisions/README.md")
-            if not lead or not lead.startswith(("accepted", "proposed")):
-                fails.append(f"{name}: {adr} has no readable ## Status line beginning accepted or proposed")
+            leads = [s.lead for s in declared.statuses("capability_phases") if s.in_force]
+            if not lead or not lead.startswith(tuple(leads)):
+                fails.append(f"{name}: {adr} has no readable ## Status line beginning {' or '.join(leads)}")
         seen_adrs.add(adr)
         return lead
 
@@ -366,19 +368,24 @@ def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> l
 
 
 def phase_of(cap: dict, statuses: dict[str, str | None]) -> str | None:
-    """The highest phase the capability's citations give. `statuses` is from statuses_of."""
+    """The first declared phase whose rule the capability meets (the declared order is strongest first).
+
+    `statuses` is from statuses_of. A capability that meets no rule has no phase."""
     cap = cap or {}
     leads = [(statuses.get(a) or "") for a in record_adrs(cap)]
-    if cap.get("measured"):
-        return "measured"
-    if cap.get("built"):
-        return "built unmeasured"
-    if any(s.startswith("accepted") for s in leads):
-        return "accepted design"
-    if any(s.startswith("proposed") for s in leads) or still_open(cap) or cap.get("pending"):
-        return "proposed"
-    if cap.get("rows"):
-        return "row"
+    heads = {s.word: s.lead for s in declared.statuses("capability_phases")} if any(
+        r == "status" for p in declared.phases("capability_phases") for r, _ in p.when) else {}
+    met = {
+        "measured": lambda _: bool(cap.get("measured")),
+        "built": lambda _: bool(cap.get("built")),
+        "status": lambda word: any(s.startswith(heads[word]) for s in leads),
+        "still-open": lambda _: bool(still_open(cap)),
+        "pending": lambda _: bool(cap.get("pending")),
+        "rows": lambda _: bool(cap.get("rows")),
+    }
+    for phase in declared.phases("capability_phases"):
+        if any(met[rule](arg) for rule, arg in phase.when):
+            return phase.name
     return None
 
 
@@ -430,11 +437,19 @@ def evidence_cells(record: dict, readiness_text: str) -> dict[str, list[str]]:
             if cap.get("measured")}
 
 
+def group_of(record: dict, cap: dict, parent: str, road_rows: list[list[str]]) -> str:
+    """The text of a capability's group cell: its group's name, then `, number: text` of its increment."""
+    group = str(record["groups"][parent])
+    label = increment_label(cap, road_rows)
+    return group + f", {label}" if label else group
+
+
 def render_table(record: dict, capabilities: dict[str, str], decisions_dir, templates_dir,
                  readiness_text: str) -> str:
     """The phases document text. Raises CheckError listing every failure."""
     decisions_dir, templates_dir = Path(decisions_dir), Path(templates_dir)
     group_column = str(project.need("labels.group.column", "capability_phases"))
+    phase_column = str(project.need("labels.phase.column", "capability_phases"))
     fails = check_record(record, capabilities, decisions_dir)
     readiness = readiness_text.replace("\r\n", "\n").split("\n")
     entries, entry_fails = resolve_entries(record, readiness)
@@ -457,17 +472,14 @@ def render_table(record: dict, capabilities: dict[str, str], decisions_dir, temp
     statuses = statuses_of(record, decisions_dir)
     index_text = read_text(decisions_dir / "README.md") or ""
     road_rows = roadmap_rows(read_text(decisions_dir / roadmap_file()) or "")
-    rows, counts, used = [], dict.fromkeys(PHASES, 0), set()
+    rows, counts, used = [], dict.fromkeys(declared.phase_names("capability_phases"), 0), set()
     for name, parent in capabilities.items():
         cap = caps[name]
         phase = phase_of(cap, statuses)
         counts[phase] += 1
-        group = str(record["groups"][parent])
-        label = increment_label(cap, road_rows)
-        if label:
-            group += f", {label}"
+        group = group_of(record, cap, parent, road_rows)
         evidence = NOT_MEASURED
-        if phase == "measured":
+        if cap.get("measured"):
             used.update(record["entries"][m["entry"]]["environment"] for m in cap["measured"])
             evidence = "; ".join(evidence_item(record, entries, m, quotes[(name, k)])
                                  for k, m in enumerate(cap["measured"]))
@@ -477,7 +489,7 @@ def render_table(record: dict, capabilities: dict[str, str], decisions_dir, temp
             note = ""
             if adr not in noted:
                 theirs = index_status(index_text, adr)
-                mine = "accepted" if statuses[adr].startswith("accepted") else "proposed"
+                mine = declared.lead_of(statuses[adr], "capability_phases").lead
                 note = f" (record: {mine}; index: {theirs})" if theirs and mine != theirs else ""
                 noted.add(adr)
             decisions.append(f"{adr} §{label}{note}")
@@ -487,8 +499,8 @@ def render_table(record: dict, capabilities: dict[str, str], decisions_dir, temp
         rows.append(f"| {name} | {group} | {phase} | {evidence} | {', '.join(built) or '-'} | "
                     f"{', '.join(decisions) or '-'} | {', '.join(cap.get('rows') or []) or '-'} |")
 
-    out = ["Phases: " + ", ".join(f"{counts[p]} {p}" for p in PHASES) + ".", "",
-           f"| Capability | {group_column} | Phase | Evidence | Built | Decisions | Rows |",
+    out = ["Phases: " + ", ".join(f"{counts[p]} {p}" for p in counts) + ".", "",
+           f"| Capability | {group_column} | {phase_column} | Evidence | Built | Decisions | Rows |",
            "|---|---|---|---|---|---|---|", *rows, ""]
     if used:
         out += [environment_sentence(record["environments"], sorted(used)), ""]

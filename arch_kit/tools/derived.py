@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """derived.py - the five tables a view takes from a declared artefact instead of writing it.
 
-Each marker below belongs in one view and becomes a markdown table when the
+Each marker below belongs in one view, declared in `views.homes`, and becomes a markdown table when the
 view is rendered (render_profile.Renderer.view_text). check_views.py rule
 `derived` fails on a marker that is missing, repeated or outside its view, and
 on a table that cannot be built.
 
-  <!-- generated: capability-dependencies -->  St-Cn  the roadmap note's
+  <!-- generated: capability-dependencies -->  the roadmap note's
       `depends on` and `folds into` columns, joined to capability-record.yaml
       by each capability's `increment`
-  <!-- generated: resource-taxonomy -->        Rs-Tx  package ResourceKit in
+  <!-- generated: resource-taxonomy -->        package ResourceKit in
       the declared model file (`model.file`): what each type specialises, and where it is a part
-  <!-- generated: ontology-dictionary -->      Am-If  ontology/*.yaml: each
+  <!-- generated: ontology-dictionary -->      ontology/*.yaml: each
       declared term with its entry count and field names, never an entry
-  <!-- generated: adr-traceability -->        Am-Tr  decisions/ADR-*.md: each
-      record with its status and the views that cite it, the accepted or
-      proposed records no view cites first, joined to adr-exemptions.yaml
-  <!-- generated: MARKER -->                    St-Tx  each capability in model
+  <!-- generated: adr-traceability -->        decisions/ADR-*.md: each
+      record with its status and the views that cite it, the in-force
+      records (declared `statuses`) no view cites first, joined to adr-exemptions.yaml
+  <!-- generated: MARKER -->                    each capability in model
       order, with the decision record that says how it behaves when its link
       is cut off, or `not stated` and its open row; the degraded-mode key of
       the record. MARKER, the heading and the open-row prefix are declared
@@ -26,7 +26,7 @@ A depends-on cell has to name one increment, by its number or its name, and a
 fold-in has to name an increment and cite an ADR that some capability in the
 record cites. Anything else is a CheckError, so a roadmap edit cannot drop an
 edge without the render failing. The tables carry no links: they are inserted
-after links are rewritten. An accepted or proposed record that no view cites
+after links are rewritten. An in-force record (a declared status with `in_force`) that no view cites
 and the exemptions file does not name is a CheckError, as is an exemption for
 a record that a view cites or that is not in scope. Stdlib and PyYAML only.
 """
@@ -38,6 +38,7 @@ from pathlib import Path
 import yaml
 
 import capability_phases
+import declared
 import marks
 import project
 from capability_phases import CheckError
@@ -55,9 +56,11 @@ def degraded_marker() -> str:
 
 
 def homes() -> dict[str, str]:
-    """Each generated-section marker and the view that holds it."""
-    return {DEPENDENCIES_MARKER: "St-Cn", TAXONOMY_MARKER: "Rs-Tx", DICTIONARY_MARKER: "Am-If", TRACE_MARKER: "Am-Tr",
-            degraded_marker(): "St-Tx"}
+    """Each generated-section marker and the view that holds it, from the declared `views.homes`."""
+    home = lambda name: declared.home(name, "derived")
+    return {DEPENDENCIES_MARKER: home("dependencies"), TAXONOMY_MARKER: home("taxonomy"),
+            DICTIONARY_MARKER: home("dictionary"), TRACE_MARKER: home("trace"),
+            degraded_marker(): home(str(project.need("labels.degraded_mode.marker", "derived")))}
 
 
 ROADMAP_HEADER = ["#", "increment", "what isolates", "home", "depends on"]
@@ -109,7 +112,7 @@ def table_with(text: str, header: list[str], what: str) -> list[list[str]]:
     return found[0][1:]
 
 
-# --- St-Cn ---------------------------------------------------------------------
+# --- dependencies ---------------------------------------------------------------------
 
 def dependencies(record: dict, roadmap: str) -> str:
     rows = table_with(roadmap, ROADMAP_HEADER, "increment")
@@ -169,7 +172,7 @@ def dependencies(record: dict, roadmap: str) -> str:
     return "\n".join(out)
 
 
-# --- St-Tx ---------------------------------------------------------------------
+# --- degraded mode ---------------------------------------------------------------------
 
 def degraded_mode_table(record: dict, sysml: str) -> str:
     """Each capability, in model order, with where its degraded-mode behaviour is stated, or its open row."""
@@ -198,7 +201,7 @@ def degraded_mode_table(record: dict, sysml: str) -> str:
     return "\n".join([head, "", f"| Capability | {heading} | Row |", "|---|---|---|", *rows])
 
 
-# --- Rs-Tx ---------------------------------------------------------------------
+# --- taxonomy ---------------------------------------------------------------------
 
 def taxonomy(sysml: str, masked: str) -> str:
     from render_profile import match_brace  # render_profile imports this module
@@ -230,7 +233,7 @@ def taxonomy(sysml: str, masked: str) -> str:
     return "\n".join(out)
 
 
-# --- Am-If ---------------------------------------------------------------------
+# --- dictionary ---------------------------------------------------------------------
 
 def dictionary(ontology_dir: Path) -> str:
     try:
@@ -277,7 +280,6 @@ def dictionary(ontology_dir: Path) -> str:
 
 
 EXEMPT_CATEGORIES = ("rule", "infrastructure", "process", "alignment")
-NOT_REQUIRED = ("superseded", "rejected", "deprecated", "withdrawn")
 VIEW_ADR_RE = re.compile(r"ADR-(\d{4})(?!\d)")
 
 
@@ -288,11 +290,12 @@ def cell(text: str) -> str:
 def adr_class(adr: str, text: str) -> str:
     status = marks.adr_status(text)
     norm = (status or "").replace("*", "").strip().lower()
-    for word in ("accepted", "proposed") + NOT_REQUIRED:
-        if norm.startswith(word):
-            return word.capitalize()
-    raise CheckError(f"derived: {adr} has no status beginning accepted, proposed, "
-                     "superseded, rejected, deprecated or withdrawn\n")
+    declared_statuses = declared.statuses("derived")
+    for st in declared_statuses:
+        if norm.startswith(st.lead):
+            return st.word
+    leads = [st.lead for st in declared_statuses]
+    raise CheckError(f"derived: {adr} has no status beginning {', '.join(leads[:-1])} or {leads[-1]}\n")
 
 
 def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -> str:
@@ -301,6 +304,7 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
     except OSError as e:
         raise InputError(f"cannot list {decisions}: {e}")
     fails: list[str] = []
+    in_force = {st.word for st in declared.statuses("derived") if st.in_force}
     info: dict[str, tuple[str, str]] = {}
     for p in files:
         m = re.match(r"ADR-\d{4}", p.name)
@@ -330,7 +334,7 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
     except OSError as e:
         raise InputError(f"cannot list {views}: {e}")
     for v in view_files:
-        if v.stem == "Am-Tr":
+        if v.stem == declared.home("trace", "derived"):
             continue
         try:
             vt = v.read_text(encoding="utf-8")
@@ -338,14 +342,15 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
             raise InputError(f"cannot read {v}: {e}")
         for n in VIEW_ADR_RE.findall(re.sub(r"<!--.*?-->", "", vt, flags=re.DOTALL)):
             cited.setdefault(f"ADR-{n}", set()).add(v.stem)
+    phases_home = declared.home("capability-phases", "derived")
     for cap in (record.get("capabilities") or {}).values():
         if not isinstance(cap, dict):
             continue
         for a in cap.get("adrs") or []:
-            cited.setdefault(capability_phases.adr_id(a), set()).add("St-Rm-P")
+            cited.setdefault(capability_phases.adr_id(a), set()).add(phases_home)
         for o in cap.get("still_open") or []:
             if isinstance(o, dict) and o.get("adr"):
-                cited.setdefault(capability_phases.adr_id(o["adr"]), set()).add("St-Rm-P")
+                cited.setdefault(capability_phases.adr_id(o["adr"]), set()).add(phases_home)
     try:
         data = yaml.safe_load(exemptions.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as e:
@@ -376,18 +381,19 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
             continue
         if cited.get(adr):
             fails.append(f"derived: exemption {adr} is stale: it is cited by {', '.join(sorted(cited[adr]))}")
-        if info[adr][1] not in ("Accepted", "Proposed"):
+        if info[adr][1] not in in_force:
             fails.append(f"derived: exemption {adr} is not in scope: its status is {info[adr][1].lower()}")
     for adr, (_, status) in sorted(info.items()):
-        if status in ("Accepted", "Proposed") and not cited.get(adr) and adr not in exempt:
+        if status in in_force and not cited.get(adr) and adr not in exempt:
             fails.append(f"derived: {adr} ({status}) is cited by no view and is not in adr-exemptions.yaml")
     if fails:
         raise CheckError("".join(f + "\n" for f in fails))
-    scope = [a for a, (_, s) in info.items() if s in ("Accepted", "Proposed")]
+    in_force_leads = " or ".join(st.lead for st in declared.statuses("derived") if st.in_force)
+    scope = [a for a, (_, s) in info.items() if s in in_force]
     out_of = [a for a in sorted(info) if a not in scope]
     n_cited = sum(1 for a in scope if cited.get(a))
     n_ex = len(scope) - n_cited
-    out = [f"{len(info)} decision records. {len(scope)} accepted or proposed: {n_cited} cited by a view, "
+    out = [f"{len(info)} decision records. {len(scope)} {in_force_leads}: {n_cited} cited by a view, "
            f"{n_ex} exempt. {len(out_of)} not required.", "",
            "| Not cited | Status | Category | Reason |", "|---|---|---|---|"]
     for a in sorted(scope):
