@@ -322,7 +322,11 @@ Some things are still fixed in the kit. The labels, phases, statuses and views a
 - the grammar of `check_decision_indexes`: a register id is two capital letters and one or two digits (`XY-7`,
   `QZ-01`), declared by a bolded heading `**XY-7 — ...` or a table row `| **QZ-01** |`; a status is a `` `Status: ...` ``
   line above the heading, or the last column of the table row; a decision record is `ADR-NNNN-<slug>.md`, and a
-  citation is `prefix:ADR-NNNN`.
+  citation is `prefix:ADR-NNNN`;
+- the roadmap note's tables: the increment table has the header `| # | increment | what isolates | home | depends on |`,
+  the required fold-in table has `| row | slice | folds into | why it costs the increment nothing |`
+  (`ROADMAP_HEADER` and `FOLD_HEADER` in `derived.py`), and the note needs a `Status:` line. They are the kit's
+  format for the roadmap note.
 
 Until they are declared, a project has to follow the first consumer's conventions for them.
 

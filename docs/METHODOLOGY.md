@@ -52,7 +52,11 @@ When a check, a review or a reading missed something, record the miss where the 
 - Say which check should have caught it, and whether that check now does. If it does, a test proves it: a check that has never failed on a broken input is not yet known to work.
 - Withdraw a finding that turns out wrong by striking it through and saying why. Never delete it.
 
-## 6. Names in the published export
+## 6. The roadmap note's format
+
+The roadmap note is a Markdown file with two tables whose header rows the kit fixes: the increment table (`# | increment | what isolates | home | depends on`) and the fold-in table (`row | slice | folds into | why it costs the increment nothing`), and a `Status:` line. A capability's `increment` must equal an increment name in the first table. These headers are the kit's format, not a declared choice; a project copies them.
+
+## 7. Names in the published export
 
 Write records with the names the project uses. Before an export is published, the project's relabel list replaces internal names, and its barred list fails the build on any name that must never appear. Both lists belong to the project and are never committed to a public repository. The kit runs both on the rendered file, so a name is caught wherever it came from.
 

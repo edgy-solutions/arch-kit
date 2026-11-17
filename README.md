@@ -29,7 +29,8 @@ is the acceptance test: after every step it must come out byte-identical, or eac
 | 4 | Relabelling and the leak scan run on the rendered HTML | done |
 | 5 | Each portal declares its hosting and its audience | done |
 | 6a | The decision-index check moves into the kit, with its names declared | done |
-| 6b, 6c | A CLI entry point, the example project and the kit's self-test; a reusable GitHub Action and `v0.1.0` | planned |
+| 6b | The `arch-kit` command, a declared term dictionary, an optional declared data exchange, and the [example project](examples/minimal/README.md) with its self-test | done |
+| 6c | A reusable GitHub Action and `v0.1.0` | planned |
 | 7 | The first project pins `v0.1.0`, with the golden comparison in its CI | planned |
 
 Until `v0.1.0`, pin a commit, not a branch. Some conventions are still fixed rather than declared. The
@@ -120,7 +121,7 @@ python -m arch_kit browser_facts --out facts.json
 node "$PYTHONPATH/arch_kit/tools/export/check_export_browser.mjs" export.html --shots shots/ --facts facts.json
 ```
 
-`python -m arch_kit [--config FILE] TOOL [ARGS...]` runs any tool. Run it with no tool to list them. `--config`
+`python -m arch_kit [--config FILE] TOOL [ARGS...]` runs any tool, and so does the installed `arch-kit` command (`arch-kit [--config FILE] TOOL`). Run it with no tool to list them. `--config`
 points at a declaration somewhere else.
 
 ## Content layout
@@ -195,6 +196,9 @@ scan ran. See [the checks](docs/rules.md#names-in-the-published-file).
 pip install pyyaml markdown-it-py==4.0.0 jsonschema==4.26.0
 python -m unittest discover -s arch_kit/tools -p 'test_*.py'
 ```
+
+The example's self-test (`test_example`) also needs Node 22, `npm ci` in `arch_kit/tools/export`, and Chrome named by
+`PUPPETEER_EXECUTABLE_PATH`; without them it is skipped, with the reason. It needs no Helm.
 
 CI (`.github/workflows/tests.yml`) runs the suite on every push and pull request to `main`, and any skipped test fails
 the job. A separate step first runs the check that no tracked file names a consuming project. The kit's own test
