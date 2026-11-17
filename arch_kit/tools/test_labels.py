@@ -41,6 +41,7 @@ KEYS = {
     "labels.degraded_mode.open_row_prefix":
         "import derived; derived.degraded_mode_table({'capabilities': {}}, '')",
     "labels.group.column": "import render_html; render_html.group_class()",
+    "labels.phase.column": "import render_html; render_html.style_table('<table><tr><th>x</th></tr></table>')",
     "labels.environment.word": "import capability_phases; capability_phases.environment_sentence({'A': 'x'}, ['A'])",
 }
 
@@ -113,7 +114,7 @@ class FixtureRenderHoldsItsOwnWords(unittest.TestCase):
         self.assertIn("| Capability | Isolated behaviour | Row |", out)
         self.assertIn("| Alpha | not stated | IS-1 |", out)
         self.assertEqual(derived.degraded_marker(), "<!-- generated: isolated-behaviour -->")
-        self.assertEqual(derived.homes()[derived.degraded_marker()], "St-Tx")
+        self.assertEqual(derived.homes()[derived.degraded_marker()], "Cc-Cap")
         self.assert_clean(out + derived.degraded_marker())
 
     def test_the_environment_sentence_and_the_evidence_cell(self):

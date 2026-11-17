@@ -172,8 +172,8 @@ class Failures(unittest.TestCase):
     def test_7_below_the_floor(self):
         got = self.check({"flag": {"f": ["Design", "Bare"]}}, items(flag=("f",)))
         self.assertEqual(got, [
-            "floor: Design is accepted design, but the render shows flag f, so it cannot be below built unmeasured",
-            "floor: Bare is no phase, but the render shows flag f, so it cannot be below built unmeasured"])
+            "floor: Design is agreed, but the render shows flag f, so it cannot be below shipped",
+            "floor: Bare is no phase, but the render shows flag f, so it cannot be below shipped"])
 
     def test_infrastructure_has_no_floor(self):
         self.assertEqual(self.check({"route": {"r": {"infrastructure": "x"}}}, items(route=("r",))), [])
@@ -186,7 +186,7 @@ class Failures(unittest.TestCase):
         got = cf.check_floor(rec, caps, STATUSES, have)
         self.assertEqual(len(got), 1)
         self.assertIn("ArrivalDeclaration", got[0])
-        self.assertIn("cannot be below built unmeasured", got[0])
+        self.assertIn("cannot be below shipped", got[0])
         rec["capabilities"]["ArrivalDeclaration"]["built"] = BUILT
         self.assertEqual(cf.check_floor(rec, caps, STATUSES, have), [])
 
