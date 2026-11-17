@@ -96,6 +96,16 @@ class Portal(unittest.TestCase):
         p, _ = self.render(config(audience="private"))
         self.assertNotIn("audience is public", p.stderr)
 
+    def test_the_portal_subcommand_prints_hosting_and_audience(self):
+        p = self.run_tool(config(hosting="static-site", audience="private"), "portal")
+        self.assertEqual((p.returncode, p.stdout.strip()), (0, "static-site private"), p.stderr)
+
+    def test_the_portal_subcommand_exits_2_on_a_bad_value_and_prints_nothing(self):
+        p = self.run_tool(config(hosting="s3"), "portal")
+        self.assertEqual(p.returncode, 2)
+        self.assertEqual(p.stdout, "")
+        self.assertIn("portal.hosting", p.stderr)
+
     def test_none_hosting_is_accepted(self):
         p = self.export(config(hosting="none", audience="private"), "--barred", str(self.tmp / "barred.txt"))
         self.assertNotIn("portal.hosting", p.stderr)
