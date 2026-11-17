@@ -578,7 +578,7 @@ def rule_phases(t: Tree) -> list[str]:
 def rule_derived(t: Tree) -> list[str]:
     """Each derived.py marker is in its own view once, and its table builds."""
     fails = []
-    for mk, home in derived.HOMES.items():
+    for mk, home in derived.homes().items():
         where = {vid: text.count(mk) for vid, text in t.view_text.items() if mk in text}
         if sum(where.values()) != 1 or home not in where:
             fails.append(f"derived: {mk} appears {sum(where.values())} times, in "

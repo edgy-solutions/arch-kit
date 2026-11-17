@@ -46,6 +46,12 @@ So a project that never runs the data-exchange generator does not need to declar
 | `registers.follow_ups` | The follow-ups register, a file under `paths.decisions` | `capability_phases` |
 | `registers.debt` | The generalisation-debt register, under `paths.decisions` | `capability_phases` |
 | `registers.roadmap` | The roadmap file whose table rows name the increments, under `paths.decisions` | `capability_phases` |
+| `labels.degraded_mode.heading` | The degraded-mode section's page heading, its table column and the derived table's lead sentence | `render_html`, `derived` |
+| `labels.degraded_mode.marker` | The generated-section marker, `<!-- generated: MARKER -->` | `derived`, and through it `check_views` and `render_profile` |
+| `labels.degraded_mode.attribute` | The HTML attribute on the capability page's degraded-mode paragraph | `render_html` |
+| `labels.degraded_mode.open_row_prefix` | A record row id with this prefix is the open row for "not stated" | `capability_phases`, `derived`, `render_html` |
+| `labels.group.column` | The capability-phases table column that holds the group, which `render_html` styles | `capability_phases`, `render_html` |
+| `labels.environment.word` | The word for an environment, in the phases document's sentence ("<Word> X is ...") and the evidence cell ("<date>, <word> X, ...") | `capability_phases` |
 | `readiness.default` | The default readiness document, relative to the chart directory, used when `--readiness` is not given | `render_html`, `render_profile` |
 
 ## A complete example
@@ -74,7 +80,22 @@ registers:
   roadmap: ROADMAP.md
 readiness:
   default: ../scripts/READINESS.md
+labels:
+  degraded_mode:
+    heading: Isolated behaviour
+    marker: isolated-behaviour
+    attribute: data-isolated
+    open_row_prefix: IS-
+  group:
+    column: Team
+  environment:
+    word: site
 ```
+
+The labels are the words the kit prints for three concepts. The kit holds none of them. Two identifiers follow from
+them: the CSS class that marks the first row of a new group is the group column, lowercased, with spaces as hyphens,
+then `-start` (`team-start` here), and the environment word starts a sentence with its first letter in upper case
+("Site X is ...").
 
 ## The loader
 
@@ -124,13 +145,12 @@ All of these exit 2:
 
 ## What is not declared yet
 
-Some things are still fixed in the kit. They become declared in the next steps (see the README's status section):
+Some things are still fixed in the kit. Some become declared in step 3 (S3b: the labels, now declared; S3c: the phases, statuses and view kinds), and the file names are not yet scheduled (see the README's status section):
 
 - the content file names under `paths.root` (`profiles.yaml`, `slots.yaml`, `APPENDIX-A.md`, `INVENTORY.md`,
   `README.md`, `capability-record.yaml`, `adr-exemptions.yaml`, `annotation-exceptions.yaml`, `ontology/*.yaml`), and
   the decision index and record names under `paths.decisions` (`README.md`, `ADR-NNNN-<slug>.md`);
 - the phases and their order, and the decision status words;
-- the required views, and the views that hold each generated section;
-- the column labels on the capability pages.
+- the required views, and the views that hold each generated section.
 
 Until they are declared, a project has to follow the first consumer's conventions for them.

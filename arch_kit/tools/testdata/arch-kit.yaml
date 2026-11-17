@@ -19,3 +19,13 @@ registers:
 readiness:
   default: ../scripts/READINESS.md
 loader: loader.py
+labels:
+  degraded_mode:
+    heading: Isolated behaviour
+    marker: isolated-behaviour
+    attribute: data-isolated
+    open_row_prefix: IS-
+  group:
+    column: Team
+  environment:
+    word: site

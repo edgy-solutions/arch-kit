@@ -16,4 +16,4 @@ capabilities:
         line: alpha ran
     degraded_mode: not stated
     rows:
-      - SV-1
+      - IS-1

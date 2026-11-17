@@ -24,9 +24,10 @@ own text (capability, entry, anchor, line); it never echoes a readiness line.
 Two keys say how a capability's page reads:
     description   two or three plain sentences, written from the decisions below
     derived_from  citations the description was written from; when absent, from `adrs`
-    severed       (kit key degraded_mode) required for every capability: the exact string `not stated`, or one
+    degraded_mode required for every capability: the exact string `not stated`, or one
                   citation `ADR-NNNN §LABEL` of the record that says how the capability
-                  behaves when its link is severed. `not stated` needs an `SV-` id in
+                  behaves when its link is cut off. `not stated` needs an id with the declared
+                  open-row prefix (`labels.degraded_mode.open_row_prefix`) in
                   `rows`; a citation needs none.
     pending       optional list of non-empty strings naming the sources a decision waits
                   on. A capability with it is at least `proposed`, and needs no
@@ -245,6 +246,7 @@ def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> l
     """Every failure, one line each. Needs no chart and no readiness doc."""
     decisions_dir = Path(decisions_dir)
     names = key_names("check_record")
+    prefix = str(project.need("labels.degraded_mode.open_row_prefix", "check_record"))
     fails: list[str] = []
     caps = {k: (v or {}) for k, v in record["capabilities"].items()}
     for name in capabilities:
@@ -327,14 +329,14 @@ def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> l
             text = read_text(path) if path else None
             if text is not None and says not in text:
                 fails.append(f"{name}: {adr} does not contain {says!r}")
-        sv_rows = [r for r in cap.get("rows") or [] if str(r).startswith("SV-")]
+        sv_rows = [r for r in cap.get("rows") or [] if str(r).startswith(prefix)]
         degraded = cap.get("degraded_mode")
         dm = names["degraded_mode"]
         if not degraded:
             fails.append(f"{name} has no {dm} entry")
         elif degraded == NOT_STATED:
             if not sv_rows:
-                fails.append(f"{name}: {dm} is not stated and rows names no SV- row")
+                fails.append(f"{name}: {dm} is not stated and rows names no {prefix} row")
         else:
             try:
                 adr_sections.parse_citation(degraded)
@@ -394,8 +396,10 @@ def measured_line(readiness_lines: list[str], at: int, text: str) -> list[int]:
     return project.loader("capability_phases").measured_line(readiness_lines, at, text)
 
 
-def lab_sentence(labs: dict, used: list[str]) -> str:
-    parts = [f"{'Lab' if i == 0 else 'lab'} {k}{' is' if i == 0 else ''} {labs[k]}"
+def environment_sentence(environments: dict, used: list[str]) -> str:
+    word = str(project.need("labels.environment.word", "capability_phases"))
+    first = word[:1].upper() + word[1:]
+    parts = [f"{first if i == 0 else word} {k}{' is' if i == 0 else ''} {environments[k]}"
              for i, k in enumerate(used)]
     if len(parts) > 1:
         parts = [", ".join(parts[:-1]) + " and " + parts[-1]] if len(parts) > 2 else [" and ".join(parts)]
@@ -409,7 +413,8 @@ def resolve_quotes(record: dict, readiness: list[str], entries: dict | None = No
 def evidence_item(record: dict, entries: dict, measured: dict, quote: str) -> str:
     """One piece of evidence, as the Evidence column prints it."""
     _, date, section = entries[measured["entry"]]
-    return f"{date}, lab {record['entries'][measured['entry']]['environment']}, {section}: {quote}"
+    word = str(project.need("labels.environment.word", "capability_phases"))
+    return f"{date}, {word} {record['entries'][measured['entry']]['environment']}, {section}: {quote}"
 
 
 def evidence_cells(record: dict, readiness_text: str) -> dict[str, list[str]]:
@@ -429,6 +434,7 @@ def render_table(record: dict, capabilities: dict[str, str], decisions_dir, temp
                  readiness_text: str) -> str:
     """The phases document text. Raises CheckError listing every failure."""
     decisions_dir, templates_dir = Path(decisions_dir), Path(templates_dir)
+    group_column = str(project.need("labels.group.column", "capability_phases"))
     fails = check_record(record, capabilities, decisions_dir)
     readiness = readiness_text.replace("\r\n", "\n").split("\n")
     entries, entry_fails = resolve_entries(record, readiness)
@@ -456,10 +462,10 @@ def render_table(record: dict, capabilities: dict[str, str], decisions_dir, temp
         cap = caps[name]
         phase = phase_of(cap, statuses)
         counts[phase] += 1
-        lane = str(record["groups"][parent])
+        group = str(record["groups"][parent])
         label = increment_label(cap, road_rows)
         if label:
-            lane += f", {label}"
+            group += f", {label}"
         evidence = NOT_MEASURED
         if phase == "measured":
             used.update(record["entries"][m["entry"]]["environment"] for m in cap["measured"])
@@ -478,14 +484,14 @@ def render_table(record: dict, capabilities: dict[str, str], decisions_dir, temp
         decisions += [f"{adr} §{label} (names it still open)" for adr, label in open_citations(cap)]
         if cap.get("pending"):
             decisions.append("decision pending")
-        rows.append(f"| {name} | {lane} | {phase} | {evidence} | {', '.join(built) or '-'} | "
+        rows.append(f"| {name} | {group} | {phase} | {evidence} | {', '.join(built) or '-'} | "
                     f"{', '.join(decisions) or '-'} | {', '.join(cap.get('rows') or []) or '-'} |")
 
     out = ["Phases: " + ", ".join(f"{counts[p]} {p}" for p in PHASES) + ".", "",
-           "| Capability | Lane | Phase | Evidence | Built | Decisions | Rows |",
+           f"| Capability | {group_column} | Phase | Evidence | Built | Decisions | Rows |",
            "|---|---|---|---|---|---|---|", *rows, ""]
     if used:
-        out += [lab_sentence(record["environments"], sorted(used)), ""]
+        out += [environment_sentence(record["environments"], sorted(used)), ""]
     out += ['An entry is the last time the readiness doc records that check. It ran against the chart of that '
             'date, which can be older than the chart this document was rendered from. "Not measured" means '
             'the readiness doc has no entry for the capability, and says nothing about measurements recorded '

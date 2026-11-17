@@ -101,6 +101,12 @@ def natural_key(s: str) -> list:
     return [int(p) if p.isdigit() else p.lower() for p in re.split(r"(\d+)", s)]
 
 
+def group_class() -> str:
+    """The CSS class of a row that starts a new group: the declared group column, lowercased, as a slug, then `-start`."""
+    column = str(project.need("labels.group.column", "render_html"))
+    return column.lower().replace(" ", "-") + "-start"
+
+
 def esc(s: str) -> str:
     return html.escape(s, quote=True)
 
@@ -793,7 +799,8 @@ def style_table(t: str, view: bool = True) -> str:
     grid = [[(c.group(1), c.group(2), c.group(3)) for c in CELL_RE.finditer(m.group(1))] for m in rows]
     ncols = max(len(r) for r in grid)
     head_texts = [plain(c[2]) for c in grid[0]] if rows[0].start() in head_starts else []
-    lane_col = head_texts.index("Lane") if view and "Lane" in head_texts else -1
+    group_name = str(project.need("labels.group.column", "render_html"))
+    group_col = head_texts.index(group_name) if view and group_name in head_texts else -1
     phase_col = head_texts.index("Phase") if view and "Phase" in head_texts else -1
     mins: dict[int, int] = {}
     for col in range(ncols):
@@ -828,11 +835,11 @@ def style_table(t: str, view: bool = True) -> str:
             out.append(f"<{tag}{attrs}>{content}</{tag}>")
         cls = ""
         if not is_head:
-            if lane_col >= 0 and lane_col < len(cells):
-                lane = plain(cells[lane_col][2])
-                if state["body"] > 0 and lane != state["prev"]:
-                    cls = ' class="lane-start"'
-                state["prev"] = lane
+            if group_col >= 0 and group_col < len(cells):
+                group = plain(cells[group_col][2])
+                if state["body"] > 0 and group != state["prev"]:
+                    cls = f' class="{group_class()}"'
+                state["prev"] = group
             state["body"] += 1
         tr_open = m.group(0)[: m.group(0).index(">") + 1]
         if cls:
@@ -843,8 +850,8 @@ def style_table(t: str, view: bool = True) -> str:
 
 
 def style_tables(body_html: str, view: bool = True) -> str:
-    """Table styling the CSS cannot do alone: words held whole, column minimums, phase badges, lane rules.
-    Call it after apply_header_cells. A decision page passes view=False: no phase badge or lane rule. Text inside svg blocks and in grid tables is left alone."""
+    """Table styling the CSS cannot do alone: words held whole, column minimums, phase badges, group rules.
+    Call it after apply_header_cells. A decision page passes view=False: no phase badge or group rule. Text inside svg blocks and in grid tables is left alone."""
     def one(m: re.Match) -> str:
         t = m.group(0)
         return t if "gridtable" in t[: t.index(">")] else style_table(t, view)
@@ -890,7 +897,7 @@ th,td{border:1px solid var(--line);padding:4px 8px;vertical-align:top;text-align
 thead th{background:var(--head);color:#fff}
 tbody th{background:var(--soft)}
 tbody tr:nth-child(even)>*{background:var(--zebra)}
-tr.lane-start>*{border-top:2px solid var(--head)}
+tr.GROUPCLASS>*{border-top:2px solid var(--head)}
 .pending{display:inline-block;margin-left:8px;padding:0 8px;border:1px dashed currentColor;border-radius:10px;font-size:13px;font-weight:600}
 .badge{display:inline-block;white-space:nowrap;padding:0 8px;border-radius:10px;font-size:13px;font-weight:600}
 .phase-measured{background:var(--m-bg);color:var(--m-fg)}
@@ -1162,8 +1169,8 @@ def capability_pages(a: argparse.Namespace, uaf: "rp.Renderer", views: dict, nam
         if phase is None:
             raise CheckError(f"{name}: the record gives it no phase\n")
         label = capability_phases.increment_label(cap, road_rows)
-        lane = str(record["groups"][cmap[name]])
-        head = f'<h1>{esc(name)}</h1><p class="cap-group">Group: {esc(lane)}</p>'
+        group = str(record["groups"][cmap[name]])
+        head = f'<h1>{esc(name)}</h1><p class="cap-group">Group: {esc(group)}</p>'
         if label:
             head += f'<p class="cap-increment">Increment: {esc(label)}</p>'
         source = capability_phases.derived_citations(cap) or capability_phases.record_citations(cap)
@@ -1193,14 +1200,17 @@ def capability_pages(a: argparse.Namespace, uaf: "rp.Renderer", views: dict, nam
             items.append(f"<li>Decision pending: {esc(str(text))}</li>")
         decs = f'<h2>Decisions</h2><ul>{"".join(items) or "<li>-</li>"}</ul>'
         sev = cap.get("degraded_mode")
+        dm_attr = str(project.need("labels.degraded_mode.attribute", "render_html"))
+        dm_heading = str(project.need("labels.degraded_mode.heading", "render_html"))
+        dm_prefix = str(project.need("labels.degraded_mode.open_row_prefix", "render_html"))
         if sev and sev != capability_phases.NOT_STATED:
             sadr, slab = adr_sections.parse_citation(sev)
-            sev_html = (f'<p data-severed>Stated in {link(name, sadr, slab)} '
+            sev_html = (f'<p {dm_attr}>Stated in {link(name, sadr, slab)} '
                         f'{esc(dec.heading(sadr, slab).text)}.</p>')
         else:
-            sv = [r for r in cap.get("rows") or [] if str(r).startswith("SV-")]
+            sv = [r for r in cap.get("rows") or [] if str(r).startswith(dm_prefix)]
             subj = register.get(sv[0], ("", ""))[0] if sv else ""
-            sev_html = ('<p data-severed>Not stated by a decision record. Open row: '
+            sev_html = (f'<p {dm_attr}>Not stated by a decision record. Open row: '
                         f'{esc(sv[0]) if sv else "-"}{f" ({esc(subj)})" if subj else ""}.</p>')
         pat = re.compile(rf"\b{re.escape(name)}\b")
         cited = sorted({v for v, t in sources.items() if pat.search(t)} | {"St-Rm-P"} & set(views))
@@ -1211,7 +1221,7 @@ def capability_pages(a: argparse.Namespace, uaf: "rp.Renderer", views: dict, nam
             rows.append(f"<li>{esc(rid)}: {esc(subject)} ({esc(status)})</li>" if subject else f"<li>{esc(rid)}</li>")
         sections.append(
             f'<section id="cap-{esc(name)}" class="page capability" data-capability="{esc(name)}">{head}'
-            f'<p><a href="#front">Front page</a></p>{what}{evid}<h2>Severed behaviour</h2>{sev_html}{decs}'
+            f'<p><a href="#front">Front page</a></p>{what}{evid}<h2>{esc(dm_heading)}</h2>{sev_html}{decs}'
             f'<h2>Cited by</h2><ul>{cites}</ul>'
             f'<h2>Open rows</h2>{"<ul>" + "".join(rows) + "</ul>" if rows else "<p>-</p>"}{prov}</section>')
         nav.append(f'<li><a href="#cap-{esc(name)}">{esc(name)}</a></li>')
@@ -1328,7 +1338,7 @@ def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
     return (f'<!doctype html>\n<html lang="en" data-profile="uaf" {title_attrs}>\n<head>\n<meta charset="utf-8">\n'
             f'<meta name="viewport" content="width=device-width, initial-scale=1">\n'
             f'<meta http-equiv="Content-Security-Policy" content="{CSP}">\n'
-            f'<title>{esc(titles["uaf"])}</title>\n<style>\n{CSS}\n</style>\n</head>\n<body>\n'
+            f'<title>{esc(titles["uaf"])}</title>\n<style>\n{CSS.replace("GROUPCLASS", group_class())}\n</style>\n</head>\n<body>\n'
             f'<header class="bar"><span class="sys">{esc(system or "Architecture")}</span>'
             f'<a href="#front">Front page</a><span class="profiles" role="group" aria-label="Profile">{buttons}</span>'
             f'<input id="q" type="search" placeholder="Search" aria-label="Search the views" autocomplete="off"></header>\n'

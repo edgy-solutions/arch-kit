@@ -119,8 +119,7 @@ points at a declaration somewhere else.
 
 ## Content layout
 
-The tools read these files under `paths.root` and `paths.decisions`. The file names are fixed for now (step 3 makes
-them declared).
+The tools read these files under `paths.root` and `paths.decisions`. The file names are fixed for now.
 
 ```
 <paths.root>/
