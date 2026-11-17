@@ -130,6 +130,11 @@ The number is a proposal for the project owner to rule.
 Each step keeps Phase 1's golden comparison for a project that declares no composition: its export stays
 byte-identical.
 
+**A pin already exists.** The kit's first consumer pins its citations of a peer repository's records to a commit, and
+its decision index check runs that pin check. Phase 1 step S6a carries it over as a declared script
+(`decisions.index.foreign[].pin_check`). P2-1's `commit` is the same pin, declared rather than scripted. P2-2 should
+replace the script with that declaration, not run beside it, so a project has one pin for each peer, not two.
+
 ## Questions for the ruling
 
 1. Is "consumes" declared only by the consumer, with the composition file listing only where to look (§3)? The
