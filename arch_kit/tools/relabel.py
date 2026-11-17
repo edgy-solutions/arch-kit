@@ -17,7 +17,8 @@ between tags, or the value of a shown attribute (title, alt, aria-label, placeho
 It never touches tag names, attribute names, id, href, class or any other attribute: those are structure, and a
 name that reaches one is a leak for the render's scan to refuse, not something to rewrite. The contents of
 <script>, <style> (an inline SVG's included) and comments are skipped whole.
-    - Entities are matched as written: a rule written for "&" text does not match "&amp;".
+    - Entities are matched as written: a rule for "a & b" does not match "a &amp; b" (a rule for a lone "&"
+      still matches the "&" that starts "&amp;").
     - Inline SVG <text> and <tspan> content is a text run, so it is relabelled. The diagram was laid out for the
       original string, so a replacement of a different length can sit oddly; it is not re-rendered.
     - A rule cannot match across a tag: "alpha <b>beta</b>" is two runs.
