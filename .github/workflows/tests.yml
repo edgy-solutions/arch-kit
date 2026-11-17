@@ -11,8 +11,12 @@
 # render reads decision stamps from git, so the checkout takes full history. No Helm is installed: no test in the
 # suite runs it (the example declares no data exchange, and the reader's unit tests use synthetic documents).
 #
-# Action pins: setup-node is pinned to a full commit sha (the v7.1.0 tag, from git ls-remote). checkout and
-# setup-python stay on the unpinned @v7 tag, as before.
+# Action pins: every third-party action is pinned to a full commit sha, with its version in a comment (from
+# git ls-remote; the tags are lightweight, so the tag's own commit).
+#
+# The `action` job runs the kit's own Action from the checkout on examples/minimal, twice. The example declares
+# hosting: none, so the first run must upload nothing. The second run uses a copy of the declaration with
+# hosting: ci-artifact, and must upload the export.
 name: tests
 
 on:
@@ -30,11 +34,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
 
@@ -68,3 +72,52 @@ jobs:
             echo "tests: some were skipped; in CI a skipped test is not a pass"
             exit 1
           fi
+
+  action:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Run the Action, hosting none
+        id: none
+        uses: ./
+        with:
+          config: examples/minimal/arch-kit.yaml
+          chart: examples/minimal/chart
+          release: larkspur
+          values: examples/minimal/values.yaml
+          readiness: examples/minimal/READINESS.md
+          relabel: examples/minimal/relabel.txt
+          barred: examples/minimal/barred.txt
+
+      - name: No artifact when hosting is none
+        env:
+          HOSTING: ${{ steps.none.outputs.hosting }}
+          ARTIFACT: ${{ steps.none.outputs.artifact-id }}
+        run: |
+          test "$HOSTING" = none
+          if [ -n "$ARTIFACT" ]; then echo "an artifact was uploaded with hosting none"; exit 1; fi
+
+      - name: Run the Action, hosting ci-artifact
+        id: art
+        uses: ./
+        with:
+          config: examples/minimal/arch-kit-ci-artifact.yaml
+          chart: examples/minimal/chart
+          release: larkspur
+          values: examples/minimal/values.yaml
+          readiness: examples/minimal/READINESS.md
+          relabel: examples/minimal/relabel.txt
+          barred: examples/minimal/barred.txt
+          out: ${{ runner.temp }}/arch-kit-export-2
+
+      - name: The artifact is present when hosting is ci-artifact
+        env:
+          HOSTING: ${{ steps.art.outputs.hosting }}
+          ARTIFACT: ${{ steps.art.outputs.artifact-id }}
+        run: |
+          test "$HOSTING" = ci-artifact
+          if [ -z "$ARTIFACT" ]; then echo "no artifact was uploaded with hosting ci-artifact"; exit 1; fi
