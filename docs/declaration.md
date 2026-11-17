@@ -50,8 +50,13 @@ So a project that never runs the data-exchange generator does not need to declar
 | `labels.degraded_mode.marker` | The generated-section marker, `<!-- generated: MARKER -->` | `derived`, and through it `check_views` and `render_profile` |
 | `labels.degraded_mode.attribute` | The HTML attribute on the capability page's degraded-mode paragraph | `render_html` |
 | `labels.degraded_mode.open_row_prefix` | A record row id with this prefix is the open row for "not stated" | `capability_phases`, `derived`, `render_html` |
+| `labels.phase.column` | The capability-phases table column that holds the phase, which `render_html` badges, and the heading of the phase on a capability page | `capability_phases`, `render_html`, `browser_facts` |
 | `labels.group.column` | The capability-phases table column that holds the group, which `render_html` styles | `capability_phases`, `render_html` |
 | `labels.environment.word` | The word for an environment, in the phases document's sentence ("<Word> X is ...") and the evidence cell ("<date>, <word> X, ...") | `capability_phases` |
+| `phases`, `floor` | The phases and the floor (see below) | `capability_phases`, `capability_floor`, `render_html`, `browser_facts` |
+| `statuses` | The decision statuses (see below) | `capability_phases`, `derived`, `render_html`, `check_views` |
+| `views.required`, `views.required_dodaf`, `views.homes`, `views.capability_links` | The views the tree must hold, and where generated sections and capability links live (see below) | `check_views`, `derived`, `render_html`, `render_profile`, `browser_facts` |
+| `export.browser.*` | What the browser check opens and how much it expects (see below) | `browser_facts` |
 | `readiness.default` | The default readiness document, relative to the chart directory, used when `--readiness` is not given | `render_html`, `render_profile` |
 
 ## A complete example
@@ -143,14 +148,103 @@ All of these exit 2:
 | The file does not exist | `arch-kit: <declaration>: loader file <path> not found` |
 | The record breaks the schema | `<record>: <where>: <what>`, for the first place it breaks |
 
+## Phases, statuses, views and the browser check
+
+### `phases` and `floor`
+
+```yaml
+phases:                         # strongest first; a capability takes the first phase whose rule it meets
+  - name: measured
+    when: [measured]
+    badge: m
+  - name: proposed
+    when: [{status: Proposed}, still-open, pending]
+    badge: a
+floor: built unmeasured         # a phase name: everything deployed must be claimed at or above it
+```
+
+`when` lists rules, and a capability meets a phase if it meets any one of them. The rule vocabulary is fixed by the
+kit:
+
+| Rule | A capability meets it when |
+|---|---|
+| `measured` | the record gives it a `measured` entry |
+| `built` | the record gives it a `built` entry |
+| `{status: WORD}` | it cites a decision record whose status line starts with the lead of the declared status WORD |
+| `still-open` | a decision record names it still open |
+| `pending` | the record lists a pending decision for it |
+| `rows` | the record lists a register row for it |
+
+`badge` is one of the five palette keys `m`, `b`, `a`, `p`, `r`, which pick the colours of the phase badge. A phase's
+CSS class is its name with spaces turned into hyphens. A capability that meets no rule has no phase, and that fails
+the render. `floor` is a phase name; the floor phase and every phase declared above it satisfy `capability_floor`.
+An unknown rule, an unknown status word, a duplicate phase name, a `floor` that is not a phase and a `badge` that is not
+a palette key each exit 2.
+
+### `statuses`
+
+```yaml
+statuses:
+  - word: Accepted       # as the decision index and a Sources table's Decision column write it
+    lead: accepted       # how a record's status line starts, lowercase
+    in_force: true
+  - word: Proposed
+    lead: proposed
+    in_force: true
+    sources_check: true  # a Sources row marked with this word and its record's lead must agree
+  - word: Superseded
+    lead: superseded
+    in_force: false
+```
+
+`in_force` has two meanings. `derived` requires a record with an in-force status to be cited by a view, unless it is
+exempt. And an in-force status is the only kind a capability may cite: `capability_phases` refuses a capability that
+cites a record whose status is declared with `in_force: false`, or is not declared. `in_force` defaults to false. A
+status line that starts with no declared lead is a failure in `derived`.
+
+### `views`
+
+```yaml
+views:
+  required: [Op-Cn, Rs-Sr]                  # views the tree must hold
+  required_dodaf: [OV-1, OV-2]              # DoDAF outputs some view must export
+  homes:                                    # generated-section name -> the view that holds it
+    capability-phases: St-Rm-P              # also: dependencies, taxonomy, dictionary, trace, and the marker declared in labels.degraded_mode.marker
+  capability_links: [St-Tx, St-Rm-P]        # views whose capability names link to the capability pages
+```
+
+The UAF grid meanings stay fixed in the kit (`uaf.py`): the capability taxonomy, the traceability matrix and the
+operational and resource process views are the grid cells `check_views` reads for its `capabilities` and `trace` rules.
+The ids that hold them are the project's own.
+
+### `export.browser`
+
+```yaml
+export:
+  browser:
+    views:
+      table: Rs-Cn          # the view with the widest table; phone, zebra and screenshot checks open it
+      diagram: Op-Tx        # diagram screenshot, print and table-width checks
+      profile_only: Sc-Sr   # a view with no export in one of the profiles
+    search:
+      phrase: Which resource talks to which
+      finds: Rs-Cn          # the view whose page holds the phrase
+    min_pages: 30           # the least pages the print PDF may have
+    min_tables: 30          # the least tables with a min-width header
+    min_tokens: 1000        # the least words the mid-word wrap check must measure
+```
+
+`browser_facts` reads these with the model, the record, the decision records and the views, and writes the counts
+the browser script expects: the number of views, pages by kind, the phase badges, the widest table, the number of
+group starts and the ids above. The script exits 2 without `--facts`. `wide_table_columns` is the widest table in the
+`table` view's source; when the data-exchange home is that view, the generated Exchanges table counts too.
+
 ## What is not declared yet
 
-Some things are still fixed in the kit. Some become declared in step 3 (S3b: the labels, now declared; S3c: the phases, statuses and view kinds), and the file names are not yet scheduled (see the README's status section):
+Some things are still fixed in the kit. The labels, phases, statuses and views are declared. The file names are not yet scheduled (see the README's status section):
 
 - the content file names under `paths.root` (`profiles.yaml`, `slots.yaml`, `APPENDIX-A.md`, `INVENTORY.md`,
   `README.md`, `capability-record.yaml`, `adr-exemptions.yaml`, `annotation-exceptions.yaml`, `ontology/*.yaml`), and
   the decision index and record names under `paths.decisions` (`README.md`, `ADR-NNNN-<slug>.md`);
-- the phases and their order, and the decision status words;
-- the required views, and the views that hold each generated section.
 
 Until they are declared, a project has to follow the first consumer's conventions for them.
