@@ -310,3 +310,39 @@ def dictionary(tool: str) -> Dictionary:
             out.append(Term(f, path))
         _CACHE["dictionary"] = Dictionary(d, tuple(out))
     return _CACHE["dictionary"]
+
+
+READERS = ("helm-annotations",)
+
+
+def exchange_reader(tool: str) -> str | None:
+    """The declared data-exchange reader (`exchange.reader`), or None when the project declares no exchange.
+
+    The only reader the kit has is `helm-annotations` (data_exchange.py). Any other value exits 2 and lists the
+    allowed ones."""
+    if "exchange_reader" not in _CACHE:
+        node = project.CONFIG.get("exchange")
+        reader = None
+        if node is not None:
+            if not isinstance(node, dict):
+                _bad("exchange", "must be a map")
+            if "reader" in node:
+                reader = node["reader"]
+                if reader not in READERS:
+                    _bad("exchange.reader", f"{reader!r} is not one of: {', '.join(READERS)}")
+        _CACHE["exchange_reader"] = reader
+    return _CACHE["exchange_reader"]
+
+
+def exchange_home(profiles: dict, tool: str) -> str | None:
+    """The view that holds the data-exchange section (profiles.yaml `data_exchange.home`), or None with no exchange.
+
+    With no reader declared there is nothing to put in a home: a `data_exchange.home` given anyway exits 2."""
+    node = (profiles or {}).get("data_exchange")
+    home = node.get("home") if isinstance(node, dict) else None
+    if exchange_reader(tool) is None:
+        if home is not None:
+            project.die(f"arch-kit: profiles.yaml: data_exchange.home is {home!r}, but the declaration "
+                        f"has no exchange.reader: a home with nothing to put in it")
+        return None
+    return home

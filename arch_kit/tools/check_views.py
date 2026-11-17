@@ -529,6 +529,9 @@ def rule_outputs(t: Tree) -> list[str]:
     for v in declared.views("check_views")["required"]:
         if v not in t.views:
             fails.append(f"outputs: view {v} is missing")
+    if declared.exchange_reader("check_views") is None:
+        declared.exchange_home(t.profiles, "check_views")  # a home with no exchange exits 2
+        return fails
     dx = t.profiles.get("data_exchange") or {}
     home = dx.get("home")
     if home not in t.views:
@@ -545,6 +548,10 @@ def rule_outputs(t: Tree) -> list[str]:
 
 
 def rule_generated(t: Tree) -> list[str]:
+    if declared.exchange_reader("check_views") is None:
+        where = [vid for vid, text in t.view_text.items() if GEN_MARKER in text]
+        return [f"generated: the data-exchange marker is in {vid}, but the declaration has no exchange.reader"
+                for vid in sorted(where)]
     home = (t.profiles.get("data_exchange") or {}).get("home")
     where = {vid: text.count(GEN_MARKER) for vid, text in t.view_text.items() if GEN_MARKER in text}
     total = sum(where.values())
@@ -619,7 +626,11 @@ def rule_quotes(t: Tree, a: argparse.Namespace) -> list[str]:
 
 
 def rule_floor(t: Tree, a: argparse.Namespace) -> list[str]:
-    """The render's workloads, kinds, flags and routes are claimed, and what claims them is built."""
+    """The render's workloads, kinds, flags and routes are claimed, and what claims them is built.
+
+    The floor reads the exchange reader's model, so it is skipped when no exchange is declared."""
+    if declared.exchange_reader("check_views") is None:
+        return []
     try:
         record = capability_phases.load_record(t.root / "capability-record.yaml")
         capabilities = capability_phases.model_capabilities(t.sysml)
@@ -681,7 +692,8 @@ def main(argv: list[str] | None = None) -> int:
     if missing:
         print(f"ok: {len(CHECKS)} rules, {len(tree.views)} views; not run: quotes, floor ({a.allow_partial})")
     else:
-        print(f"ok: {len(RULES)} rules, {len(tree.views)} views")
+        skipped = "" if declared.exchange_reader("check_views") else "; not run: floor (no exchange declared)"
+        print(f"ok: {len(RULES)} rules, {len(tree.views)} views{skipped}")
     return EXIT_OK
 
 

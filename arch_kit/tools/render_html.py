@@ -1289,7 +1289,10 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
     rules = relabel.load(getattr(a, "relabel", None) or [])
     dec = Decisions(project.DECISIONS, rules)
 
-    dx_text, dx_cells = dx_variants({p: r.dx_content() for p, r in renderers.items()})
+    if uaf.exchange:
+        dx_text, dx_cells = dx_variants({p: r.dx_content() for p, r in renderers.items()})
+    else:
+        dx_text, dx_cells = "", {}
 
     # names that change, per view
     sources = {p: renderers[p].export_sources() for p in ("dodaf202", "naf4")}
@@ -1316,7 +1319,7 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
         body_html = page.render(body.rstrip("\n") + "\n")
         if vid in declared.views("render_html")["capability_links"]:
             body_html = link_capability_names(vid, body_html, list(capability_phases.model_capabilities(uaf.sysml)))
-        if vid == uaf.home:
+        if uaf.exchange and vid == uaf.home:
             body_html = apply_header_cells(body_html, dx_cells)
             if "zzpname" in body_html:
                 raise CheckError(f"view {vid}: a data-exchange header marker was not placed\n")

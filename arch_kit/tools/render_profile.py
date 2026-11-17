@@ -329,8 +329,10 @@ class Renderer:
         self.uaf_label = self.prof["profiles"]["uaf"]["label"]
         self.views = self.prof.get("views") or {}
         self.dx = self.prof.get("data_exchange") or {}
-        self.home = self.dx.get("home")
-        self.dx_id = self.dx[self.profile]["id"]
+        # No declared exchange reader: no generated section, no home, no chart render for it.
+        self.exchange = declared.exchange_reader("render_profile") is not None
+        self.home = declared.exchange_home(self.prof, "render_profile")
+        self.dx_id = self.dx[self.profile]["id"] if self.exchange else None
         sysml_path = project.model_file("render_profile")
         try:
             self.sysml = sysml_path.read_text(encoding="utf-8")
@@ -358,7 +360,7 @@ class Renderer:
         elif given is not None and given.strip():
             self.name = given.strip()
         self.doc: str | None = None
-        if a.chart:
+        if a.chart and self.exchange:
             self.doc = generate_document(a, self.profile)
         self.phases = self.phases_content()
         self.derived = {mk: derived.build(mk, ROOT, Path(a.record), self.sysml, self.masked) for mk in derived.homes()}
@@ -382,7 +384,9 @@ class Renderer:
         return capability_phases.render_table(record, capabilities, decisions, cdir / "templates", readiness)
 
     def dx_content(self) -> str:
-        """The generated document without its H1, or the notice."""
+        """The generated document without its H1, or the notice (empty when no exchange is declared)."""
+        if not self.exchange:
+            return ""
         if self.doc is None:
             return NOTICE
         return drop_h1(self.doc, self.attribution)
@@ -396,6 +400,8 @@ class Renderer:
         """(H1, body) of a view with every transform applied; dx_marker replaces the data-exchange marker."""
         entry = self.views[vid]
         h1, body = read_view(ROOT, entry, vid)
+        if GEN_MARKER in body and not self.exchange:
+            raise InputError(f"view {vid}: the data-exchange marker is there, but the declaration has no exchange.reader")
         if GEN_MARKER in body and vid != self.home:
             raise InputError(f"view {vid}: the data-exchange marker belongs only in {self.home}")
         if PHASES_MARKER in body and vid != declared.home("capability-phases", "render_profile"):

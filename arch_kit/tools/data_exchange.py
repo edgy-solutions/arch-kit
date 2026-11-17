@@ -10,6 +10,17 @@ the ConfigMaps the workloads mount, and the egress ConfigMaps. Nothing is
 measured and nothing is inferred from a name; a declaration that is missing
 is printed as an exception, never filled in.
 
+This is the kit's one data-exchange reader, named `helm-annotations`. A project opts in with
+`exchange: {reader: helm-annotations}` in its declaration; without that key no exchange is generated and no
+chart is rendered for it. The reader is written for one platform's chart and expects, by name:
+  - ConfigMaps `egress-kinds`, `egress-routes`, `egress-assembler-config`, `egress-intake-config` and
+    `destinations-deployment`;
+  - workloads `egress-gate*`, `egress-forwarder`, `egress-assembler` and `egress-intake`;
+  - one StatefulSet `redpanda-<tier>` per tier, and a special tier (and broker) named `hq`;
+  - topics annotated as `broker/topic` under the declared annotation keys.
+These names are not declared and are not renamed. A project whose chart is not shaped that way declares no
+exchange.
+
 Usage:
     python docs/arch/tools/data_exchange.py --chart PATH --values FILE
         [--values FILE ...] [--rendered FILE] [--release NAME] [--profile uaf|dodaf202|naf4]

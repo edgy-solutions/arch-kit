@@ -63,6 +63,7 @@ So a project that never runs the data-exchange generator does not need to declar
 | `name` | The framework or system's display name. It is the default attribution line ("built on NAME") and is shortened to "the framework" in decision titles | `data_exchange`, `derived` |
 | `model.file` | The SysML v2 model, relative to `paths.root` (or to `--root` where a tool takes one) | `check_views`, `render_profile`, `validate_sysml` |
 | `model.package` | The model's top-level package name, which the reference parser must report | `validate_sysml` |
+| `exchange.reader` | Opt in to the generated data-exchange section. The only value is `helm-annotations` (see [the exchange reader](#the-exchange-reader)). Absent: no exchange section, no chart render for it, no `--allow-no-kinds`, and `profiles.yaml` `data_exchange.home` must not be given (exit 2 naming the key). Any other value exits 2 and lists the allowed ones | `check_views`, `render_profile`, `render_html` |
 | `exchange.annotations.produces` | The workload annotation that lists the topics a workload produces | `data_exchange` |
 | `exchange.annotations.groups` | The workload annotation that lists its consumer groups | `data_exchange` |
 | `exchange.schema_key` | The JSON Schema extension key that declares a payload's key, label and owning tier | `data_exchange` |
@@ -324,3 +325,14 @@ Some things are still fixed in the kit. The labels, phases, statuses and views a
   citation is `prefix:ADR-NNNN`.
 
 Until they are declared, a project has to follow the first consumer's conventions for them.
+
+## The exchange reader
+
+`exchange: {reader: helm-annotations}` turns on the generated data-exchange section, read from a `helm template` render of the chart. The reader is written for one platform's chart and expects these names, which are not declared and not renamed:
+
+- ConfigMaps `egress-kinds`, `egress-routes`, `egress-assembler-config`, `egress-intake-config` and `destinations-deployment`;
+- workloads `egress-gate*`, `egress-forwarder`, `egress-assembler` and `egress-intake`;
+- one StatefulSet `redpanda-<tier>` per tier, and a special tier and broker named `hq`;
+- topic annotations of the form `broker/topic`, under the keys `exchange.annotations.produces` and `.groups`.
+
+A project whose chart is not shaped that way declares no exchange. With no `exchange` key, `check_views` skips the exchange rules and the capability floor (the floor reads the reader's model), and `render_html` writes no exchange table or diagram. The chart is still read by the quotes rule, the built-template phase rule and the readiness document. A consumer-side reader is Phase 2.
