@@ -127,8 +127,11 @@ count, never the value. `check_export` repeats both scans as the independent che
 When the declaration says `portal.audience: public`, a missing list is an input error (exit 2), before any work:
 `check_export` needs at least one `--relabel` (it always needs `--barred`), and `render_html` needs at least one
 `--relabel` and at least one `--barred`. The rule asks that a list is given, not that it is private: the sample lists
-satisfy it. In CI, a deployment supplies its own lists, for example from a repository secret, with the sample lists
-as the fallback.
+satisfy it.
+
+Public CI uses the sample lists by design. A project's real lists stay out of its public workflows, secrets included,
+so the relabel with the real names runs only locally, where the project's private list is. A CI pass is therefore
+never a real-name check, and is never reported as one.
 
 The kit ships `relabel-sample.txt` and `barred-sample.txt`, with made-up entries, so that its tests and a first run
 have something to read. A green run with the samples shows the mechanics work. It is not evidence that a project's

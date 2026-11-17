@@ -1,7 +1,7 @@
 name: arch-kit
 description: Check and export a project's architecture records with arch-kit, and upload the export when the project declares it.
-# The Action reads no secret. A list that must stay private is passed in by the caller, as a path to a file the
-# caller wrote from its own secret. Every third-party action below is pinned to a full commit sha, version in the
+# The Action reads no secret. Public CI uses the sample lists by design; the relabel with a project's real names
+# runs only locally. Every third-party action below is pinned to a full commit sha, version in the
 # comment. The runner needs bash, Chrome on the PATH (the hosted Ubuntu image has it) and a checkout with full
 # history (the render stamps decisions from git). It does not need Helm.
 
