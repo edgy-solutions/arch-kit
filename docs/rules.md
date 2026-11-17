@@ -101,6 +101,12 @@ The leak scan runs in the render, on the finished HTML: a relabel survivor (for 
 or a barred value when `--barred` is given, is exit 1 and no file is written. The message names the rule number and a
 count, never the value. `check_export` repeats both scans as the independent check.
 
+When the declaration says `portal.audience: public`, a missing list is an input error (exit 2), before any work:
+`check_export` needs at least one `--relabel` (it always needs `--barred`), and `render_html` needs at least one
+`--relabel` and at least one `--barred`. The rule asks that a list is given, not that it is private: the sample lists
+satisfy it. In CI, a deployment supplies its own lists, for example from a repository secret, with the sample lists
+as the fallback.
+
 The kit ships `relabel-sample.txt` and `barred-sample.txt`, with made-up entries, so that its tests and a first run
 have something to read. A green run with the samples shows the mechanics work. It is not evidence that a project's
 private list ran.

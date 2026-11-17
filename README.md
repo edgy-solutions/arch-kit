@@ -27,7 +27,7 @@ is the acceptance test: after every step it must come out byte-identical, or eac
 | 2 | No project names in the kit. Names, keys and file names are declared | done |
 | 3 | A loader seam: each project reads its own files into a neutral record. Labels, phases, statuses and view kinds are declared | done |
 | 4 | Relabelling and the leak scan run on the rendered HTML | done |
-| 5 | Each portal declares its hosting and its audience | planned |
+| 5 | Each portal declares its hosting and its audience | done |
 | 6 | A CLI entry point, a reusable GitHub Action, the decision-index checks, a `v0.1.0` release, and a fictional example project | planned |
 | 7 | The first project pins `v0.1.0`, with the golden comparison in its CI | planned |
 
@@ -86,6 +86,9 @@ paths:
   root: .                      # this directory: views/, model/, profiles.yaml, ...
   repo: ../..                  # the repository root
   decisions: ../../decisions   # the decision records
+portal:
+  hosting: ci-artifact         # ci-artifact | static-site | none
+  audience: public             # public | private: public makes the render and check_export require the lists
 loader: kit_loader.py          # your module that reads your files for the kit
 name: Example
 model:
