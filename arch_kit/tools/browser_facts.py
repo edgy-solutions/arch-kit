@@ -102,6 +102,7 @@ def facts(root: Path) -> dict:
 
     return {
         "views": len(tree.views),
+        "exchange": declared.exchange_reader(TOOL) is not None,
         "base_pages": 1 + len(tree.views) + 1,
         "capability_pages": len(capabilities),
         "decision_pages": len(render_html.Decisions(project.DECISIONS).keys()),

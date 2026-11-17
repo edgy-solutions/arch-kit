@@ -207,7 +207,7 @@ try {
     const h1 = await page.evaluate((v) => document.querySelector(`#view-${v} h1`).textContent, TABLE);
     check(h1 !== uafH1, `${p}: a view H1 changed`, h1);
     const th = await page.evaluate((v) => [...document.querySelectorAll(`#view-${v} th.pname`)].map((e) => e.textContent), TABLE);
-    check(th.length === uafTh.length && th.length > 0 && th.join("|") !== uafTh.join("|"), `${p}: a data-exchange th changed`, th.join("|"));
+    if (facts.exchange !== false) check(th.length === uafTh.length && th.length > 0 && th.join("|") !== uafTh.join("|"), `${p}: a data-exchange th changed`, th.join("|"));
     const b = await body(p);
     const diff = views.filter((v) => hash(b[v]) !== hash(uafBody[v]));
     check(diff.length === 0, `${p}: text outside names is the same as UAF in every view`, diff.join(","));

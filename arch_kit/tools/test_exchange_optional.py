@@ -5,6 +5,7 @@ read once per process. Declared: the existing tests, which use the fixture decla
 """
 from __future__ import annotations
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -90,6 +91,17 @@ class OptionalExchange(unittest.TestCase):
         p, _ = td.run_py(RENDER, tmp, c)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn("EXCHANGE False '' None None", p.stdout)
+    def facts(self, cfg, home):
+        tmp = self.tree(home=home)
+        out = tmp / "facts.json"
+        code = f"import sys, browser_facts; sys.exit(browser_facts.main(['--root', '.', '--out', r'{out}']))"
+        p, _ = td.run_py(code, tmp, cfg)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        return json.loads(out.read_text(encoding="utf-8"))
+
+    def test_the_browser_facts_say_whether_there_is_an_exchange(self):
+        self.assertIs(self.facts(config(), False)["exchange"], False)
+        self.assertIs(self.facts(td.fixture_config(), True)["exchange"], True)
 
 
 if __name__ == "__main__":
