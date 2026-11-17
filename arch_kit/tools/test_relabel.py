@@ -114,5 +114,45 @@ class Apply(Base):
         self.assertEqual(relabel.survivors(relabel.apply("a zebra-host-9", r)[0], r), [])
 
 
+class ApplyHtml(Base):
+    def html(self, doc, replacement="the lab", pattern=r"zebra-host-9"):
+        return relabel.apply_html(doc, self.rules(f"{pattern}\t{replacement}\n"))
+
+    def test_text_attribute_and_svg_text_are_replaced(self):
+        doc = ('<p>on zebra-host-9 now</p><img alt="zebra-host-9"><a title="x zebra-host-9">k</a>'
+               '<svg><text>zebra-host-9</text><tspan>a zebra-host-9</tspan></svg>')
+        out, n = self.html(doc, replacement="lab")
+        self.assertEqual(n, 5)
+        self.assertNotIn("zebra", out)
+
+    def test_shown_attributes_only(self):
+        doc = ('<a title="zebra-host-9" aria-label="zebra-host-9" data-title-uaf="zebra-host-9" '
+               'data-other="zebra-host-9">k</a><meta content="zebra-host-9"><input placeholder="zebra-host-9">')
+        out, n = self.html(doc, replacement="lab")
+        self.assertEqual(n, 5)
+        self.assertIn('data-other="zebra-host-9"', out)
+
+    def test_structure_script_style_and_comment_are_untouched(self):
+        doc = ('<script>var a = "zebra-host-9";</script><style>.zebra-host-9{}</style><!-- zebra-host-9 -->'
+               '<svg><style>.zebra-host-9{}</style></svg>'
+               '<div id="zebra-host-9" class="zebra-host-9" data-x="zebra-host-9"><a href="#zebra-host-9">k</a></div>')
+        self.assertEqual(self.html(doc), (doc, 0))
+
+    def test_sentence_start_after_block_tags_not_inline_tags(self):
+        self.assertEqual(self.html("<ul><li>zebra-host-9 runs</li></ul>")[0], "<ul><li>The lab runs</li></ul>")
+        self.assertEqual(self.html("<p>x</p><li><a>zebra-host-9</a></li>")[0], "<p>x</p><li><a>the lab</a></li>")
+        self.assertEqual(self.html("<p>see <a>zebra-host-9</a></p>")[0], "<p>see <a>the lab</a></p>")
+
+    def test_sentence_start_inside_a_run_after_a_stop(self):
+        self.assertEqual(self.html("<p>It ends. zebra-host-9 starts</p>")[0], "<p>It ends. The lab starts</p>")
+
+    def test_determiner_across_a_segment(self):
+        self.assertEqual(self.html("<p>x</p><p>run the zebra-host-9 now</p>")[0], "<p>x</p><p>run the lab now</p>")
+
+    def test_entities_are_matched_as_written(self):
+        self.assertEqual(self.html("<p>a &amp; b</p>", replacement="and", pattern=r"a & b")[1], 0)
+        self.assertEqual(self.html("<p>a &amp; b</p>", replacement="and", pattern=r"a &amp; b")[1], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
