@@ -90,10 +90,16 @@ A project keeps two lists of its own. Both stay out of the kit, and out of any p
 
 - **Relabel list:** one rule per line. Each rule is a regular expression, a TAB, then the replacement. Lines starting
   with `#`, and blank lines, are ignored. `render_html --relabel` applies the list to the decision records as they
-  are exported. The source files are not changed. `check_export --relabel` fails if anything the rules should have
-  replaced is still in the file.
+  load, then to the whole finished HTML: text between tags, and the shown attributes (`title`, `alt`, `aria-label`,
+  `placeholder`, `content`, `data-title-*`). It never rewrites an `id`, an `href`, a `class` or another `data-*`
+  value, nor a script, a style or a comment. The source files are not changed. `check_export --relabel` fails if
+  anything the rules should have replaced is still in the file.
 - **Barred list:** one pattern per line, with an optional `|reason` after it. `check_export` and the `quotes` rule
-  fail on any match.
+  fail on any match. `render_html --barred` applies it to the finished HTML.
+
+The leak scan runs in the render, on the finished HTML: a relabel survivor (for example a name that reached an `id`),
+or a barred value when `--barred` is given, is exit 1 and no file is written. The message names the rule number and a
+count, never the value. `check_export` repeats both scans as the independent check.
 
 The kit ships `relabel-sample.txt` and `barred-sample.txt`, with made-up entries, so that its tests and a first run
 have something to read. A green run with the samples shows the mechanics work. It is not evidence that a project's
