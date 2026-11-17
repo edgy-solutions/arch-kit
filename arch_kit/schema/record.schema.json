@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/arch-kit/record.schema.json",
+  "title": "The neutral capability record",
+  "description": "The shape a loader's load_record returns. check_record reports the finer failures; this schema holds what it needs to run.",
+  "type": "object",
+  "required": ["groups", "environments", "entries", "capabilities"],
+  "properties": {
+    "groups": {"type": "object"},
+    "environments": {"type": "object"},
+    "entries": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["object", "null"],
+        "properties": {
+          "anchor": {"type": "string"},
+          "environment": {}
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["degraded_mode"],
+        "properties": {
+          "description": {"type": "string"},
+          "derived_from": {"type": "array"},
+          "adrs": {"type": "array"},
+          "built": {"type": "array"},
+          "measured": {"type": "array"},
+          "rows": {"type": "array", "items": {"type": "string"}},
+          "still_open": {"type": "array"},
+          "increment": {"type": "string"},
+          "degraded_mode": {"type": "string", "minLength": 1},
+          "pending": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    }
+  }
+}

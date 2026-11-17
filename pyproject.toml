@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "arch-kit"
 dynamic = ["version"]
 requires-python = ">=3.10"
-dependencies = ["pyyaml", "markdown-it-py==4.0.0"]
+dependencies = ["pyyaml", "markdown-it-py==4.0.0", "jsonschema==4.26.0"]
 
 [tool.setuptools]
 packages = ["arch_kit", "arch_kit.tools"]
@@ -16,3 +16,6 @@ version = { attr = "arch_kit.__version__" }
 
 [tool.setuptools.package-data]
 "arch_kit.tools" = ["*.py", "*.txt", "*.mjs", "*.json", "export/*", "testdata/*"]
+
+[tool.setuptools.package-data.arch_kit]
+"*" = ["schema/*.json"]

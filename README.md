@@ -25,7 +25,7 @@ is the acceptance test: after every step it must come out byte-identical, or eac
 |---|---|---|
 | 1 | Tools moved unchanged. Content paths are read from the project's declaration | done |
 | 2 | No project names in the kit. Names, keys and file names are declared | done |
-| 3 | A loader seam: each project reads its own files into a neutral record. Labels, phases, statuses and view kinds are declared | in progress |
+| 3 | A loader seam: each project reads its own files into a neutral record. Labels, phases, statuses and view kinds are declared | in progress: the loader seam is done |
 | 4 | Relabelling and the leak scan run on the rendered HTML | planned |
 | 5 | Each portal declares its hosting and its audience | planned |
 | 6 | A CLI entry point, a reusable GitHub Action, the decision-index checks, a `v0.1.0` release, and a fictional example project | planned |
@@ -62,7 +62,7 @@ records the run that produced it.
 
 ### Requirements
 
-- Python 3.10 or later (CI uses 3.12), with `pyyaml` and `markdown-it-py==4.0.0`.
+- Python 3.10 or later (CI uses 3.12), with `pyyaml`, `markdown-it-py==4.0.0` and `jsonschema==4.26.0`.
 - For diagrams and the browser check: Node.js 22 or later, and Chrome. Run `npm ci` in `arch_kit/tools/export`, and set
   `PUPPETEER_EXECUTABLE_PATH` to Chrome.
 - For the deployment-backed checks and the data-exchange tables: `helm`, and the project's chart.
@@ -86,13 +86,17 @@ paths:
   root: .                      # this directory: views/, model/, profiles.yaml, ...
   repo: ../..                  # the repository root
   decisions: ../../decisions   # the decision records
+loader: kit_loader.py          # your module that reads your files for the kit
 name: Example
 model:
   file: model/example.sysml
   package: Example
 ```
 
-The [declaration reference](docs/declaration.md) lists every key, and the tool that needs it.
+The loader is a Python module you own. It reads your capability record, your decision records and your registers,
+and hands the kit the record in a neutral shape. The kit checks that shape against a JSON Schema when the record
+loads. The [declaration reference](docs/declaration.md) lists every key and the tool that needs it, and describes
+[the loader](docs/declaration.md#the-loader).
 
 ### 3. Run it
 
@@ -181,7 +185,7 @@ scan ran. See [the checks](docs/rules.md#names-in-the-published-file).
 ## Development
 
 ```sh
-pip install pyyaml markdown-it-py==4.0.0
+pip install pyyaml markdown-it-py==4.0.0 jsonschema==4.26.0
 python -m unittest discover -s arch_kit/tools -p 'test_*.py'
 ```
 

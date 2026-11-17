@@ -34,6 +34,15 @@ cannot run is never reported as passing.
 | `quotes` | text on the barred list appears in an evidence cell or in the record |
 | `floor` | something the deployment renders (a workload, a kind, a flag or a route) is claimed by no capability, or is claimed only by a capability below `built unmeasured` |
 
+### A record the schema refuses
+
+The capability record is validated when it loads, before any rule runs. A record that breaks the schema (for
+example, a capability with no degraded-mode entry) makes the tool exit 2, naming the first place it breaks. Before the
+loader seam, `phases` reported the same record as a finding, with exit 1. The same records fail as before. They now
+fail as bad input, and on their own, not alongside other findings. The message still uses the project's own key name.
+
+### Partial runs
+
 `quotes` and `floor` need the chart, its values, the release name, the readiness document and the barred list. A call
 that leaves out any of these exits 2. `--allow-partial REASON` runs the other fifteen rules, and the ok line names the
 two it did not run and the reason given.
