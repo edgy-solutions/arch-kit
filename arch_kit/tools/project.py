@@ -34,6 +34,11 @@ def _die(message):
     raise SystemExit(2)
 
 
+def die(message):
+    """Exit 2 with a one-line message: a declaration that is present and wrong."""
+    _die(message)
+
+
 def _load():
     env = os.environ.get("ARCH_KIT_CONFIG")
     path = Path(env) if env else Path.cwd() / "docs" / "arch" / "arch-kit.yaml"

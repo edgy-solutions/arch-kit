@@ -32,7 +32,7 @@ cannot run is never reported as passing.
 | `phases` | the capability-phases marker is missing, misplaced or repeated, or the capability record fails its check (every citation resolves; see the [methodology](METHODOLOGY.md)) |
 | `derived` | a derived-table marker is not present exactly once in its home view, or the table cannot be built |
 | `quotes` | text on the barred list appears in an evidence cell or in the record |
-| `floor` | something the deployment renders (a workload, a kind, a flag or a route) is claimed by no capability, or is claimed only by a capability below `built unmeasured` |
+| `floor` | something the deployment renders (a workload, a kind, a flag or a route) is claimed by no capability, or is claimed only by a capability in a phase below the declared `floor` (see [the declaration](declaration.md#phases-statuses-views-and-the-browser-check)) |
 
 ### A record the schema refuses
 

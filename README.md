@@ -25,7 +25,7 @@ is the acceptance test: after every step it must come out byte-identical, or eac
 |---|---|---|
 | 1 | Tools moved unchanged. Content paths are read from the project's declaration | done |
 | 2 | No project names in the kit. Names, keys and file names are declared | done |
-| 3 | A loader seam: each project reads its own files into a neutral record. Labels, phases, statuses and view kinds are declared | in progress: the loader seam is done |
+| 3 | A loader seam: each project reads its own files into a neutral record. Labels, phases, statuses and view kinds are declared | done |
 | 4 | Relabelling and the leak scan run on the rendered HTML | planned |
 | 5 | Each portal declares its hosting and its audience | planned |
 | 6 | A CLI entry point, a reusable GitHub Action, the decision-index checks, a `v0.1.0` release, and a fictional example project | planned |
@@ -111,7 +111,9 @@ python -m arch_kit render_html --out export.html --chart CHART --values VALUES.y
 
 python -m arch_kit check_export --export export.html --barred BARRED.txt --relabel RELABEL.txt
 
-node "$PYTHONPATH/arch_kit/tools/export/check_export_browser.mjs" export.html --shots shots/
+python -m arch_kit browser_facts --out facts.json
+
+node "$PYTHONPATH/arch_kit/tools/export/check_export_browser.mjs" export.html --shots shots/ --facts facts.json
 ```
 
 `python -m arch_kit [--config FILE] TOOL [ARGS...]` runs any tool. Run it with no tool to list them. `--config`
@@ -154,7 +156,8 @@ filled at render time.
 | `render_profile` | Renders the views as one profile: `uaf`, `dodaf202` or `naf4` |
 | `render_html` | Renders all three profiles as one self-contained HTML file, with diagrams drawn at build time |
 | `check_export` | Checks the HTML file: views, provenance, links, diagrams, size, barred and relabelled names |
-| `export/check_export_browser.mjs` | Opens the file in headless Chrome, and checks buttons, pages and diagrams |
+| `export/check_export_browser.mjs` | Opens the file in headless Chrome, and checks buttons, pages and diagrams. It needs `--facts` from `browser_facts` |
+| `browser_facts` | Writes the counts and view ids the browser check expects, computed from the declaration and the sources |
 | `data_exchange` | Generates the data-exchange view (producers, consumers, routes per tier) from a Helm render |
 | `check_annotations` | Checks that each workload in a render declares the topics it produces and the groups it consumes |
 | `capability_phases` | Computes each capability's phase and evidence from the record |

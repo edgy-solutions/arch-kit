@@ -8,7 +8,7 @@ from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parent / "tools"
 NAMES = (
-    "adr_sections", "capability_floor", "capability_phases", "check_annotations", "check_export",
+    "adr_sections", "browser_facts", "capability_floor", "capability_phases", "check_annotations", "check_export",
     "check_views", "check_views_canary", "data_exchange", "derived", "marks", "relabel",
     "render_html", "render_profile", "validate_sysml",
 )
