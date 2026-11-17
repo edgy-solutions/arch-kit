@@ -31,13 +31,14 @@ Exit codes: 0 ok, 1 a check failed, 2 bad input. Stdlib and PyYAML only.
 from __future__ import annotations
 
 import argparse
-import html
 import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import capability_phases  # noqa: E402
+import export_text  # noqa: E402
+from export_text import plain  # noqa: E402,F401
 import check_views  # noqa: E402
 import project  # noqa: E402
 from data_exchange import InputError as DataInputError  # noqa: E402
@@ -65,11 +66,6 @@ class InputError(Exception):
     """Bad input: exit 2."""
 
 
-def plain(raw: str) -> str:
-    """Text with tags stripped, entities unescaped and whitespace collapsed to one space."""
-    return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]*>", "", raw))).strip()
-
-
 def fence_count(text: str) -> int:
     n, fence = 0, False
     for in_fence, info, line in rp.split_fences(text):
@@ -94,16 +90,14 @@ def check_views_equal(raw: str, tree: check_views.Tree) -> list[str]:
 
 
 def check_barred(raw: str, barred) -> list[str]:
-    text = plain(raw)
-    spaced = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]*>", " ", raw)))
-    fails = scan_barred({"the export": [raw, text, spaced, re.sub(r"\s+", "", text)]}, barred)
+    fails = scan_barred({"the export": export_text.barred_strings(raw)}, barred)
     return [f.replace("quotes: ", "barred: ", 1) for f in fails]
 
 
 def check_relabel(raw: str, rules) -> list[str]:
     """No relabel pattern survives in the export, and the front page says the pass ran."""
     fails = []
-    text = html.unescape(raw)
+    text = export_text.unescaped(raw)
     for i, rule in enumerate(rules):
         hits = max(sum(h[2] for h in relabel.survivors(raw, [rule])),
                    sum(h[2] for h in relabel.survivors(text, [rule])))

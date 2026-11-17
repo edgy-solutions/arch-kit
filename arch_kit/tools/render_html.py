@@ -13,7 +13,7 @@ Usage:
         --chart PATH --values FILE [--values FILE ...] --release NAME
         [--readiness FILE] [--record FILE] [--slots FILE]
         [--date YYYY-MM-DD] [--mmdc PATH] [--puppeteer-config FILE]
-        [--relabel FILE ...]
+        [--relabel FILE ...] [--barred FILE ...]
 
 --chart, --values and --release are required: there is no partial export.
 Mermaid diagrams are rendered to inline SVG at build time by mermaid-cli
@@ -64,10 +64,11 @@ import adr_sections  # noqa: E402
 import capability_phases  # noqa: E402
 import check_views  # noqa: E402
 import declared  # noqa: E402
+import export_text  # noqa: E402
 import project  # noqa: E402
 import relabel  # noqa: E402
 import render_profile as rp  # noqa: E402
-from capability_phases import CheckError  # noqa: E402
+from capability_phases import CheckError, load_barred, scan_barred  # noqa: E402
 from data_exchange import InputError  # noqa: E402
 
 EXIT_OK, EXIT_CHECK, EXIT_INPUT = 0, 1, 2
@@ -350,7 +351,12 @@ ROADMAP_PAGE = "decision-roadmap"
 
 
 class Decisions:
-    """The decision records the export holds a page for: every decisions/ADR-*.md, then the roadmap note."""
+    """The decision records the export holds a page for: every decisions/ADR-*.md, then the roadmap note.
+
+    The relabel rules are applied here, as the records load, and again over the finished HTML (relabel.apply_html).
+    This pass stays for the slugs: heading anchors, ids and the pick/shown labels are derived from the record text,
+    and a name that reached an id or an href through a slug could not be rewritten afterwards.
+    """
 
     def __init__(self, directory: Path, rules=()):
         self.dir = Path(directory)
@@ -1263,8 +1269,8 @@ def decision_pages(views: dict, dec: Decisions, prov: str) -> tuple[list[str], l
     return sections, nav
 
 
-def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
-    """The whole file as text. a holds chart, values, release, readiness, record, slots."""
+def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, list]:
+    """The document before the final pass, and the relabel rules. a holds chart, values, release, readiness, record, slots."""
     if MarkdownIt is None:
         raise InputError("markdown-it-py is not installed: pip install markdown-it-py==4.0.0")
     renderers: dict[str, rp.Renderer] = {}
@@ -1351,7 +1357,7 @@ def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
              f'<nav class="decisions"><h2>Decision records</h2><ul>{"".join(dec_nav)}</ul></nav>'
              f'<nav class="declarations"><h2>For a deployment</h2><ul><li><a href="#declarations">'
              f'{esc(DECLARATIONS_TITLE)}</a></li></ul></nav>{prov}</section>')
-    return (f'<!doctype html>\n<html lang="en" data-profile="uaf" {title_attrs}>\n<head>\n<meta charset="utf-8">\n'
+    doc = (f'<!doctype html>\n<html lang="en" data-profile="uaf" {title_attrs}>\n<head>\n<meta charset="utf-8">\n'
             f'<meta name="viewport" content="width=device-width, initial-scale=1">\n'
             f'<meta http-equiv="Content-Security-Policy" content="{CSP}">\n'
             f'<title>{esc(titles["uaf"])}</title>\n<style>\n{css()}\n</style>\n</head>\n<body>\n'
@@ -1360,6 +1366,39 @@ def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
             f'<input id="q" type="search" placeholder="Search" aria-label="Search the views" autocomplete="off"></header>\n'
             f'<div id="results" hidden></div>\n<main>\n{front}\n' + "\n".join(sections) +
             f'\n</main>\n<script>\n{JS}\n</script>\n</body>\n</html>\n')
+    return doc, rules
+
+
+def leaks(doc: str, rules, barred) -> list[str]:
+    """What the finished document still carries: a relabel survivor, or a barred value. Never the value itself."""
+    fails = []
+    for i, rule in enumerate(rules):
+        hits = max(sum(h[2] for h in relabel.survivors(doc, [rule])),
+                   sum(h[2] for h in relabel.survivors(export_text.unescaped(doc), [rule])))
+        if hits:
+            fails.append(f"relabel rule {i + 1} survives {hits} time(s)")
+    fails += [f.replace("quotes: the export: carries", "the export carries", 1)
+              for f in scan_barred({"the export": export_text.barred_strings(doc)}, barred)] if barred else []
+    return fails
+
+
+def finish(doc: str, rules, barred) -> tuple[str, int]:
+    """The relabel pass over the finished HTML, then the leak scan. Returns the document and the replacements."""
+    doc, n = relabel.apply_html(doc, rules) if rules else (doc, 0)
+    fails = leaks(doc, rules, barred)
+    if fails:
+        raise CheckError("the export still leaks, nothing written: " + "; ".join(fails) + "\n")
+    return doc, n
+
+
+def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
+    """The whole file as text: the document, relabelled as a whole, and scanned. A leak is a CheckError."""
+    doc, rules = assemble(a, diagram, date)
+    try:
+        barred = load_barred(a.barred) if getattr(a, "barred", None) else []
+    except CheckError as e:
+        raise InputError(e.args[0]) from None
+    return finish(doc, rules, barred)[0]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1372,7 +1411,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--record", default=str(ROOT / "capability-record.yaml"))
     ap.add_argument("--slots")
     ap.add_argument("--relabel", action="append", default=[],
-                    help="a list of PATTERN<TAB>REPLACEMENT lines applied to the decision records at export")
+                    help="a list of PATTERN<TAB>REPLACEMENT lines applied to the whole export")
+    ap.add_argument("--barred", action="append", default=[],
+                    help="a barred list: the render refuses to write a file that carries one of its values")
     ap.add_argument("--date", help="YYYY-MM-DD (default: today, UTC)")
     ap.add_argument("--mmdc", help="the mermaid-cli binary (default: docs/arch/tools/export/node_modules/.bin/mmdc)")
     ap.add_argument("--puppeteer-config", help="a puppeteer config file for mermaid-cli")
