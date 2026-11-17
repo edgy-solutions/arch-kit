@@ -60,6 +60,19 @@ class NoConsumerName(unittest.TestCase):
         self.assertTrue(files, "the scan saw no files")
         self.assertEqual(scan(files), [])
 
+    def test_the_scan_covers_the_example_and_it_names_no_consumer_project(self):
+        files = [f for f in tracked_files(KIT) if "examples" in f.relative_to(KIT).parts]
+        self.assertTrue(any(f.name == "arch-kit.yaml" for f in files), "the scan did not see examples/")
+        stems = re.compile("|".join(("d" + "dil", "i" + "agent", "invin" + "cible")), re.IGNORECASE)
+        hits = []
+        for f in files:
+            if stems.search(f.name):
+                hits.append((f.name, 0))
+            for n, line in enumerate(f.read_text(encoding="utf-8", errors="replace").split("\n"), 1):
+                if stems.search(line):
+                    hits.append((f.name, n))
+        self.assertEqual(hits, [])
+
     def test_the_scanner_reports_a_planted_name(self):
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, True)
