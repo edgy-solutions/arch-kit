@@ -1,0 +1,27 @@
+groups:
+  Capability: What the network can do
+environments:
+  yard: the test yard
+entries:
+  yard-run:
+    anchor: RUN 2026-11-02 yard
+    environment: yard
+capabilities:
+  ParcelIntake:
+    description: >-
+      A locker takes in a parcel and gives the sender a receipt. That lets a sender hand over a parcel when
+      the depot cannot be reached.
+    adrs: [ADR-0001 §1]
+    built: [{template: lockers.yaml, contains: parcel-intake}]
+    measured: [{entry: yard-run, line: "| 1 | intake | receipt issued |"}]
+    degraded_mode: ADR-0001 §2
+    increment: "Intake at the locker"
+  ParcelRouting:
+    description: >-
+      The depot sends each parcel to a van by its size class. That lets a van leave with parcels it can carry.
+      Its decision record does not say how it behaves when its link is cut off.
+    adrs: [ADR-0002 §1]
+    built: [{template: lockers.yaml, contains: parcel-router}]
+    degraded_mode: not stated
+    rows: [OF-1]
+    increment: "Routing at the depot"
