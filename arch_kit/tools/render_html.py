@@ -1428,6 +1428,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--mmdc", help="the mermaid-cli binary (default: docs/arch/tools/export/node_modules/.bin/mmdc)")
     ap.add_argument("--puppeteer-config", help="a puppeteer config file for mermaid-cli")
     a = ap.parse_args(argv)
+    declared.require_public_lists("render_html", relabel=bool(a.relabel), barred=bool(a.barred))
     try:
         date = a.date or datetime.datetime.now(datetime.timezone.utc).date().isoformat()
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
