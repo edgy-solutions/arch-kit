@@ -524,6 +524,12 @@ def table(header: list[str], rows: list[list]) -> list[str]:
     return out
 
 
+def exchange_header(cols: dict) -> list[str]:
+    """The header of the Exchanges table. The kit fixes its nine columns; the profile names three of them."""
+    return ["Tier", "Broker", cols["topic"], cols["writer"], "Declared by", cols["consumers"],
+            "Kind", "Destination", "Labels"]
+
+
 def load_profiles() -> dict:
     with open(PROFILES_PATH, encoding="utf-8") as f:
         return yaml.safe_load(f)
@@ -570,8 +576,7 @@ def render_document(m: Model, profile: str, stamps: list[str], allow_no_kinds: s
                           ", ".join(as_list(e["accepts"])), e["asserted_by"], e["asserted_on"], rn])
     lines += table(["Destination", "Display name", "Nations", "Accepts", "Asserted by", "Asserted on", "Routes"], drows)
     lines += ["", "## Exchanges", ""]
-    lines += table(["Tier", "Broker", cols["topic"], cols["writer"], "Declared by", cols["consumers"],
-                    "Kind", "Destination", "Labels"],
+    lines += table(exchange_header(cols),
                    [[r["tier"], r["broker"], r["topic"], r["writer"], r["by"],
                      ", ".join(r["consumers"]) or NONE_DECLARED, ", ".join(r["kinds"]) or "-",
                      ", ".join(r["destinations"]) or "-", r["labels"]] for r in m.rows])
