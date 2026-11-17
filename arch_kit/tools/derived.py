@@ -16,10 +16,11 @@ on a table that cannot be built.
   <!-- generated: adr-traceability -->        Am-Tr  decisions/ADR-*.md: each
       record with its status and the views that cite it, the accepted or
       proposed records no view cites first, joined to adr-exemptions.yaml
-  <!-- generated: severed-behaviour -->        St-Tx  each capability in model
+  <!-- generated: MARKER -->                    St-Tx  each capability in model
       order, with the decision record that says how it behaves when its link
-      is severed, or `not stated` and its SV- row; the `severed` key of
-      capability-record.yaml
+      is cut off, or `not stated` and its open row; the degraded-mode key of
+      the record. MARKER, the heading and the open-row prefix are declared
+      (`labels.degraded_mode.marker`, `.heading` and `.open_row_prefix`)
 
 A depends-on cell has to name one increment, by its number or its name, and a
 fold-in has to name an increment and cite an ADR that some capability in the
@@ -46,9 +47,18 @@ DEPENDENCIES_MARKER = "<!-- generated: capability-dependencies -->"
 TAXONOMY_MARKER = "<!-- generated: resource-taxonomy -->"
 DICTIONARY_MARKER = "<!-- generated: ontology-dictionary -->"
 TRACE_MARKER = "<!-- generated: adr-traceability -->"
-SEVERED_MARKER = "<!-- generated: severed-behaviour -->"
-HOMES = {DEPENDENCIES_MARKER: "St-Cn", TAXONOMY_MARKER: "Rs-Tx", DICTIONARY_MARKER: "Am-If", TRACE_MARKER: "Am-Tr",
-         SEVERED_MARKER: "St-Tx"}
+
+
+def degraded_marker() -> str:
+    """The degraded-mode section's marker, from the declared `labels.degraded_mode.marker`."""
+    return f"<!-- generated: {project.need('labels.degraded_mode.marker', 'derived')} -->"
+
+
+def homes() -> dict[str, str]:
+    """Each generated-section marker and the view that holds it."""
+    return {DEPENDENCIES_MARKER: "St-Cn", TAXONOMY_MARKER: "Rs-Tx", DICTIONARY_MARKER: "Am-If", TRACE_MARKER: "Am-Tr",
+            degraded_marker(): "St-Tx"}
+
 
 ROADMAP_HEADER = ["#", "increment", "what isolates", "home", "depends on"]
 FOLD_HEADER = ["row", "slice", "folds into", "why it costs the increment nothing"]
@@ -161,8 +171,10 @@ def dependencies(record: dict, roadmap: str) -> str:
 
 # --- St-Tx ---------------------------------------------------------------------
 
-def severed(record: dict, sysml: str) -> str:
-    """Each capability, in model order, with where its severed behaviour is stated, or its SV- row."""
+def degraded_mode_table(record: dict, sysml: str) -> str:
+    """Each capability, in model order, with where its degraded-mode behaviour is stated, or its open row."""
+    heading = str(project.need("labels.degraded_mode.heading", "derived"))
+    prefix = str(project.need("labels.degraded_mode.open_row_prefix", "derived"))
     caps = {k: (v or {}) for k, v in record["capabilities"].items()}
     dm = capability_phases.key_names("derived")["degraded_mode"]
     rows, stated, fails = [], 0, []
@@ -172,7 +184,7 @@ def severed(record: dict, sysml: str) -> str:
             fails.append(f"derived: {name} has no {dm} entry in the record")
             continue
         value = str(cap["degraded_mode"])
-        sv = [r for r in cap.get("rows") or [] if str(r).startswith("SV-")]
+        sv = [r for r in cap.get("rows") or [] if str(r).startswith(prefix)]
         if value == capability_phases.NOT_STATED:
             says = "not stated"
         else:
@@ -181,9 +193,9 @@ def severed(record: dict, sysml: str) -> str:
         rows.append(f"| {name} | {says} | {', '.join(sv) or '-'} |")
     if fails:
         raise CheckError("".join(f + "\n" for f in fails))
-    head = (f"Severed behaviour: {stated} of {len(rows)} capabilities have it stated in a decision "
+    head = (f"{heading}: {stated} of {len(rows)} capabilities have it stated in a decision "
             f"record; {len(rows) - stated} do not.")
-    return "\n".join([head, "", "| Capability | Severed behaviour | Row |", "|---|---|---|", *rows])
+    return "\n".join([head, "", f"| Capability | {heading} | Row |", "|---|---|---|", *rows])
 
 
 # --- Rs-Tx ---------------------------------------------------------------------
@@ -402,8 +414,8 @@ def build(marker: str, root: Path, record_path: Path, sysml: str, masked: str) -
         except OSError as e:
             raise InputError(f"cannot read the roadmap note: {e.strerror or e}")
         return dependencies(record, roadmap)
-    if marker == SEVERED_MARKER:
-        return severed(capability_phases.load_record(record_path), sysml)
+    if marker == degraded_marker():
+        return degraded_mode_table(capability_phases.load_record(record_path), sysml)
     if marker == TAXONOMY_MARKER:
         return taxonomy(sysml, masked)
     if marker == DICTIONARY_MARKER:

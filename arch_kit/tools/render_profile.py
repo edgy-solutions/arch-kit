@@ -361,7 +361,7 @@ class Renderer:
         if a.chart:
             self.doc = generate_document(a, self.profile)
         self.phases = self.phases_content()
-        self.derived = {mk: derived.build(mk, ROOT, Path(a.record), self.sysml, self.masked) for mk in derived.HOMES}
+        self.derived = {mk: derived.build(mk, ROOT, Path(a.record), self.sysml, self.masked) for mk in derived.homes()}
 
     def phases_content(self) -> str:
         """The phases table, or the notice. The record is checked either way."""
@@ -400,7 +400,7 @@ class Renderer:
             raise InputError(f"view {vid}: the data-exchange marker belongs only in {self.home}")
         if PHASES_MARKER in body and vid != PHASES_HOME:
             raise InputError(f"view {vid}: the capability-phases marker belongs only in {PHASES_HOME}")
-        for mk, home in derived.HOMES.items():
+        for mk, home in derived.homes().items():
             if mk in body and vid != home:
                 raise InputError(f"view {vid}: the marker {mk} belongs only in {home}")
         body = marks.fill(body, (ROOT / entry["file"]).parent, project.DECISIONS, vid)
