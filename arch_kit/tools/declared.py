@@ -196,3 +196,75 @@ def require_public_lists(tool: str, **given: bool) -> None:
     for flag, present in given.items():
         if not present:
             project.die(f"error: the portal's audience is public: {tool} needs {names[flag]}")
+
+
+INDEX_KEYS = ("register", "readme", "register_homes", "indexed", "local_prefix", "foreign")
+PREFIX_RE = r"[a-z][a-z0-9-]*"
+
+
+class Foreign(NamedTuple):
+    prefix: str
+    pin_check: str | None
+
+
+class DecisionIndex(NamedTuple):
+    register: str
+    readme: str
+    register_homes: tuple
+    indexed: tuple
+    local_prefix: str
+    foreign: tuple
+
+
+def _name(value, key):
+    if not isinstance(value, str) or not value.strip() or value != value.strip() or any(c.isspace() for c in value):
+        _bad(key, "must be a non-empty string with no spaces")
+    return value
+
+
+def _prefix(value, key):
+    import re
+    if not isinstance(value, str) or not re.fullmatch(PREFIX_RE, value):
+        _bad(key, f"{value!r} is not a prefix: lowercase letters, digits and hyphens, starting with a letter")
+    return value
+
+
+def decisions_index(tool: str) -> DecisionIndex:
+    """The declared decision-index names (`decisions.index`): the files, globs and repository prefixes."""
+    if "decisions_index" not in _CACHE:
+        node = project.need("decisions.index", tool)
+        if not isinstance(node, dict):
+            _bad("decisions.index", "must be a map")
+        for k in node:
+            if k not in INDEX_KEYS:
+                _bad("decisions.index", f"unknown key {k!r}")
+        for k in INDEX_KEYS:
+            if k != "foreign":
+                project.need("decisions.index." + k, tool)
+        base = "decisions.index."
+        lists = {}
+        for k in ("register_homes", "indexed"):
+            lists[k] = tuple(_name(v, f"{base}{k}[{i}]") for i, v in enumerate(_list(node[k], base + k)))
+        local = _prefix(node["local_prefix"], base + "local_prefix")
+        foreign = []
+        items = node.get("foreign", [])
+        if not isinstance(items, list):
+            _bad(base + "foreign", "must be a list")
+        for i, item in enumerate(items):
+            key = f"{base}foreign[{i}]"
+            if not isinstance(item, dict) or "prefix" not in item:
+                _bad(key, "needs a prefix")
+            for k in item:
+                if k not in ("prefix", "pin_check"):
+                    _bad(key, f"unknown key {k!r}")
+            prefix = _prefix(item["prefix"], key + ".prefix")
+            if prefix == local or any(f.prefix == prefix for f in foreign):
+                _bad(key + ".prefix", f"duplicate prefix {prefix!r}")
+            pin = item.get("pin_check")
+            if pin is not None:
+                _name(pin, key + ".pin_check")
+            foreign.append(Foreign(prefix, pin))
+        _CACHE["decisions_index"] = DecisionIndex(
+            _name(node["register"], base + "register"), _name(node["readme"], base + "readme"),
+            lists["register_homes"], lists["indexed"], local, tuple(foreign))
+    return _CACHE["decisions_index"]
