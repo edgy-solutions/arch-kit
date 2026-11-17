@@ -39,22 +39,31 @@ class Render(unittest.TestCase):
     def run_main(self, doc, *extra):
         argv = ["--out", str(self.out), "--chart", ".", "--values", "v.yaml", "--release", "r", *extra]
         err = io.StringIO()
-        rules = relabel.load([self.rules])
-        with mock.patch.object(render_html, "assemble", return_value=(doc, rules)), \
+        rules = relabel.load([self.rules]) if "--relabel" in extra else []
+        with mock.patch.object(render_html, "assemble", return_value=(doc, rules, 3)), \
                 mock.patch.object(render_html, "make_mmdc", return_value=None), \
                 contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
             rc = render_html.main(argv)
         return rc, err.getvalue()
 
     def test_a_name_in_text_and_attribute_is_relabelled_and_written(self):
-        rc, _ = self.run_main(f'<p>on {NAME} now</p><a title="{NAME}">k</a>', "--relabel", str(self.rules))
+        mark = f'<p data-relabel>{render_html.COUNT_MARK}</p>'
+        rc, _ = self.run_main(mark + f'<p>on {NAME} now</p><a title="{NAME}">k</a>', "--relabel", str(self.rules))
         self.assertEqual(rc, 0)
         text = self.out.read_text(encoding="utf-8")
         self.assertNotIn(NAME, text)
         self.assertIn("<p>on the lab now</p>", text)
 
+    def test_the_front_page_sentence_reports_records_plus_html(self):
+        doc = f'<p class="relabel" data-relabel>{render_html.COUNT_MARK}</p><p>{NAME} and {NAME}</p>'
+        rc, _ = self.run_main(doc, "--relabel", str(self.rules))
+        self.assertEqual(rc, 0)
+        self.assertIn("Names are replaced by neutral labels at export: 5 in this page (1 rules). "
+                      "The sources in the repository are unchanged.", self.out.read_text(encoding="utf-8"))
+
     def test_a_name_in_an_id_refuses_and_writes_nothing(self):
-        rc, err = self.run_main(f'<section id="view-{NAME}"><p>ok</p></section>')
+        mark = f'<p data-relabel>{render_html.COUNT_MARK}</p>'
+        rc, err = self.run_main(mark + f'<section id="view-{NAME}"><p>ok</p></section>', "--relabel", str(self.rules))
         self.assertEqual(rc, 1)
         self.assertFalse(self.out.exists())
         self.assertIn("relabel rule 1 survives 1 time(s)", err)

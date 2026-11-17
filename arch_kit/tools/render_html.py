@@ -1269,8 +1269,11 @@ def decision_pages(views: dict, dec: Decisions, prov: str) -> tuple[list[str], l
     return sections, nav
 
 
-def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, list]:
-    """The document before the final pass, and the relabel rules. a holds chart, values, release, readiness, record, slots."""
+COUNT_MARK = "RELABEL-COUNT-PLACEHOLDER"  # the front page sentence, until the HTML pass has counted
+
+
+def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, list, int]:
+    """The document before the final pass, the relabel rules, and the replacements made in the records. a holds chart, values, release, readiness, record, slots."""
     if MarkdownIt is None:
         raise InputError("markdown-it-py is not installed: pip install markdown-it-py==4.0.0")
     renderers: dict[str, rp.Renderer] = {}
@@ -1340,9 +1343,7 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
     dec_sections, dec_nav = decision_pages(views, dec, prov)
     sections += cap_sections + dec_sections
 
-    shown = (f"Decision records are shown with {dec.replaced} names replaced by neutral labels at export "
-             f"({len(rules)} rules). The records in the repository are unchanged." if rules
-             else "Decision records are shown verbatim.")
+    shown = COUNT_MARK if rules else "Decision records are shown verbatim."
     grids = [grid_uaf(rows, views, names, uaf.uaf_label),
              grid_selected(renderers["dodaf202"], rows, names),
              grid_selected(renderers["naf4"], rows, names)]
@@ -1366,7 +1367,7 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
             f'<input id="q" type="search" placeholder="Search" aria-label="Search the views" autocomplete="off"></header>\n'
             f'<div id="results" hidden></div>\n<main>\n{front}\n' + "\n".join(sections) +
             f'\n</main>\n<script>\n{JS}\n</script>\n</body>\n</html>\n')
-    return doc, rules
+    return doc, rules, dec.replaced
 
 
 def leaks(doc: str, rules, barred) -> list[str]:
@@ -1382,9 +1383,18 @@ def leaks(doc: str, rules, barred) -> list[str]:
     return fails
 
 
-def finish(doc: str, rules, barred) -> tuple[str, int]:
-    """The relabel pass over the finished HTML, then the leak scan. Returns the document and the replacements."""
+def finish(doc: str, rules, barred, record_replaced: int = 0) -> tuple[str, int]:
+    """The relabel pass over the finished HTML, the front page sentence, then the leak scan.
+
+    Returns the document and the replacements in the HTML. The sentence reports those plus record_replaced.
+    """
     doc, n = relabel.apply_html(doc, rules) if rules else (doc, 0)
+    if rules:
+        if doc.count(COUNT_MARK) != 1:
+            raise CheckError("the front page sentence was not placed\n")
+        doc = doc.replace(COUNT_MARK, esc(
+            f"Names are replaced by neutral labels at export: {record_replaced + n} in this page "
+            f"({len(rules)} rules). The sources in the repository are unchanged."))
     fails = leaks(doc, rules, barred)
     if fails:
         raise CheckError("the export still leaks, nothing written: " + "; ".join(fails) + "\n")
@@ -1393,12 +1403,12 @@ def finish(doc: str, rules, barred) -> tuple[str, int]:
 
 def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
     """The whole file as text: the document, relabelled as a whole, and scanned. A leak is a CheckError."""
-    doc, rules = assemble(a, diagram, date)
+    doc, rules, record_replaced = assemble(a, diagram, date)
     try:
         barred = load_barred(a.barred) if getattr(a, "barred", None) else []
     except CheckError as e:
         raise InputError(e.args[0]) from None
-    return finish(doc, rules, barred)[0]
+    return finish(doc, rules, barred, record_replaced)[0]
 
 
 def main(argv: list[str] | None = None) -> int:
