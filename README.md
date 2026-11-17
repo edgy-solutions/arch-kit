@@ -31,6 +31,7 @@ is the acceptance test: after every step it must come out byte-identical, or eac
 | 6a | The decision-index check moves into the kit, with its names declared | done |
 | 6b | The `arch-kit` command, a declared term dictionary, an optional declared data exchange, and the [example project](examples/minimal/README.md) with its self-test | done |
 | 6c | A reusable GitHub Action, and readiness for `v0.1.0` (the tag is made after review) | done |
+| 6d | Caught up with the first project's later tool changes: `check_views --record`, and the CV-3 text naming a passed record | done |
 | 7 | The first project pins `v0.1.0`, with the golden comparison in its CI | planned |
 
 Until the `v0.1.0` tag exists, pin a full commit sha, not a branch. Some conventions are still fixed rather than declared. The

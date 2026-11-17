@@ -12,3 +12,4 @@ The first release. Each step of Phase 1 in a sentence:
 - **Step 6a:** the decision-index check moved into the kit, with its names declared in `decisions.index`.
 - **Step 6b:** the `arch-kit` command, a declared term dictionary, an optional declared data exchange, and the minimal example project with its self-test.
 - **Step 6c:** a composite GitHub Action that runs the whole chain, uploads the export when the portal declares `ci-artifact`, and a `portal` subcommand that prints the declaration.
+- **Step 6d:** `check_views --record FILE` checks a project's own capability record in place of the default, and the phases view names that record in plain words when the render uses one.
