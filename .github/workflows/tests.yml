@@ -5,6 +5,14 @@
 # skipped test fails the job: in CI a skipped test is not a pass.
 #
 # Python 3.12, the same as the first consumer's CI.
+#
+# The example's self-test (test_example) builds examples/minimal with mermaid-cli and checks the export in
+# Chrome, so the job installs Node and runs `npm ci` in arch_kit/tools/export. Chrome is the runner's own. The
+# render reads decision stamps from git, so the checkout takes full history. No Helm is installed: no test in the
+# suite runs it (the example declares no data exchange, and the reader's unit tests use synthetic documents).
+#
+# Action pins: setup-node is pinned to a full commit sha (the v7.1.0 tag, from git ls-remote). checkout and
+# setup-python stay on the unpinned @v7 tag, as before.
 name: tests
 
 on:
@@ -23,6 +31,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v7
         with:
@@ -30,10 +40,23 @@ jobs:
 
       - run: pip install pyyaml markdown-it-py==4.0.0 jsonschema==4.26.0
 
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      # Chrome is the runner's own, so puppeteer downloads none.
+      - name: Install the export tooling
+        working-directory: arch_kit/tools/export
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: "true"
+        run: npm ci
+
       - name: Project-name check
         run: python -m unittest discover -s arch_kit/tools -p 'test_declared_names.py' -v
 
       - name: Tests
+        env:
+          PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome
         run: |
           set +e
           python -m unittest discover -s arch_kit/tools -p 'test_*.py' > "$RUNNER_TEMP/tests.log" 2>&1
