@@ -268,3 +268,45 @@ def decisions_index(tool: str) -> DecisionIndex:
             _name(node["register"], base + "register"), _name(node["readme"], base + "readme"),
             lists["register_homes"], lists["indexed"], local, tuple(foreign))
     return _CACHE["decisions_index"]
+
+
+class Term(NamedTuple):
+    file: str
+    path: str
+
+
+class Dictionary(NamedTuple):
+    dir: str
+    terms: tuple
+
+
+def dictionary(tool: str) -> Dictionary:
+    """The declared term dictionary (`derived.dictionary`): a directory under the repository root, and the
+    (file, path) pairs the Am-If table shows, in order."""
+    import re
+    if "dictionary" not in _CACHE:
+        base = "derived.dictionary."
+        node = project.need("derived.dictionary", tool)
+        if not isinstance(node, dict):
+            _bad("derived.dictionary", "must be a map")
+        for k in node:
+            if k not in ("dir", "terms"):
+                _bad("derived.dictionary", f"unknown key {k!r}")
+        d = project.need(base + "dir", tool)
+        terms = project.need(base + "terms", tool)
+        if not isinstance(d, str) or not d.strip() or d != d.strip() or d.startswith(("/", "\\")) \
+                or re.match(r"^[A-Za-z]:", d) or ".." in re.split(r"[/\\]", d):
+            _bad(base + "dir", "must be a plain relative path with no '..'")
+        out = []
+        for i, item in enumerate(_list(terms, base + "terms")):
+            key = f"{base}terms[{i}]"
+            if not isinstance(item, dict) or set(item) != {"file", "path"}:
+                _bad(key, "needs exactly a file and a path")
+            f, path = item["file"], item["path"]
+            if not isinstance(f, str) or not re.fullmatch(r"[^/\\\s]+\.yaml", f):
+                _bad(key + ".file", f"{f!r} is not a bare .yaml file name")
+            if not isinstance(path, str) or not path.strip():
+                _bad(key + ".path", "must be a non-empty string")
+            out.append(Term(f, path))
+        _CACHE["dictionary"] = Dictionary(d, tuple(out))
+    return _CACHE["dictionary"]

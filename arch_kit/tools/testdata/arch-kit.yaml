@@ -94,3 +94,8 @@ export:
 portal:
   hosting: ci-artifact
   audience: private
+derived:
+  dictionary:
+    dir: ontology
+    terms:
+      - {file: gadgets.yaml, path: gadgets}

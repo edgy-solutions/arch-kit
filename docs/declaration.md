@@ -82,6 +82,23 @@ So a project that never runs the data-exchange generator does not need to declar
 | `export.browser.*` | What the browser check opens and how much it expects (see below) | `browser_facts` |
 | `readiness.default` | The default readiness document, relative to the chart directory, used when `--readiness` is not given | `render_html`, `render_profile` |
 | `decisions.index.*` | The register index and document index file names, the globs that name register homes and indexed documents, the local prefix and the foreign prefixes (see below) | `check_decision_indexes` |
+| `derived.dictionary.dir`, `derived.dictionary.terms` | The term dictionary: a directory under the repository root, and the (file, path) pairs the dictionary table shows (see below) | `derived`, and through it `check_views` and `render_html` |
+
+### The term dictionary
+
+```yaml
+derived:
+  dictionary:
+    dir: ontology            # relative to the repository root, with no `..`
+    terms:                   # (file, path) pairs, in the order the table shows them
+      - {file: gadgets.yaml, path: gadgets}
+```
+
+The generated dictionary section (`views.homes.dictionary`) lists each declared term of the files in `dir`: its kind,
+how many entries it has, and the field names, never an entry. `terms` is a non-empty list, each `file` is a bare
+`*.yaml` name, and `path` is a dotted path into that file. A `*.yaml` file in `dir` that no term names fails, and so
+does a declared file that is absent or a path that does not resolve. The key is required, because the table is built
+whether or not the project has a dictionary directory: declare a directory with one small file if it has none.
 
 ### The decision index
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """check_views_canary.py - prove the `quotes` and `floor` rules can fail.
 
-A rule that has never failed is not known to work. This copies docs/arch,
-decisions, ontology and .github to a temp directory (same relative layout), breaks the copy one way
+A rule that has never failed is not known to work. This copies the architecture root,
+the declared decisions directory, the declared dictionary directory and .github (when it exists) to a temp directory (same relative layout), breaks the copy one way
 per case, runs check_views.py on it as a subprocess, and compares the exit
 code and a required fragment of stderr.
 
@@ -28,6 +28,7 @@ from pathlib import Path
 import yaml
 
 import capability_phases
+import declared
 import project
 
 HERE = Path(__file__).resolve().parent
@@ -87,16 +88,19 @@ def main(argv: list[str] | None = None) -> int:
 
 def run_cases(a: argparse.Namespace, tmp: Path) -> int:
     ignore = shutil.ignore_patterns("__pycache__", "out", "node_modules")
-    shutil.copytree(ARCH, tmp / "docs" / "arch", ignore=ignore)
-    shutil.copytree(REPO / "decisions", tmp / "decisions")
-    shutil.copytree(REPO / ".github", tmp / ".github")  # the README links to the workflows
-    shutil.copytree(REPO / "ontology", tmp / "ontology")  # Am-If's table is built from it
-    clean = tmp / "docs" / "arch"
+    # The copy keeps the repository's own layout, so the copy's declaration resolves the same relative paths.
+    rel = lambda p: Path(os.path.relpath(p, REPO))  # noqa: E731
+    arch_rel, dec_rel = rel(ARCH), rel(project.DECISIONS)
+    dict_rel = Path(declared.dictionary("check_views_canary").dir)
+    shutil.copytree(ARCH, tmp / arch_rel, ignore=ignore)
+    shutil.copytree(project.DECISIONS, tmp / dec_rel)
+    extra = [dict_rel] + ([Path(".github")] if (REPO / ".github").is_dir() else [])  # the README links to the workflows
+    for part in extra:
+        shutil.copytree(REPO / part, tmp / part)  # Am-If's table is built from the dictionary directory
+    clean = tmp / arch_rel
     pristine = tmp / "pristine"
-    shutil.copytree(clean, pristine / "docs" / "arch")
-    shutil.copytree(tmp / "decisions", pristine / "decisions")
-    shutil.copytree(tmp / ".github", pristine / ".github")
-    shutil.copytree(tmp / "ontology", pristine / "ontology")
+    for part in [arch_rel, dec_rel, *extra]:
+        shutil.copytree(tmp / part, pristine / part)
 
     def flags(barred: list[str]) -> list[str]:
         out = ["--chart", a.chart, "--release", a.release, "--readiness", a.readiness]
@@ -117,13 +121,13 @@ def run_cases(a: argparse.Namespace, tmp: Path) -> int:
 
     floor = tmp / "floor"
     shutil.copytree(pristine, floor)
-    edit_record(floor / "docs" / "arch", drop_built)
-    cases.append(("floor", floor / "docs" / "arch", a.barred, EXIT_CHECK, "floor: ArrivalDeclaration", None))
+    edit_record(floor / arch_rel, drop_built)
+    cases.append(("floor", floor / arch_rel, a.barred, EXIT_CHECK, "floor: ArrivalDeclaration", None))
 
     unclaimed = tmp / "unclaimed"
     shutil.copytree(pristine, unclaimed)
-    edit_record(unclaimed / "docs" / "arch", drop_first_workload_claim)
-    cases.append(("unclaimed", unclaimed / "docs" / "arch", a.barred, EXIT_CHECK, "does not claim it", None))
+    edit_record(unclaimed / arch_rel, drop_first_workload_claim)
+    cases.append(("unclaimed", unclaimed / arch_rel, a.barred, EXIT_CHECK, "does not claim it", None))
 
     rc0, out0 = run(clean, a.barred)
     try:
