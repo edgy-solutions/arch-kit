@@ -55,6 +55,29 @@ right code. A check that has never failed on a broken input is not yet known to 
 `validate_sysml` works the same way. It passes only when the model parses clean **and** the reference parser refuses
 two copies that were broken on purpose.
 
+## `check_decision_indexes`: the decision indexes
+
+An index drifts where nobody is looking. This tool asks the directory, not the author's memory, and runs four checks
+over `paths.decisions`, with every name taken from [`decisions.index`](declaration.md#the-decision-index):
+
+1. **Ids and rows.** Every register id declared in a register home has a row in the register index, and every row is
+   a real id. The ids come from declaration sites (a bolded heading or a table row), not from a scan of prose, so a
+   platform designation such as `UH-60` is not mistaken for one. The register index is left out of the evidence it is
+   checked against, or every row would vouch for itself.
+2. **Documents.** Every document that matches an `indexed` glob is named in the document index.
+3. **Status.** Every row's status equals its home's declared status token, as an exact string.
+4. **Tokens.** Every row's home has a token, so that check 3 cannot be skipped by absence.
+
+Citations are checked too. A `prefix:ADR-NNNN` citation with a prefix the declaration does not know is a finding. One
+with the local prefix must resolve to a document here. One with a foreign prefix is checked for form, and, where a
+`pin_check` is declared, for its pin. An unqualified `ADR-NNNN` means this repository.
+
+**What these do not prove.** Check 3 shows that the index agrees with the home. Both can be wrong together. Only a
+person reading the home establishes that a status is true, and a clean run says so. Nor can the tool see another
+repository: that a cited file exists at a pinned commit is for a check that can reach it, which needs the network.
+Status is compared, never inferred; an earlier attempt to pattern-match prose gave false positives and false negatives
+both. Exit 0 clean, 1 drift, 2 input.
+
 ## `check_export`: the HTML file
 
 ```

@@ -81,6 +81,38 @@ So a project that never runs the data-exchange generator does not need to declar
 | `views.required`, `views.required_dodaf`, `views.homes`, `views.capability_links` | The views the tree must hold, and where generated sections and capability links live (see below) | `check_views`, `derived`, `render_html`, `render_profile`, `browser_facts` |
 | `export.browser.*` | What the browser check opens and how much it expects (see below) | `browser_facts` |
 | `readiness.default` | The default readiness document, relative to the chart directory, used when `--readiness` is not given | `render_html`, `render_profile` |
+| `decisions.index.*` | The register index and document index file names, the globs that name register homes and indexed documents, the local prefix and the foreign prefixes (see below) | `check_decision_indexes` |
+
+### The decision index
+
+```yaml
+decisions:
+  index:
+    register: REGISTER.md          # the register index: one row per register id
+    readme: README.md              # the document index: every indexed document is named in it
+    register_homes: [ADR-*.md, DEBT.md]     # where register ids are declared, and their status tokens
+    indexed: [ADR-*.md, PLAN-*.md, DEBT.md, REGISTER.md]   # each must be named in the readme
+    local_prefix: loam             # a `loam:ADR-NNNN` citation must resolve to a document here
+    foreign:                       # other repositories this corpus cites, in order
+      - prefix: ferro
+        pin_check: scripts/pin-stub.sh   # repository-relative; optional
+```
+
+`check_decision_indexes` reads it. The files are under `paths.decisions`. Every key is required except `foreign`
+(default: none) and `pin_check` (default: no pin check for that prefix). `register_homes` and `indexed` are lists of
+file globs with no spaces in them. A prefix is lowercase letters, digits and hyphens, starting with a letter. A bad or
+missing key exits 2, and the message names it.
+
+- **`pin_check`** is a script that checks the citations of one foreign repository are pinned to the commit the
+  project read. The tool runs it from the decisions directory with one argument, the repository root (both given as
+  relative paths), and treats a non-zero exit as drift. Its stdout is the list of pins. Set `PINS_OUT` to a file to
+  receive the lists of all the pin checks, one after another.
+- **Messages** are built from the declaration. "Known repos: A, B." lists `local_prefix`, then each foreign prefix in
+  order. With more than one foreign entry the per-foreign summary lines repeat once per entry, in order.
+
+Phase 2's composition record (arch-kit issue 6, a draft) proposes one table of known project names, for citations,
+compositions and consumption. If it is ruled, the prefixes move there. Until then `local_prefix` and `foreign` are
+the shape.
 
 ## A complete example
 
@@ -269,5 +301,9 @@ Some things are still fixed in the kit. The labels, phases, statuses and views a
 - the content file names under `paths.root` (`profiles.yaml`, `slots.yaml`, `APPENDIX-A.md`, `INVENTORY.md`,
   `README.md`, `capability-record.yaml`, `adr-exemptions.yaml`, `annotation-exceptions.yaml`, `ontology/*.yaml`), and
   the decision index and record names under `paths.decisions` (`README.md`, `ADR-NNNN-<slug>.md`);
+- the grammar of `check_decision_indexes`: a register id is two capital letters and one or two digits (`XY-7`,
+  `QZ-01`), declared by a bolded heading `**XY-7 — ...` or a table row `| **QZ-01** |`; a status is a `` `Status: ...` ``
+  line above the heading, or the last column of the table row; a decision record is `ADR-NNNN-<slug>.md`, and a
+  citation is `prefix:ADR-NNNN`.
 
 Until they are declared, a project has to follow the first consumer's conventions for them.

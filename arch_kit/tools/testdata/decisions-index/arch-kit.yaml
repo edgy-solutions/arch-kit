@@ -1,0 +1,15 @@
+kit: 1
+paths:
+  root: .
+  repo: .
+  decisions: decisions
+decisions:
+  index:
+    register: REGISTER.md
+    readme: README.md
+    register_homes: [ADR-*.md, DEBT.md]
+    indexed: [ADR-*.md, PLAN-*.md, DEBT.md, REGISTER.md]
+    local_prefix: loam
+    foreign:
+      - prefix: ferro
+        pin_check: scripts/pin-stub.sh
