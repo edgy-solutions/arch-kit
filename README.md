@@ -163,8 +163,9 @@ Outputs: `hosting`, `audience` (from `arch-kit portal`) and `artifact-id` (empty
 What happens to the export depends on `portal.hosting`. `ci-artifact` uploads `out` as the artifact
 `arch-kit-export`. **`static-site` and `none` publish nothing in this version.** A later step will publish a site.
 
-The Action reads no secret. A list that must stay private is passed in by the caller, as the path of a file the
-caller wrote from its own secret. The runner needs Chrome on the PATH, as the hosted Ubuntu image has, and the
+The Action reads no secret. Public CI uses the sample lists by design: the relabel with a project's real names runs
+only locally, where its private list is, and is never wired into a public workflow. A CI pass shows the mechanics
+work; it is not a real-name check. The runner needs Chrome on the PATH, as the hosted Ubuntu image has, and the
 Action installs Node 22 (the render draws diagrams with mermaid-cli even when `browser` is `false`).
 Every third-party action it uses is pinned to a full commit sha.
 

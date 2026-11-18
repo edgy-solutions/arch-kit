@@ -62,6 +62,8 @@ Write records with the names the project uses. Before an export is published, th
 
 A green export check run with a sample list is not evidence that the private scan ran. Say which list ran.
 
+Public CI uses the sample lists by design. The relabel with the real names runs only locally, where the project's private list is, and never in a public workflow. So a CI pass is never reported as a real-name check.
+
 ## 8. Say who may read the portal
 
 A project declares where its export is served (`portal.hosting`) and who may read it (`portal.audience`). Both are required. The declaration is a statement about intent, and the kit checks what it can see of it.
