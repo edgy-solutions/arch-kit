@@ -16,7 +16,6 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import puppeteer from "puppeteer";
 
 const argv = process.argv.slice(2);
 function opt(name) {
@@ -30,6 +29,8 @@ if (!file || !shots || !factsFile) {
   console.error("usage: node check_export_browser.mjs FILE --shots DIR --facts FILE [--puppeteer-config FILE]");
   process.exit(2);
 }
+// Loaded only after the arguments are checked, so a usage error exits 2 without the browser library installed.
+const { default: puppeteer } = await import("puppeteer");
 const facts = JSON.parse(readFileSync(factsFile, "utf8"));
 const TABLE = facts.roles.table;
 const DIAGRAM = facts.roles.diagram;
