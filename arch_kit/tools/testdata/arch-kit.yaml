@@ -8,6 +8,7 @@ model:
   file: model/example.sysml
   package: Example
 exchange:
+  reader: helm-annotations
   annotations:
     produces: example.org/produces-topics
     groups: example.org/consumer-groups
@@ -94,3 +95,8 @@ export:
 portal:
   hosting: ci-artifact
   audience: private
+derived:
+  dictionary:
+    dir: ontology
+    terms:
+      - {file: gadgets.yaml, path: gadgets}

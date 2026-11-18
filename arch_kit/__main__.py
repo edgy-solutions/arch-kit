@@ -1,4 +1,4 @@
-"""python -m arch_kit [--config FILE] TOOL [ARGS...]"""
+"""arch-kit [--config FILE] TOOL [ARGS...]   (python -m arch_kit is the same)"""
 from __future__ import annotations
 
 import os
@@ -19,11 +19,11 @@ def main(argv):
     config = None
     if argv[:1] == ["--config"]:
         if len(argv) < 2:
-            raise SystemExit("usage: python -m arch_kit [--config FILE] TOOL [ARGS...]")
+            raise SystemExit("usage: arch-kit [--config FILE] TOOL [ARGS...]   (python -m arch_kit is the same)")
         config = argv[1]
         argv = argv[2:]
     if not argv or argv[0] not in NAMES:
-        print("usage: python -m arch_kit [--config FILE] TOOL [ARGS...]\ntools: " + ", ".join(NAMES),
+        print("usage: arch-kit [--config FILE] TOOL [ARGS...]   (python -m arch_kit is the same)\ntools: " + ", ".join(NAMES),
               file=sys.stderr)
         return 2
     if config is not None:
@@ -34,5 +34,10 @@ def main(argv):
     return 0
 
 
-if __name__ == "__main__":
+def cli():
+    """The `arch-kit` console script."""
     sys.exit(main(sys.argv[1:]))
+
+
+if __name__ == "__main__":
+    cli()

@@ -1,0 +1,95 @@
+# Declares the example project to the export kit. Paths are relative to this file. Every name in it is invented.
+kit: 1
+paths:
+  root: .                    # the architecture directory: views/, model/, profiles.yaml, slots.yaml, ...
+  repo: .                    # the repository root
+  decisions: decisions
+name: Larkspur
+model:
+  file: model/larkspur.sysml
+  package: Larkspur
+registers:
+  follow_ups: FOLLOW-UPS.md
+  debt: DEBT.md
+  roadmap: ROADMAP.md
+readiness:
+  default: ../READINESS.md   # relative to the chart directory
+portal:
+  hosting: none
+  audience: public
+loader: kit_loader.py
+labels:
+  degraded_mode:
+    heading: Offline behaviour
+    marker: offline-behaviour
+    attribute: data-offline
+    open_row_prefix: OF-
+  group:
+    column: Team
+  phase:
+    column: Stage
+  environment:
+    word: site
+phases:
+  - name: measured
+    when: [measured]
+    badge: m
+  - name: built
+    when: [built]
+    badge: b
+  - name: accepted design
+    when: [{status: Accepted}]
+    badge: a
+  - name: proposed
+    when: [{status: Proposed}, still-open, pending]
+    badge: p
+  - name: row
+    when: [rows]
+    badge: r
+floor: built
+statuses:
+  - word: Accepted
+    lead: accepted
+    in_force: true
+  - word: Proposed
+    lead: proposed
+    in_force: true
+    sources_check: true
+  - word: Superseded
+    lead: superseded
+    in_force: false
+views:
+  required: [St-Tx, Rs-Cn]
+  required_dodaf: [CV-2, CV-3, SV-6]
+  homes:
+    capability-phases: St-Rm-P
+    dependencies: St-Cn
+    taxonomy: Rs-Tx
+    dictionary: Am-If
+    trace: Am-Tr
+    offline-behaviour: St-Tx
+  capability_links: [St-Tx, St-Rm-P]
+export:
+  browser:
+    views:
+      table: Rs-Cn
+      diagram: Op-Pr
+      profile_only: Am-Tr
+    search:
+      phrase: Which resource talks to which
+      finds: Rs-Cn
+    min_pages: 5
+    min_tables: 5
+    min_tokens: 100
+decisions:
+  index:
+    register: FOLLOW-UPS.md
+    readme: README.md
+    register_homes: [ADR-*.md, DEBT.md]
+    indexed: [ADR-*.md, DEBT.md, FOLLOW-UPS.md, ROADMAP.md]
+    local_prefix: larkspur
+derived:
+  dictionary:
+    dir: lexicon
+    terms:
+      - {file: parcel_sizes.yaml, path: sizes}

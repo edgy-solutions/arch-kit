@@ -11,8 +11,8 @@ on a table that cannot be built.
       by each capability's `increment`
   <!-- generated: resource-taxonomy -->        package ResourceKit in
       the declared model file (`model.file`): what each type specialises, and where it is a part
-  <!-- generated: ontology-dictionary -->      ontology/*.yaml: each
-      declared term with its entry count and field names, never an entry
+  <!-- generated: ontology-dictionary -->      the declared dictionary directory (`derived.dictionary.dir`):
+      each declared term with its entry count and field names, never an entry
   <!-- generated: adr-traceability -->        decisions/ADR-*.md: each
       record with its status and the views that cite it, the in-force
       records (declared `statuses`) no view cites first, joined to adr-exemptions.yaml
@@ -66,24 +66,6 @@ def homes() -> dict[str, str]:
 ROADMAP_HEADER = ["#", "increment", "what isolates", "home", "depends on"]
 FOLD_HEADER = ["row", "slice", "folds into", "why it costs the increment nothing"]
 ADR_RE = re.compile(r"ADR-\d{4}")
-
-# The term each ontology file declares, as a path into the file. Every file
-# under ontology/ needs a row here, and every path has to resolve.
-DICTIONARY = [
-    ("asset_identity_aliases.yaml", "aliases.dis"),
-    ("dis_appearance.yaml", "populating_sources"),
-    ("dis_appearance.yaml", "appearance"),
-    ("dis_condition.yaml", "level_order"),
-    ("dis_condition.yaml", "source_order"),
-    ("dis_condition.yaml", "appearance"),
-    ("dis_condition.yaml", "emission.populating_sources"),
-    ("dis_condition.yaml", "emission.baselines"),
-    ("dis_condition.yaml", "data_health"),
-    ("dis_entity_types.yaml", "mappings"),
-    ("platform_reference.yaml", "platforms"),
-    ("platform_variant_aliases.yaml", "aliases.dis"),
-]
-
 
 def bare(cell: str) -> str:
     return cell.replace("**", "").replace("`", "").strip()
@@ -235,35 +217,38 @@ def taxonomy(sysml: str, masked: str) -> str:
 
 # --- dictionary ---------------------------------------------------------------------
 
-def dictionary(ontology_dir: Path) -> str:
+def dictionary(ontology_dir: Path, terms, dirname: str) -> str:
+    """The table of declared terms. Every *.yaml file in the directory needs a declared term, and every declared
+    file has to exist and its path resolve. `terms` is a list of (file, path); `dirname` is the declared dir,
+    for the messages."""
     try:
         present = sorted(p.name for p in ontology_dir.glob("*.yaml"))
     except OSError as e:
         raise InputError(f"cannot list {ontology_dir}: {e}")
-    declared = {f for f, _ in DICTIONARY}
-    fails = [f"derived: ontology/{f} has no dictionary row" for f in present if f not in declared]
-    fails += [f"derived: the dictionary names ontology/{f}, which does not exist" for f in sorted(declared) if f not in present]
+    declared = {f for f, _ in terms}
+    fails = [f"derived: {dirname}/{f} has no dictionary row" for f in present if f not in declared]
+    fails += [f"derived: the dictionary names {dirname}/{f}, which does not exist" for f in sorted(declared) if f not in present]
     if fails:
         raise CheckError("".join(f + "\n" for f in fails))
     loaded: dict[str, object] = {}
     out = ["| File | Term | Kind | Entries | Fields |", "|---|---|---|---|---|"]
-    for f, path in DICTIONARY:
+    for f, path in terms:
         if f not in loaded:
             try:
                 loaded[f] = yaml.safe_load((ontology_dir / f).read_text(encoding="utf-8"))
             except (OSError, yaml.YAMLError) as e:
-                raise InputError(f"cannot read ontology/{f}: {e}")
+                raise InputError(f"cannot read {dirname}/{f}: {e}")
         node = loaded[f]
         for k in path.split("."):
             if not isinstance(node, dict) or k not in node:
-                raise CheckError(f"derived: ontology/{f} has no {path}\n")
+                raise CheckError(f"derived: {dirname}/{f} has no {path}\n")
             node = node[k]
         if node == [] or node == {}:
             kind, count, fields = ("empty list" if node == [] else "empty map"), 0, []
         elif isinstance(node, list):
             dicts = [e for e in node if isinstance(e, dict)]
             if dicts and len(dicts) != len(node):
-                raise CheckError(f"derived: ontology/{f} {path} mixes records and values\n")
+                raise CheckError(f"derived: {dirname}/{f} {path} mixes records and values\n")
             kind, count = ("records" if dicts else "values"), len(node)
             fields = sorted({k for e in dicts for k in e})
         elif isinstance(node, dict):
@@ -273,7 +258,7 @@ def dictionary(ontology_dir: Path) -> str:
             else:
                 kind, count, fields = "record", len(node), [str(k) for k in node]
         else:
-            raise CheckError(f"derived: ontology/{f} {path} is a single value, not a term\n")
+            raise CheckError(f"derived: {dirname}/{f} {path} is a single value, not a term\n")
         fields = [x for x in fields if not x.startswith("_")]
         out.append(f"| {f} | {path} | {kind} | {count} | {', '.join(fields) or 'none'} |")
     return "\n".join(out)
@@ -416,7 +401,7 @@ def build(marker: str, root: Path, record_path: Path, sysml: str, masked: str) -
     if marker == DEPENDENCIES_MARKER:
         record = capability_phases.load_record(record_path)
         try:
-            roadmap = (repo / "decisions" / capability_phases.roadmap_file()).read_text(encoding="utf-8")
+            roadmap = (project.DECISIONS / capability_phases.roadmap_file()).read_text(encoding="utf-8")
         except OSError as e:
             raise InputError(f"cannot read the roadmap note: {e.strerror or e}")
         return dependencies(record, roadmap)
@@ -425,8 +410,9 @@ def build(marker: str, root: Path, record_path: Path, sysml: str, masked: str) -
     if marker == TAXONOMY_MARKER:
         return taxonomy(sysml, masked)
     if marker == DICTIONARY_MARKER:
-        return dictionary(repo / "ontology")
+        dd = declared.dictionary("derived")
+        return dictionary(repo / dd.dir, [(t.file, t.path) for t in dd.terms], dd.dir)
     if marker == TRACE_MARKER:
-        return traceability(repo / "decisions", root / "views",
+        return traceability(project.DECISIONS, root / "views",
                             capability_phases.load_record(record_path), root / "adr-exemptions.yaml")
     raise KeyError(marker)

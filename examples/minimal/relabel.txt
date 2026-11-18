@@ -1,0 +1,3 @@
+# Relabel list: one rule, to show the rewrite. PATTERN<TAB>REPLACEMENT, matched without regard to case.
+# The rule applies to the decision records at export; the records in the repository are not changed.
+Pylon-12	the first locker

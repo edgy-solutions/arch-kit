@@ -268,3 +268,81 @@ def decisions_index(tool: str) -> DecisionIndex:
             _name(node["register"], base + "register"), _name(node["readme"], base + "readme"),
             lists["register_homes"], lists["indexed"], local, tuple(foreign))
     return _CACHE["decisions_index"]
+
+
+class Term(NamedTuple):
+    file: str
+    path: str
+
+
+class Dictionary(NamedTuple):
+    dir: str
+    terms: tuple
+
+
+def dictionary(tool: str) -> Dictionary:
+    """The declared term dictionary (`derived.dictionary`): a directory under the repository root, and the
+    (file, path) pairs the Am-If table shows, in order."""
+    import re
+    if "dictionary" not in _CACHE:
+        base = "derived.dictionary."
+        node = project.need("derived.dictionary", tool)
+        if not isinstance(node, dict):
+            _bad("derived.dictionary", "must be a map")
+        for k in node:
+            if k not in ("dir", "terms"):
+                _bad("derived.dictionary", f"unknown key {k!r}")
+        d = project.need(base + "dir", tool)
+        terms = project.need(base + "terms", tool)
+        if not isinstance(d, str) or not d.strip() or d != d.strip() or d.startswith(("/", "\\")) \
+                or re.match(r"^[A-Za-z]:", d) or ".." in re.split(r"[/\\]", d):
+            _bad(base + "dir", "must be a plain relative path with no '..'")
+        out = []
+        for i, item in enumerate(_list(terms, base + "terms")):
+            key = f"{base}terms[{i}]"
+            if not isinstance(item, dict) or set(item) != {"file", "path"}:
+                _bad(key, "needs exactly a file and a path")
+            f, path = item["file"], item["path"]
+            if not isinstance(f, str) or not re.fullmatch(r"[^/\\\s]+\.yaml", f):
+                _bad(key + ".file", f"{f!r} is not a bare .yaml file name")
+            if not isinstance(path, str) or not path.strip():
+                _bad(key + ".path", "must be a non-empty string")
+            out.append(Term(f, path))
+        _CACHE["dictionary"] = Dictionary(d, tuple(out))
+    return _CACHE["dictionary"]
+
+
+READERS = ("helm-annotations",)
+
+
+def exchange_reader(tool: str) -> str | None:
+    """The declared data-exchange reader (`exchange.reader`), or None when the project declares no exchange.
+
+    The only reader the kit has is `helm-annotations` (data_exchange.py). Any other value exits 2 and lists the
+    allowed ones."""
+    if "exchange_reader" not in _CACHE:
+        node = project.CONFIG.get("exchange")
+        reader = None
+        if node is not None:
+            if not isinstance(node, dict):
+                _bad("exchange", "must be a map")
+            if "reader" in node:
+                reader = node["reader"]
+                if reader not in READERS:
+                    _bad("exchange.reader", f"{reader!r} is not one of: {', '.join(READERS)}")
+        _CACHE["exchange_reader"] = reader
+    return _CACHE["exchange_reader"]
+
+
+def exchange_home(profiles: dict, tool: str) -> str | None:
+    """The view that holds the data-exchange section (profiles.yaml `data_exchange.home`), or None with no exchange.
+
+    With no reader declared there is nothing to put in a home: a `data_exchange.home` given anyway exits 2."""
+    node = (profiles or {}).get("data_exchange")
+    home = node.get("home") if isinstance(node, dict) else None
+    if exchange_reader(tool) is None:
+        if home is not None:
+            project.die(f"arch-kit: profiles.yaml: data_exchange.home is {home!r}, but the declaration "
+                        f"has no exchange.reader: a home with nothing to put in it")
+        return None
+    return home
