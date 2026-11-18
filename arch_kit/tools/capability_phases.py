@@ -7,13 +7,14 @@ register rows, readiness entries. Nothing in the record states a phase or
 evidence; both are computed here, and every citation has to resolve against
 the file it names or the render fails.
 
-Phases, highest first:
+Phases are declared (`phases` and `floor` in the declaration, see declared.py), strongest first.
+A capability takes the first phase whose rule it meets. The rules are fixed:
     measured          cites a readiness entry under `measured`
-    built unmeasured  cites a chart template under `built`, and no readiness entry
-    accepted design   cites an ADR whose Status begins with accepted
-    proposed          cites an ADR whose Status begins with proposed, or a
-                      `still_open` citation, or a `pending` entry
-    row               cites only rows in a register
+    built             cites a chart template under `built`
+    {status: WORD}    cites a decision whose Status begins with that declared status's lead
+    still-open        has a `still_open` citation
+    pending           has a `pending` entry
+    rows              cites rows in a register
 A capability that cites none of these has no phase, and that is a failure.
 
 Evidence comes from the readiness doc only: an entry is an anchor line that
@@ -24,35 +25,35 @@ own text (capability, entry, anchor, line); it never echoes a readiness line.
 Two keys say how a capability's page reads:
     description   two or three plain sentences, written from the decisions below
     derived_from  citations the description was written from; when absent, from `adrs`
-    severed       required for every capability: the exact string `not stated`, or one
+    degraded_mode required for every capability: the exact string `not stated`, or one
                   citation `ADR-NNNN §LABEL` of the record that says how the capability
-                  behaves when its link is severed. `not stated` needs an `SV-` id in
+                  behaves when its link is cut off. `not stated` needs an id with the declared
+                  open-row prefix (`labels.degraded_mode.open_row_prefix`) in
                   `rows`; a citation needs none.
     pending       optional list of non-empty strings naming the sources a decision waits
-                  on. A capability with it is at least `proposed`, and needs no
+                  on. A capability with it meets the `pending` rule, and needs no
                   `derived_from` or `adrs`.
 A decision is cited by section: `ADR-0038 §1`, in `adrs`, `derived_from` and
 `still_open[].adr`. The label is the number a heading starts with, or the
 GitHub slug of a heading with none (adr_sections.py lists them). A bare
 `ADR-0038` cites no section, and a section that does not resolve fails.
 
-Used by render_profile.py (the St-Rm-P marker) and check_views.py (the
+Used by render_profile.py (the capability-phases marker) and check_views.py (the
 `phases` rule). This module writes no file. Stdlib and PyYAML only.
 """
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
-import yaml
-
 import adr_sections
+import declared
 import project
 from data_exchange import InputError
-from marks import adr_status
 
-PHASES = ["measured", "built unmeasured", "accepted design", "proposed", "row"]
 NOT_MEASURED = "not measured"
+SCHEMA = Path(__file__).resolve().parent.parent / "schema" / "record.schema.json"
 
 
 def follow_ups_file():
@@ -67,13 +68,11 @@ def roadmap_file():
     return project.need("registers.roadmap", "capability_phases")
 
 
-REGISTER_HEADER = ["ID", "Subject", "Status"]
-DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 OUTPUT_FIELDS = ("phase", "evidence")
 NOT_STATED = "not stated"
-SECTIONS = ("lanes", "labs", "entries", "capabilities")
+SECTIONS = ("groups", "environments", "entries", "capabilities")
 CAP_KEYS = ("description", "derived_from", "adrs", "built", "measured", "rows", "still_open", "increment",
-            "severed", "pending")
+            "degraded_mode", "pending")
 ADR_ID_RE = re.compile(r"ADR-\d{4}")
 
 
@@ -81,54 +80,65 @@ class CheckError(Exception):
     """A citation did not resolve: exit 1. Carries stderr to pass through."""
 
 
+def name_record(text: str, record_path, default_path) -> str:
+    """St-Rm-P text: when the render uses a record other than the framework's, stop naming the framework's.
+
+    The link to the framework record (its file name, linked from the views directory) becomes plain words.
+    A text without the link is a CheckError, so a reworded view cannot quietly keep the wrong source."""
+    if Path(record_path).resolve() == Path(default_path).resolve():
+        return text
+    name = Path(default_path).name
+    link = f"[{name}](../{name})"
+    if link not in text:
+        raise CheckError(f"St-Rm-P: the link {link} is not in the view; the deployment's record cannot be named\n")
+    return text.replace(link, f"`{name}`, the deployment's own")
+
+
 # --- record and model ---------------------------------------------------------
 
+def key_names(tool: str) -> dict[str, str]:
+    """The neutral record keys to the consumer's own, for messages (the loader's KEY_NAMES)."""
+    return project.loader(tool).KEY_NAMES
+
+
+def _validate(path, record: dict) -> None:
+    """Raise InputError for the first place the loader's record breaks the neutral schema."""
+    import jsonschema
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    errors = sorted(jsonschema.Draft202012Validator(schema).iter_errors(record),
+                    key=lambda e: [str(p) for p in e.absolute_path])
+    if not errors:
+        return
+    first = errors[0]
+    where = ".".join(str(p) for p in first.absolute_path) or "(record)"
+    text = f"{where}: {first.message}"
+    for neutral, own in key_names("load_record").items():  # the consumer's words, as in every other message
+        text = re.sub(rf"\b{neutral}\b", own, text)
+    raise InputError(f"{path}: {text}")
+
+
 def load_record(path) -> dict:
-    try:
-        with open(path, encoding="utf-8") as f:
-            record = yaml.safe_load(f)
-    except (OSError, yaml.YAMLError) as e:
-        raise InputError(f"cannot read {path}: {e}")
-    if not isinstance(record, dict):
-        raise InputError(f"{path}: expected a map")
-    for key in SECTIONS:
-        if not isinstance(record.get(key), dict):
-            raise InputError(f"{path}: '{key}' is missing or is not a map")
+    record = project.loader("capability_phases").load_record(path)
+    _validate(path, record)
     return record
 
 
 def model_capabilities(sysml_text: str) -> dict[str, str]:
-    """Concrete capability name to its direct parent, in model order, from CapabilityTaxonomy."""
-    from render_profile import mask_sysml, match_brace  # render_profile imports this module
-    masked = mask_sysml(sysml_text)
-    m = re.search(r"\bpackage\s+CapabilityTaxonomy\s*\{", masked)
-    if not m:
-        raise InputError("the model has no package CapabilityTaxonomy")
-    body = masked[m.end():match_brace(masked, m.end() - 1)]
-    return {c.group(1): c.group(2)
-            for c in re.finditer(r"^\s*occurrence\s+def\s+(\w+)\s*:>\s*(\w+)\s*;", body, re.M)}
+    return project.loader("capability_phases").model_capabilities(sysml_text)
 
 
 # --- reading the decisions ----------------------------------------------------
 
 def read_text(path: Path) -> str | None:
-    try:
-        return path.read_text(encoding="utf-8")
-    except OSError:
-        return None
+    return project.loader("capability_phases").read_text(path)
 
 
 def adr_file(decisions_dir: Path, adr: str) -> Path | None:
-    found = sorted(Path(decisions_dir).glob(f"{adr}-*.md"))
-    return found[0] if len(found) == 1 else None
+    return project.loader("capability_phases").adr_file(decisions_dir, adr)
 
 
 def adr_lead(decisions_dir: Path, adr: str) -> str | None:
-    """The file's status, lowercased, leading `*` and space stripped; None if there is no file or status."""
-    path = adr_file(decisions_dir, adr)
-    text = read_text(path) if path else None
-    status = adr_status(text) if text is not None else None
-    return status.lstrip("* ").lower() if status else None
+    return project.loader("capability_phases").adr_lead(decisions_dir, adr)
 
 
 def adr_id(citation) -> str:
@@ -184,39 +194,15 @@ def split_row(line: str) -> list[str]:
 
 
 def register_rows(text: str) -> dict[str, str]:
-    """Row id to status, for every `| ID | Subject | Status |` register in the text."""
-    out: dict[str, str] = {}
-    lines = text.split("\n")
-    for i, line in enumerate(lines):
-        if not line.lstrip().startswith("|") or split_row(line) != REGISTER_HEADER:
-            continue
-        for nxt in lines[i + 2:]:
-            if not nxt.lstrip().startswith("|"):
-                break
-            cells = split_row(nxt)
-            if len(cells) >= 3:
-                out.setdefault(cells[0], cells[-1])
-    return out
+    return project.loader("capability_phases").register_rows(text)
 
 
 def register_subjects(text: str) -> dict[str, tuple[str, str]]:
-    """Row id to (subject, status), for every `| ID | Subject | Status |` register in the text."""
-    out: dict[str, tuple[str, str]] = {}
-    lines = text.split("\n")
-    for i, line in enumerate(lines):
-        if not line.lstrip().startswith("|") or split_row(line) != REGISTER_HEADER:
-            continue
-        for nxt in lines[i + 2:]:
-            if not nxt.lstrip().startswith("|"):
-                break
-            cells = split_row(nxt)
-            if len(cells) >= 3:
-                out.setdefault(cells[0], (cells[1], cells[-1]))
-    return out
+    return project.loader("capability_phases").register_subjects(text)
 
 
 def roadmap_rows(text: str) -> list[list[str]]:
-    return [split_row(ln) for ln in text.split("\n") if ln.lstrip().startswith("|")]
+    return project.loader("capability_phases").roadmap_rows(text)
 
 
 def roadmap_row(rows: list[list[str]], increment: str) -> list[str] | None:
@@ -234,9 +220,7 @@ def increment_label(cap: dict, road_rows: list[list[str]]) -> str | None:
 
 
 def index_status(index_text: str, adr: str) -> str | None:
-    """The bold status the decisions index gives an ADR, when it begins accepted or proposed."""
-    m = re.search(rf"\[{re.escape(adr)}:[^\n]*?\)\s*—\s*\*\*(accepted|proposed)", index_text, re.I)
-    return m.group(1).lower() if m else None
+    return project.loader("capability_phases").index_status(index_text, adr)
 
 
 def sentences(text: str) -> int:
@@ -276,6 +260,8 @@ def check_section(name: str, item, decisions_dir: Path) -> list[str]:
 def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> list[str]:
     """Every failure, one line each. Needs no chart and no readiness doc."""
     decisions_dir = Path(decisions_dir)
+    names = key_names("check_record")
+    prefix = str(project.need("labels.degraded_mode.open_row_prefix", "check_record"))
     fails: list[str] = []
     caps = {k: (v or {}) for k, v in record["capabilities"].items()}
     for name in capabilities:
@@ -285,12 +271,13 @@ def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> l
         if name not in capabilities:
             fails.append(f"{name} is in the record and is not a capability in the model")
     for parent in dict.fromkeys(capabilities.values()):
-        if parent not in record["lanes"]:
-            fails.append(f"{parent} has no lanes entry in the record")
+        if parent not in record["groups"]:
+            fails.append(f"{parent} has no {names['groups']} entry in the record")
     for key, entry in record["entries"].items():
         entry = entry or {}
-        if entry.get("lab") not in record["labs"]:
-            fails.append(f"entry {key} names lab {entry.get('lab')}, which labs does not declare")
+        if entry.get("environment") not in record["environments"]:
+            fails.append(f"entry {key} names {names['environment']} {entry.get('environment')}, "
+                         f"which {names['environments']} does not declare")
         for f in OUTPUT_FIELDS:
             if f in entry:
                 fails.append(f"entry {key} has a field '{f}': phase and evidence are computed, not recorded")
@@ -319,8 +306,9 @@ def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> l
         if adr not in seen_adrs:
             if index_text is not None and f"[{adr}:" not in index_text:
                 fails.append(f"{name}: {adr} is not in decisions/README.md")
-            if not lead or not lead.startswith(("accepted", "proposed")):
-                fails.append(f"{name}: {adr} has no readable ## Status line beginning accepted or proposed")
+            leads = [s.lead for s in declared.statuses("capability_phases") if s.in_force]
+            if not lead or not lead.startswith(tuple(leads)):
+                fails.append(f"{name}: {adr} has no readable ## Status line beginning {' or '.join(leads)}")
         seen_adrs.add(adr)
         return lead
 
@@ -357,23 +345,24 @@ def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> l
             text = read_text(path) if path else None
             if text is not None and says not in text:
                 fails.append(f"{name}: {adr} does not contain {says!r}")
-        sv_rows = [r for r in cap.get("rows") or [] if str(r).startswith("SV-")]
-        severed = cap.get("severed")
-        if not severed:
-            fails.append(f"{name} has no severed entry")
-        elif severed == NOT_STATED:
+        sv_rows = [r for r in cap.get("rows") or [] if str(r).startswith(prefix)]
+        degraded = cap.get("degraded_mode")
+        dm = names["degraded_mode"]
+        if not degraded:
+            fails.append(f"{name} has no {dm} entry")
+        elif degraded == NOT_STATED:
             if not sv_rows:
-                fails.append(f"{name}: severed is not stated and rows names no SV- row")
+                fails.append(f"{name}: {dm} is not stated and rows names no {prefix} row")
         else:
             try:
-                adr_sections.parse_citation(severed)
+                adr_sections.parse_citation(degraded)
             except ValueError:
-                fails.append(f"{name}: severed {severed!r} is neither '{NOT_STATED}' nor a citation ADR-NNNN §LABEL")
+                fails.append(f"{name}: {dm} {degraded!r} is neither '{NOT_STATED}' nor a citation ADR-NNNN §LABEL")
             else:
-                fails += check_section(name, severed, decisions_dir)
-                check_adr(name, adr_id(severed))
+                fails += check_section(name, degraded, decisions_dir)
+                check_adr(name, adr_id(degraded))
                 if sv_rows:
-                    fails.append(f"{name}: severed is stated in {severed} and rows still names {sv_rows[0]}")
+                    fails.append(f"{name}: {dm} is stated in {degraded} and rows still names {sv_rows[0]}")
         for row in cap.get("rows") or []:
             status = registers.get(row)
             if follow is not None and status is None:
@@ -393,88 +382,45 @@ def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> l
 
 
 def phase_of(cap: dict, statuses: dict[str, str | None]) -> str | None:
-    """The highest phase the capability's citations give. `statuses` is from statuses_of."""
+    """The first declared phase whose rule the capability meets (the declared order is strongest first).
+
+    `statuses` is from statuses_of. A capability that meets no rule has no phase."""
     cap = cap or {}
     leads = [(statuses.get(a) or "") for a in record_adrs(cap)]
-    if cap.get("measured"):
-        return "measured"
-    if cap.get("built"):
-        return "built unmeasured"
-    if any(s.startswith("accepted") for s in leads):
-        return "accepted design"
-    if any(s.startswith("proposed") for s in leads) or still_open(cap) or cap.get("pending"):
-        return "proposed"
-    if cap.get("rows"):
-        return "row"
+    heads = {s.word: s.lead for s in declared.statuses("capability_phases")} if any(
+        r == "status" for p in declared.phases("capability_phases") for r, _ in p.when) else {}
+    met = {
+        "measured": lambda _: bool(cap.get("measured")),
+        "built": lambda _: bool(cap.get("built")),
+        "status": lambda word: any(s.startswith(heads[word]) for s in leads),
+        "still-open": lambda _: bool(still_open(cap)),
+        "pending": lambda _: bool(cap.get("pending")),
+        "rows": lambda _: bool(cap.get("rows")),
+    }
+    for phase in declared.phases("capability_phases"):
+        if any(met[rule](arg) for rule, arg in phase.when):
+            return phase.name
     return None
 
 
 # --- the document -------------------------------------------------------------
 
 def quote_of(lines: list[str], at: int) -> str:
-    """The cited readiness line, as a short quote."""
-    first = lines[at].strip()
-    if first.startswith("|"):
-        cells = [c for c in split_row(first) if c]
-        if cells and re.match(r"^\d+(\.\d+)?$", cells[0]):
-            cells = cells[1:]
-        text = ": ".join(cells)
-    else:
-        parts: list[str] = []
-        for j, raw in enumerate(lines[at:at + 6]):
-            s = raw.strip()
-            if j == 0:
-                s = re.sub(r"^[*-] ", "", s)
-            if ". " in s:
-                parts.append(s[:s.index(". ") + 1])
-                break
-            if s.endswith("."):
-                parts.append(s)
-                break
-            parts.append(s)
-        text = " ".join(parts)
-    return text.replace("**", "").replace("|", "\\|")
+    return project.loader("capability_phases").quote_of(lines, at)
 
 
 def resolve_entries(record: dict, readiness_lines: list[str]) -> tuple[dict, list[str]]:
-    """Entry name to (anchor line index, date, section), and the failures."""
-    found, fails = {}, []
-    for key, entry in record["entries"].items():
-        anchor = (entry or {}).get("anchor")
-        if not anchor:
-            fails.append(f"entry {key} has no anchor")
-            continue
-        hits = [i for i, ln in enumerate(readiness_lines) if anchor in ln]
-        if len(hits) != 1:
-            fails.append(f"entry {key}: anchor {anchor!r} is on {len(hits)} readiness lines, expected one")
-            continue
-        at = hits[0]
-        date = DATE_RE.search(readiness_lines[at])
-        if not date:
-            fails.append(f"entry {key}: the line of anchor {anchor!r} holds no date")
-            continue
-        head = next((j for j in range(at, -1, -1) if readiness_lines[j].startswith("## ")), None)
-        if head is None:
-            fails.append(f"entry {key}: anchor {anchor!r} has no ## heading above it")
-            continue
-        found[key] = (at, date.group(0), readiness_lines[head][3:].split(" — ")[0].strip())
-    return found, fails
+    return project.loader("capability_phases").resolve_entries(record, readiness_lines)
 
 
 def measured_line(readiness_lines: list[str], at: int, text: str) -> list[int]:
-    """Indexes of the lines holding text, from the anchor to the next ## or ### heading."""
-    hits = []
-    for i in range(at, len(readiness_lines)):
-        ln = readiness_lines[i]
-        if i > at and ln.startswith(("## ", "### ")):
-            break
-        if text in ln:
-            hits.append(i)
-    return hits
+    return project.loader("capability_phases").measured_line(readiness_lines, at, text)
 
 
-def lab_sentence(labs: dict, used: list[str]) -> str:
-    parts = [f"{'Lab' if i == 0 else 'lab'} {k}{' is' if i == 0 else ''} {labs[k]}"
+def environment_sentence(environments: dict, used: list[str]) -> str:
+    word = str(project.need("labels.environment.word", "capability_phases"))
+    first = word[:1].upper() + word[1:]
+    parts = [f"{first if i == 0 else word} {k}{' is' if i == 0 else ''} {environments[k]}"
              for i, k in enumerate(used)]
     if len(parts) > 1:
         parts = [", ".join(parts[:-1]) + " and " + parts[-1]] if len(parts) > 2 else [" and ".join(parts)]
@@ -482,33 +428,14 @@ def lab_sentence(labs: dict, used: list[str]) -> str:
 
 
 def resolve_quotes(record: dict, readiness: list[str], entries: dict | None = None) -> tuple[dict, list[str]]:
-    """(capability, index of its measured citation) to the cited readiness quote, and the failures.
-
-    `readiness` is the document's lines. `entries` is from resolve_entries; given, its failures
-    are the caller's already.
-    """
-    fails: list[str] = []
-    if entries is None:
-        entries, fails = resolve_entries(record, readiness)
-    quotes: dict[tuple[str, int], str] = {}
-    for name, cap in record["capabilities"].items():
-        for k, m in enumerate((cap or {}).get("measured") or []):
-            entry, line = (m or {}).get("entry"), (m or {}).get("line")
-            if entry not in entries or not line:
-                continue  # an unknown entry or an unresolved anchor is already a failure
-            hits = measured_line(readiness, entries[entry][0], line)
-            if len(hits) != 1:
-                fails.append(f"{name}: entry {entry} line {line!r} is on {len(hits)} readiness lines "
-                             "from the anchor to the next heading, expected one")
-            else:
-                quotes[(name, k)] = quote_of(readiness, hits[0])
-    return quotes, fails
+    return project.loader("capability_phases").resolve_quotes(record, readiness, entries=entries)
 
 
 def evidence_item(record: dict, entries: dict, measured: dict, quote: str) -> str:
     """One piece of evidence, as the Evidence column prints it."""
     _, date, section = entries[measured["entry"]]
-    return f"{date}, lab {record['entries'][measured['entry']]['lab']}, {section}: {quote}"
+    word = str(project.need("labels.environment.word", "capability_phases"))
+    return f"{date}, {word} {record['entries'][measured['entry']]['environment']}, {section}: {quote}"
 
 
 def evidence_cells(record: dict, readiness_text: str) -> dict[str, list[str]]:
@@ -524,10 +451,19 @@ def evidence_cells(record: dict, readiness_text: str) -> dict[str, list[str]]:
             if cap.get("measured")}
 
 
+def group_of(record: dict, cap: dict, parent: str, road_rows: list[list[str]]) -> str:
+    """The text of a capability's group cell: its group's name, then `, number: text` of its increment."""
+    group = str(record["groups"][parent])
+    label = increment_label(cap, road_rows)
+    return group + f", {label}" if label else group
+
+
 def render_table(record: dict, capabilities: dict[str, str], decisions_dir, templates_dir,
                  readiness_text: str) -> str:
     """The phases document text. Raises CheckError listing every failure."""
     decisions_dir, templates_dir = Path(decisions_dir), Path(templates_dir)
+    group_column = str(project.need("labels.group.column", "capability_phases"))
+    phase_column = str(project.need("labels.phase.column", "capability_phases"))
     fails = check_record(record, capabilities, decisions_dir)
     readiness = readiness_text.replace("\r\n", "\n").split("\n")
     entries, entry_fails = resolve_entries(record, readiness)
@@ -550,18 +486,15 @@ def render_table(record: dict, capabilities: dict[str, str], decisions_dir, temp
     statuses = statuses_of(record, decisions_dir)
     index_text = read_text(decisions_dir / "README.md") or ""
     road_rows = roadmap_rows(read_text(decisions_dir / roadmap_file()) or "")
-    rows, counts, used = [], dict.fromkeys(PHASES, 0), set()
+    rows, counts, used = [], dict.fromkeys(declared.phase_names("capability_phases"), 0), set()
     for name, parent in capabilities.items():
         cap = caps[name]
         phase = phase_of(cap, statuses)
         counts[phase] += 1
-        lane = str(record["lanes"][parent])
-        label = increment_label(cap, road_rows)
-        if label:
-            lane += f", {label}"
+        group = group_of(record, cap, parent, road_rows)
         evidence = NOT_MEASURED
-        if phase == "measured":
-            used.update(record["entries"][m["entry"]]["lab"] for m in cap["measured"])
+        if cap.get("measured"):
+            used.update(record["entries"][m["entry"]]["environment"] for m in cap["measured"])
             evidence = "; ".join(evidence_item(record, entries, m, quotes[(name, k)])
                                  for k, m in enumerate(cap["measured"]))
         built = list(dict.fromkeys(f"templates/{b['template']}" for b in cap.get("built") or []))
@@ -570,21 +503,21 @@ def render_table(record: dict, capabilities: dict[str, str], decisions_dir, temp
             note = ""
             if adr not in noted:
                 theirs = index_status(index_text, adr)
-                mine = "accepted" if statuses[adr].startswith("accepted") else "proposed"
+                mine = declared.lead_of(statuses[adr], "capability_phases").lead
                 note = f" (record: {mine}; index: {theirs})" if theirs and mine != theirs else ""
                 noted.add(adr)
             decisions.append(f"{adr} §{label}{note}")
         decisions += [f"{adr} §{label} (names it still open)" for adr, label in open_citations(cap)]
         if cap.get("pending"):
             decisions.append("decision pending")
-        rows.append(f"| {name} | {lane} | {phase} | {evidence} | {', '.join(built) or '-'} | "
+        rows.append(f"| {name} | {group} | {phase} | {evidence} | {', '.join(built) or '-'} | "
                     f"{', '.join(decisions) or '-'} | {', '.join(cap.get('rows') or []) or '-'} |")
 
-    out = ["Phases: " + ", ".join(f"{counts[p]} {p}" for p in PHASES) + ".", "",
-           "| Capability | Lane | Phase | Evidence | Built | Decisions | Rows |",
+    out = ["Phases: " + ", ".join(f"{counts[p]} {p}" for p in counts) + ".", "",
+           f"| Capability | {group_column} | {phase_column} | Evidence | Built | Decisions | Rows |",
            "|---|---|---|---|---|---|---|", *rows, ""]
     if used:
-        out += [lab_sentence(record["labs"], sorted(used)), ""]
+        out += [environment_sentence(record["environments"], sorted(used)), ""]
     out += ['An entry is the last time the readiness doc records that check. It ran against the chart of that '
             'date, which can be older than the chart this document was rendered from. "Not measured" means '
             'the readiness doc has no entry for the capability, and says nothing about measurements recorded '

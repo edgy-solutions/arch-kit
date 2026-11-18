@@ -32,7 +32,16 @@ cannot run is never reported as passing.
 | `phases` | the capability-phases marker is missing, misplaced or repeated, or the capability record fails its check (every citation resolves; see the [methodology](METHODOLOGY.md)) |
 | `derived` | a derived-table marker is not present exactly once in its home view, or the table cannot be built |
 | `quotes` | text on the barred list appears in an evidence cell or in the record |
-| `floor` | something the deployment renders (a workload, a kind, a flag or a route) is claimed by no capability, or is claimed only by a capability below `built unmeasured` |
+| `floor` | something the deployment renders (a workload, a kind, a flag or a route) is claimed by no capability, or is claimed only by a capability in a phase below the declared `floor` (see [the declaration](declaration.md#phases-statuses-views-and-the-browser-check)) |
+
+### A record the schema refuses
+
+The capability record is validated when it loads, before any rule runs. A record that breaks the schema (for
+example, a capability with no degraded-mode entry) makes the tool exit 2, naming the first place it breaks. Before the
+loader seam, `phases` reported the same record as a finding, with exit 1. The same records fail as before. They now
+fail as bad input, and on their own, not alongside other findings. The message still uses the project's own key name.
+
+### Partial runs
 
 `quotes` and `floor` need the chart, its values, the release name, the readiness document and the barred list. A call
 that leaves out any of these exits 2. `--allow-partial REASON` runs the other fifteen rules, and the ok line names the
@@ -45,6 +54,29 @@ right code. A check that has never failed on a broken input is not yet known to 
 
 `validate_sysml` works the same way. It passes only when the model parses clean **and** the reference parser refuses
 two copies that were broken on purpose.
+
+## `check_decision_indexes`: the decision indexes
+
+An index drifts where nobody is looking. This tool asks the directory, not the author's memory, and runs four checks
+over `paths.decisions`, with every name taken from [`decisions.index`](declaration.md#the-decision-index):
+
+1. **Ids and rows.** Every register id declared in a register home has a row in the register index, and every row is
+   a real id. The ids come from declaration sites (a bolded heading or a table row), not from a scan of prose, so a
+   platform designation such as `UH-60` is not mistaken for one. The register index is left out of the evidence it is
+   checked against, or every row would vouch for itself.
+2. **Documents.** Every document that matches an `indexed` glob is named in the document index.
+3. **Status.** Every row's status equals its home's declared status token, as an exact string.
+4. **Tokens.** Every row's home has a token, so that check 3 cannot be skipped by absence.
+
+Citations are checked too. A `prefix:ADR-NNNN` citation with a prefix the declaration does not know is a finding. One
+with the local prefix must resolve to a document here. One with a foreign prefix is checked for form, and, where a
+`pin_check` is declared, for its pin. An unqualified `ADR-NNNN` means this repository.
+
+**What these do not prove.** Check 3 shows that the index agrees with the home. Both can be wrong together. Only a
+person reading the home establishes that a status is true, and a clean run says so. Nor can the tool see another
+repository: that a cited file exists at a pinned commit is for a check that can reach it, which needs the network.
+Status is compared, never inferred; an earlier attempt to pattern-match prose gave false positives and false negatives
+both. Exit 0 clean, 1 drift, 2 input.
 
 ## `check_export`: the HTML file
 
@@ -81,10 +113,25 @@ A project keeps two lists of its own. Both stay out of the kit, and out of any p
 
 - **Relabel list:** one rule per line. Each rule is a regular expression, a TAB, then the replacement. Lines starting
   with `#`, and blank lines, are ignored. `render_html --relabel` applies the list to the decision records as they
-  are exported. The source files are not changed. `check_export --relabel` fails if anything the rules should have
-  replaced is still in the file.
+  load, then to the whole finished HTML: text between tags, and the shown attributes (`title`, `alt`, `aria-label`,
+  `placeholder`, `content`, `data-title-*`). It never rewrites an `id`, an `href`, a `class` or another `data-*`
+  value, nor a script, a style or a comment. The source files are not changed. `check_export --relabel` fails if
+  anything the rules should have replaced is still in the file.
 - **Barred list:** one pattern per line, with an optional `|reason` after it. `check_export` and the `quotes` rule
-  fail on any match.
+  fail on any match. `render_html --barred` applies it to the finished HTML.
+
+The leak scan runs in the render, on the finished HTML: a relabel survivor (for example a name that reached an `id`),
+or a barred value when `--barred` is given, is exit 1 and no file is written. The message names the rule number and a
+count, never the value. `check_export` repeats both scans as the independent check.
+
+When the declaration says `portal.audience: public`, a missing list is an input error (exit 2), before any work:
+`check_export` needs at least one `--relabel` (it always needs `--barred`), and `render_html` needs at least one
+`--relabel` and at least one `--barred`. The rule asks that a list is given, not that it is private: the sample lists
+satisfy it.
+
+Public CI uses the sample lists by design. A project's real lists stay out of its public workflows, secrets included,
+so the relabel with the real names runs only locally, where the project's private list is. A CI pass is therefore
+never a real-name check, and is never reported as one.
 
 The kit ships `relabel-sample.txt` and `barred-sample.txt`, with made-up entries, so that its tests and a first run
 have something to read. A green run with the samples shows the mechanics work. It is not evidence that a project's

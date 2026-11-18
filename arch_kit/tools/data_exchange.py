@@ -10,6 +10,17 @@ the ConfigMaps the workloads mount, and the egress ConfigMaps. Nothing is
 measured and nothing is inferred from a name; a declaration that is missing
 is printed as an exception, never filled in.
 
+This is the kit's one data-exchange reader, named `helm-annotations`. A project opts in with
+`exchange: {reader: helm-annotations}` in its declaration; without that key no exchange is generated and no
+chart is rendered for it. The reader is written for one platform's chart and expects, by name:
+  - ConfigMaps `egress-kinds`, `egress-routes`, `egress-assembler-config`, `egress-intake-config` and
+    `destinations-deployment`;
+  - workloads `egress-gate*`, `egress-forwarder`, `egress-assembler` and `egress-intake`;
+  - one StatefulSet `redpanda-<tier>` per tier, and a special tier (and broker) named `hq`;
+  - topics annotated as `broker/topic` under the declared annotation keys.
+These names are not declared and are not renamed. A project whose chart is not shaped that way declares no
+exchange.
+
 Usage:
     python docs/arch/tools/data_exchange.py --chart PATH --values FILE
         [--values FILE ...] [--rendered FILE] [--release NAME] [--profile uaf|dodaf202|naf4]
@@ -524,6 +535,12 @@ def table(header: list[str], rows: list[list]) -> list[str]:
     return out
 
 
+def exchange_header(cols: dict) -> list[str]:
+    """The header of the Exchanges table. The kit fixes its nine columns; the profile names three of them."""
+    return ["Tier", "Broker", cols["topic"], cols["writer"], "Declared by", cols["consumers"],
+            "Kind", "Destination", "Labels"]
+
+
 def load_profiles() -> dict:
     with open(PROFILES_PATH, encoding="utf-8") as f:
         return yaml.safe_load(f)
@@ -570,8 +587,7 @@ def render_document(m: Model, profile: str, stamps: list[str], allow_no_kinds: s
                           ", ".join(as_list(e["accepts"])), e["asserted_by"], e["asserted_on"], rn])
     lines += table(["Destination", "Display name", "Nations", "Accepts", "Asserted by", "Asserted on", "Routes"], drows)
     lines += ["", "## Exchanges", ""]
-    lines += table(["Tier", "Broker", cols["topic"], cols["writer"], "Declared by", cols["consumers"],
-                    "Kind", "Destination", "Labels"],
+    lines += table(exchange_header(cols),
                    [[r["tier"], r["broker"], r["topic"], r["writer"], r["by"],
                      ", ".join(r["consumers"]) or NONE_DECLARED, ", ".join(r["kinds"]) or "-",
                      ", ".join(r["destinations"]) or "-", r["labels"]] for r in m.rows])

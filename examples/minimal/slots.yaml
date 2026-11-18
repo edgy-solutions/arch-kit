@@ -1,0 +1,8 @@
+# Instantiation slots. A view writes {{slot:name}} wherever a deployment has to supply a fact.
+slots:
+  depot-name:
+    fills: The name of the depot a deployment runs.
+    source: chart values system.name
+  site-contact:
+    fills: Who to call about a locker site.
+    source: none yet, a deployment has no contact declaration

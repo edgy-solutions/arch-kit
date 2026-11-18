@@ -18,20 +18,23 @@ assume.
 
 ## Status
 
-**Pre-release: `0.1.0.dev0`.** The kit is being extracted from the first project that used it. That project's export
+**`0.1.0`, not yet tagged.** The kit is being extracted from the first project that used it. That project's export
 is the acceptance test: after every step it must come out byte-identical, or each difference is listed and explained.
 
 | Step | | State |
 |---|---|---|
 | 1 | Tools moved unchanged. Content paths are read from the project's declaration | done |
 | 2 | No project names in the kit. Names, keys and file names are declared | done |
-| 3 | A loader seam: each project reads its own files into a neutral record. Labels, phases, statuses and view kinds are declared | in progress |
-| 4 | Relabelling and the leak scan run on the rendered HTML | planned |
-| 5 | Each portal declares its hosting and its audience | planned |
-| 6 | A CLI entry point, a reusable GitHub Action, the decision-index checks, a `v0.1.0` release, and a fictional example project | planned |
+| 3 | A loader seam: each project reads its own files into a neutral record. Labels, phases, statuses and view kinds are declared | done |
+| 4 | Relabelling and the leak scan run on the rendered HTML | done |
+| 5 | Each portal declares its hosting and its audience | done |
+| 6a | The decision-index check moves into the kit, with its names declared | done |
+| 6b | The `arch-kit` command, a declared term dictionary, an optional declared data exchange, and the [example project](examples/minimal/README.md) with its self-test | done |
+| 6c | A reusable GitHub Action, and readiness for `v0.1.0` (the tag is made after review) | done |
+| 6d | Caught up with the first project's later tool changes: `check_views --record`, and the CV-3 text naming a passed record | done |
 | 7 | The first project pins `v0.1.0`, with the golden comparison in its CI | planned |
 
-Until `v0.1.0`, pin a commit, not a branch. Some conventions are still fixed rather than declared. The
+Until the `v0.1.0` tag exists, pin a full commit sha, not a branch. Some conventions are still fixed rather than declared. The
 [declaration reference](docs/declaration.md#what-is-not-declared-yet) lists them.
 
 ## How it works
@@ -48,7 +51,7 @@ Until `v0.1.0`, pin a commit, not a branch. Some conventions are still fixed rat
   what the deployment actually renders.
 - **`render_profile`** and **`render_html`** fill the generated sections from declared sources, never from text
   written for them:
-  - the data-exchange tables from a Helm render;
+  - the data-exchange tables from a Helm render (optional: declare `exchange: {reader: helm-annotations}`);
   - the capability phases from the record;
   - the derived tables from the model and the record.
 - **`check_export`** and the **browser check** test the file people will read.
@@ -62,7 +65,7 @@ records the run that produced it.
 
 ### Requirements
 
-- Python 3.10 or later (CI uses 3.12), with `pyyaml` and `markdown-it-py==4.0.0`.
+- Python 3.10 or later (CI uses 3.12), with `pyyaml`, `markdown-it-py==4.0.0` and `jsonschema==4.26.0`.
 - For diagrams and the browser check: Node.js 22 or later, and Chrome. Run `npm ci` in `arch_kit/tools/export`, and set
   `PUPPETEER_EXECUTABLE_PATH` to Chrome.
 - For the deployment-backed checks and the data-exchange tables: `helm`, and the project's chart.
@@ -86,13 +89,20 @@ paths:
   root: .                      # this directory: views/, model/, profiles.yaml, ...
   repo: ../..                  # the repository root
   decisions: ../../decisions   # the decision records
+portal:
+  hosting: ci-artifact         # ci-artifact | static-site | none
+  audience: public             # public | private: public makes the render and check_export require the lists
+loader: kit_loader.py          # your module that reads your files for the kit
 name: Example
 model:
   file: model/example.sysml
   package: Example
 ```
 
-The [declaration reference](docs/declaration.md) lists every key, and the tool that needs it.
+The loader is a Python module you own. It reads your capability record, your decision records and your registers,
+and hands the kit the record in a neutral shape. The kit checks that shape against a JSON Schema when the record
+loads. The [declaration reference](docs/declaration.md) lists every key and the tool that needs it, and describes
+[the loader](docs/declaration.md#the-loader).
 
 ### 3. Run it
 
@@ -103,20 +113,65 @@ python -m arch_kit check_views --chart CHART --values VALUES.yaml --release NAME
     --readiness READINESS.md --barred BARRED.txt
 
 python -m arch_kit render_html --out export.html --chart CHART --values VALUES.yaml \
-    --release NAME --relabel RELABEL.txt
+    --release NAME --relabel RELABEL.txt --barred BARRED.txt
 
 python -m arch_kit check_export --export export.html --barred BARRED.txt --relabel RELABEL.txt
 
-node "$PYTHONPATH/arch_kit/tools/export/check_export_browser.mjs" export.html --shots shots/
+python -m arch_kit browser_facts --out facts.json
+
+node "$PYTHONPATH/arch_kit/tools/export/check_export_browser.mjs" export.html --shots shots/ --facts facts.json
 ```
 
-`python -m arch_kit [--config FILE] TOOL [ARGS...]` runs any tool. Run it with no tool to list them. `--config`
+`python -m arch_kit [--config FILE] TOOL [ARGS...]` runs any tool, and so does the installed `arch-kit` command (`arch-kit [--config FILE] TOOL`). Run it with no tool to list them. `--config`
 points at a declaration somewhere else.
+
+### 4. Run it in CI: the Action
+
+One `uses:` line runs the whole chain (`check_views`, `render_html`, `check_export`, `browser_facts` and the browser
+check, `check_decision_indexes`):
+
+```yaml
+- uses: actions/checkout@<sha>
+  with:
+    fetch-depth: 0        # the render stamps each decision from git
+- uses: edgy-solutions/arch-kit@v0.1.0
+  with:
+    config: docs/arch/arch-kit.yaml
+    chart: path/to/chart
+    release: myrelease
+    values: |
+      path/to/values.yaml
+    relabel: path/to/relabel.txt
+    barred: path/to/barred.txt
+```
+
+**The tag `v0.1.0` exists only once it is made.** Until then, pin a full commit sha:
+`uses: edgy-solutions/arch-kit@<full sha>`.
+
+| Input | Required | Meaning |
+|---|---|---|
+| `config` | yes | path to the project's `arch-kit.yaml` |
+| `chart`, `release` | yes | as `render_html` takes them. The Action does not run Helm itself; a project with no declared exchange needs only a chart directory |
+| `values`, `readiness` | no | `values` is newline-separated |
+| `relabel`, `barred` | no | newline-separated lists of files, passed as repeated flags. A public audience requires both |
+| `out` | no | the output directory (default `$RUNNER_TEMP/arch-kit-export`); each tool's log is written there and its tail printed |
+| `browser` | no | `true` (default) runs the browser check |
+| `index-check` | no | `true` (default) runs `check_decision_indexes` |
+
+Outputs: `hosting`, `audience` (from `arch-kit portal`) and `artifact-id` (empty when nothing was uploaded).
+
+What happens to the export depends on `portal.hosting`. `ci-artifact` uploads `out` as the artifact
+`arch-kit-export`. **`static-site` and `none` publish nothing in this version.** A later step will publish a site.
+
+The Action reads no secret. Public CI uses the sample lists by design: the relabel with a project's real names runs
+only locally, where its private list is, and is never wired into a public workflow. A CI pass shows the mechanics
+work; it is not a real-name check. The runner needs Chrome on the PATH, as the hosted Ubuntu image has, and the
+Action installs Node 22 (the render draws diagrams with mermaid-cli even when `browser` is `false`).
+Every third-party action it uses is pinned to a full commit sha.
 
 ## Content layout
 
-The tools read these files under `paths.root` and `paths.decisions`. The file names are fixed for now (step 3 makes
-them declared).
+The tools read these files under `paths.root` and `paths.decisions`. The file names are fixed for now.
 
 ```
 <paths.root>/
@@ -151,14 +206,17 @@ filled at render time.
 | `render_profile` | Renders the views as one profile: `uaf`, `dodaf202` or `naf4` |
 | `render_html` | Renders all three profiles as one self-contained HTML file, with diagrams drawn at build time |
 | `check_export` | Checks the HTML file: views, provenance, links, diagrams, size, barred and relabelled names |
-| `export/check_export_browser.mjs` | Opens the file in headless Chrome, and checks buttons, pages and diagrams |
-| `data_exchange` | Generates the data-exchange view (producers, consumers, routes per tier) from a Helm render |
+| `export/check_export_browser.mjs` | Opens the file in headless Chrome, and checks buttons, pages and diagrams. It needs `--facts` from `browser_facts` |
+| `browser_facts` | Writes the counts and view ids the browser check expects, computed from the declaration and the sources |
+| `data_exchange` | Generates the data-exchange view (producers, consumers, routes per tier) from a Helm render. It is the one reader, `helm-annotations`, and a project opts in with `exchange: {reader: helm-annotations}`. It expects the ConfigMaps `egress-kinds`, `egress-routes`, `egress-assembler-config`, `egress-intake-config` and `destinations-deployment`; the workloads `egress-gate*`, `egress-forwarder`, `egress-assembler` and `egress-intake`; one `redpanda-<tier>` StatefulSet per tier; and a special tier `hq`. A chart not shaped that way declares no exchange. See [the exchange reader](docs/declaration.md#the-exchange-reader) |
 | `check_annotations` | Checks that each workload in a render declares the topics it produces and the groups it consumes |
+| `check_decision_indexes` | Checks that the decision indexes agree with the decision records: [four checks](docs/rules.md#check_decision_indexes-the-decision-indexes), and citations across repositories |
 | `capability_phases` | Computes each capability's phase and evidence from the record |
 | `capability_floor` | Uses the render as a floor: everything deployed must be claimed by a capability that is at least built |
 | `derived` | Builds the tables a view takes from a declared artefact instead of writing them |
 | `marks` | Fills a Sources row's Evidence from the cited record's status line |
 | `adr_sections` | Reads a decision record's sections, and resolves `ADR-NNNN §LABEL` citations |
+| `portal` | Prints the declared `portal.hosting` and `portal.audience` on one line, for the Action |
 | `relabel` | Replaces internal names in decision records as they are exported. The sources are not changed |
 | `validate_sysml` | Parses the model with the reference parser, and proves the parser rejects two broken copies |
 
@@ -181,9 +239,12 @@ scan ran. See [the checks](docs/rules.md#names-in-the-published-file).
 ## Development
 
 ```sh
-pip install pyyaml markdown-it-py==4.0.0
+pip install pyyaml markdown-it-py==4.0.0 jsonschema==4.26.0
 python -m unittest discover -s arch_kit/tools -p 'test_*.py'
 ```
+
+The example's self-test (`test_example`) also needs Node 22, `npm ci` in `arch_kit/tools/export`, and Chrome named by
+`PUPPETEER_EXECUTABLE_PATH`; without them it is skipped, with the reason. It needs no Helm.
 
 CI (`.github/workflows/tests.yml`) runs the suite on every push and pull request to `main`, and any skipped test fails
 the job. A separate step first runs the check that no tracked file names a consuming project. The kit's own test

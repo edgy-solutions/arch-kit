@@ -26,11 +26,11 @@ Transforms on view text: `<!-- model: Pkg -->` becomes a fenced sysml block
 holding that package from the declared model file (`model.file`); `<!-- generated:
 data-exchange -->` (data_exchange.home only) becomes the document that
 data_exchange.py writes, or a notice when --chart is not given; `<!--
-generated: capability-phases -->` (St-Rm-P only) becomes the table that
+generated: capability-phases -->` (its declared home only, `views.homes`) becomes the table that
 capability_phases.py computes from --record (default
 docs/arch/capability-record.yaml), the readiness doc and the chart's
 templates, or a notice when --chart is not given;
-the three markers in derived.py (St-Cn, Rs-Tx and Am-If only) become
+the three markers in derived.py (each in its declared home only, `views.homes`) become
 the tables derived.py builds from the roadmap note and the record, the model
 and ontology/, with or without --chart; relative
 links are rewritten to resolve from the output directory; `{{slot:name}}`
@@ -69,6 +69,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from data_exchange import InputError, presentation  # noqa: E402
 import capability_phases  # noqa: E402
+import declared  # noqa: E402
 import derived  # noqa: E402
 import marks  # noqa: E402
 import project  # noqa: E402
@@ -81,7 +82,6 @@ PROFILE_NAMES = ["uaf", "dodaf202", "naf4"]
 NOTICE = "Not generated: pass --chart and --values to fill this from a bundle."
 GEN_MARKER = "<!-- generated: data-exchange -->"
 PHASES_MARKER = "<!-- generated: capability-phases -->"
-PHASES_HOME = "St-Rm-P"
 PHASES_NOTICE = "Not generated: pass --chart to read the phases from the record, the readiness doc and the chart."
 MODEL_RE = re.compile(r"<!--\s*model:\s*([A-Za-z_][\w]*)\s*-->")
 SLOT_RE = re.compile(r"\{\{slot:([A-Za-z0-9_-]+)\}\}")
@@ -329,8 +329,10 @@ class Renderer:
         self.uaf_label = self.prof["profiles"]["uaf"]["label"]
         self.views = self.prof.get("views") or {}
         self.dx = self.prof.get("data_exchange") or {}
-        self.home = self.dx.get("home")
-        self.dx_id = self.dx[self.profile]["id"]
+        # No declared exchange reader: no generated section, no home, no chart render for it.
+        self.exchange = declared.exchange_reader("render_profile") is not None
+        self.home = declared.exchange_home(self.prof, "render_profile")
+        self.dx_id = self.dx[self.profile]["id"] if self.exchange else None
         sysml_path = project.model_file("render_profile")
         try:
             self.sysml = sysml_path.read_text(encoding="utf-8")
@@ -358,10 +360,10 @@ class Renderer:
         elif given is not None and given.strip():
             self.name = given.strip()
         self.doc: str | None = None
-        if a.chart:
+        if a.chart and self.exchange:
             self.doc = generate_document(a, self.profile)
         self.phases = self.phases_content()
-        self.derived = {mk: derived.build(mk, ROOT, Path(a.record), self.sysml, self.masked) for mk in derived.HOMES}
+        self.derived = {mk: derived.build(mk, ROOT, Path(a.record), self.sysml, self.masked) for mk in derived.homes()}
 
     def phases_content(self) -> str:
         """The phases table, or the notice. The record is checked either way."""
@@ -382,7 +384,9 @@ class Renderer:
         return capability_phases.render_table(record, capabilities, decisions, cdir / "templates", readiness)
 
     def dx_content(self) -> str:
-        """The generated document without its H1, or the notice."""
+        """The generated document without its H1, or the notice (empty when no exchange is declared)."""
+        if not self.exchange:
+            return ""
         if self.doc is None:
             return NOTICE
         return drop_h1(self.doc, self.attribution)
@@ -396,13 +400,17 @@ class Renderer:
         """(H1, body) of a view with every transform applied; dx_marker replaces the data-exchange marker."""
         entry = self.views[vid]
         h1, body = read_view(ROOT, entry, vid)
+        if GEN_MARKER in body and not self.exchange:
+            raise InputError(f"view {vid}: the data-exchange marker is there, but the declaration has no exchange.reader")
         if GEN_MARKER in body and vid != self.home:
             raise InputError(f"view {vid}: the data-exchange marker belongs only in {self.home}")
-        if PHASES_MARKER in body and vid != PHASES_HOME:
-            raise InputError(f"view {vid}: the capability-phases marker belongs only in {PHASES_HOME}")
-        for mk, home in derived.HOMES.items():
+        if PHASES_MARKER in body and vid != declared.home("capability-phases", "render_profile"):
+            raise InputError(f"view {vid}: the capability-phases marker belongs only in {declared.home('capability-phases', 'render_profile')}")
+        for mk, home in derived.homes().items():
             if mk in body and vid != home:
                 raise InputError(f"view {vid}: the marker {mk} belongs only in {home}")
+        if vid == declared.home("capability-phases", "render_profile"):
+            body = capability_phases.name_record(body, self.a.record, ROOT / "capability-record.yaml")
         body = marks.fill(body, (ROOT / entry["file"]).parent, project.DECISIONS, vid)
         body = inline_model(body, self.sysml, self.masked)
         body = rewrite_links(body, (ROOT / entry["file"]).parent, self.out_dir)

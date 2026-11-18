@@ -1,31 +1,32 @@
 #!/usr/bin/env python3
 """derived.py - the five tables a view takes from a declared artefact instead of writing it.
 
-Each marker below belongs in one view and becomes a markdown table when the
+Each marker below belongs in one view, declared in `views.homes`, and becomes a markdown table when the
 view is rendered (render_profile.Renderer.view_text). check_views.py rule
 `derived` fails on a marker that is missing, repeated or outside its view, and
 on a table that cannot be built.
 
-  <!-- generated: capability-dependencies -->  St-Cn  the roadmap note's
+  <!-- generated: capability-dependencies -->  the roadmap note's
       `depends on` and `folds into` columns, joined to capability-record.yaml
       by each capability's `increment`
-  <!-- generated: resource-taxonomy -->        Rs-Tx  package ResourceKit in
+  <!-- generated: resource-taxonomy -->        package ResourceKit in
       the declared model file (`model.file`): what each type specialises, and where it is a part
-  <!-- generated: ontology-dictionary -->      Am-If  ontology/*.yaml: each
-      declared term with its entry count and field names, never an entry
-  <!-- generated: adr-traceability -->        Am-Tr  decisions/ADR-*.md: each
-      record with its status and the views that cite it, the accepted or
-      proposed records no view cites first, joined to adr-exemptions.yaml
-  <!-- generated: severed-behaviour -->        St-Tx  each capability in model
+  <!-- generated: ontology-dictionary -->      the declared dictionary directory (`derived.dictionary.dir`):
+      each declared term with its entry count and field names, never an entry
+  <!-- generated: adr-traceability -->        decisions/ADR-*.md: each
+      record with its status and the views that cite it, the in-force
+      records (declared `statuses`) no view cites first, joined to adr-exemptions.yaml
+  <!-- generated: MARKER -->                    each capability in model
       order, with the decision record that says how it behaves when its link
-      is severed, or `not stated` and its SV- row; the `severed` key of
-      capability-record.yaml
+      is cut off, or `not stated` and its open row; the degraded-mode key of
+      the record. MARKER, the heading and the open-row prefix are declared
+      (`labels.degraded_mode.marker`, `.heading` and `.open_row_prefix`)
 
 A depends-on cell has to name one increment, by its number or its name, and a
 fold-in has to name an increment and cite an ADR that some capability in the
 record cites. Anything else is a CheckError, so a roadmap edit cannot drop an
 edge without the render failing. The tables carry no links: they are inserted
-after links are rewritten. An accepted or proposed record that no view cites
+after links are rewritten. An in-force record (a declared status with `in_force`) that no view cites
 and the exemptions file does not name is a CheckError, as is an exemption for
 a record that a view cites or that is not in scope. Stdlib and PyYAML only.
 """
@@ -37,6 +38,7 @@ from pathlib import Path
 import yaml
 
 import capability_phases
+import declared
 import marks
 import project
 from capability_phases import CheckError
@@ -46,31 +48,24 @@ DEPENDENCIES_MARKER = "<!-- generated: capability-dependencies -->"
 TAXONOMY_MARKER = "<!-- generated: resource-taxonomy -->"
 DICTIONARY_MARKER = "<!-- generated: ontology-dictionary -->"
 TRACE_MARKER = "<!-- generated: adr-traceability -->"
-SEVERED_MARKER = "<!-- generated: severed-behaviour -->"
-HOMES = {DEPENDENCIES_MARKER: "St-Cn", TAXONOMY_MARKER: "Rs-Tx", DICTIONARY_MARKER: "Am-If", TRACE_MARKER: "Am-Tr",
-         SEVERED_MARKER: "St-Tx"}
+
+
+def degraded_marker() -> str:
+    """The degraded-mode section's marker, from the declared `labels.degraded_mode.marker`."""
+    return f"<!-- generated: {project.need('labels.degraded_mode.marker', 'derived')} -->"
+
+
+def homes() -> dict[str, str]:
+    """Each generated-section marker and the view that holds it, from the declared `views.homes`."""
+    home = lambda name: declared.home(name, "derived")
+    return {DEPENDENCIES_MARKER: home("dependencies"), TAXONOMY_MARKER: home("taxonomy"),
+            DICTIONARY_MARKER: home("dictionary"), TRACE_MARKER: home("trace"),
+            degraded_marker(): home(str(project.need("labels.degraded_mode.marker", "derived")))}
+
 
 ROADMAP_HEADER = ["#", "increment", "what isolates", "home", "depends on"]
 FOLD_HEADER = ["row", "slice", "folds into", "why it costs the increment nothing"]
 ADR_RE = re.compile(r"ADR-\d{4}")
-
-# The term each ontology file declares, as a path into the file. Every file
-# under ontology/ needs a row here, and every path has to resolve.
-DICTIONARY = [
-    ("asset_identity_aliases.yaml", "aliases.dis"),
-    ("dis_appearance.yaml", "populating_sources"),
-    ("dis_appearance.yaml", "appearance"),
-    ("dis_condition.yaml", "level_order"),
-    ("dis_condition.yaml", "source_order"),
-    ("dis_condition.yaml", "appearance"),
-    ("dis_condition.yaml", "emission.populating_sources"),
-    ("dis_condition.yaml", "emission.baselines"),
-    ("dis_condition.yaml", "data_health"),
-    ("dis_entity_types.yaml", "mappings"),
-    ("platform_reference.yaml", "platforms"),
-    ("platform_variant_aliases.yaml", "aliases.dis"),
-]
-
 
 def bare(cell: str) -> str:
     return cell.replace("**", "").replace("`", "").strip()
@@ -99,7 +94,7 @@ def table_with(text: str, header: list[str], what: str) -> list[list[str]]:
     return found[0][1:]
 
 
-# --- St-Cn ---------------------------------------------------------------------
+# --- dependencies ---------------------------------------------------------------------
 
 def dependencies(record: dict, roadmap: str) -> str:
     rows = table_with(roadmap, ROADMAP_HEADER, "increment")
@@ -159,19 +154,22 @@ def dependencies(record: dict, roadmap: str) -> str:
     return "\n".join(out)
 
 
-# --- St-Tx ---------------------------------------------------------------------
+# --- degraded mode ---------------------------------------------------------------------
 
-def severed(record: dict, sysml: str) -> str:
-    """Each capability, in model order, with where its severed behaviour is stated, or its SV- row."""
+def degraded_mode_table(record: dict, sysml: str) -> str:
+    """Each capability, in model order, with where its degraded-mode behaviour is stated, or its open row."""
+    heading = str(project.need("labels.degraded_mode.heading", "derived"))
+    prefix = str(project.need("labels.degraded_mode.open_row_prefix", "derived"))
     caps = {k: (v or {}) for k, v in record["capabilities"].items()}
+    dm = capability_phases.key_names("derived")["degraded_mode"]
     rows, stated, fails = [], 0, []
     for name in capability_phases.model_capabilities(sysml):
         cap = caps.get(name)
-        if cap is None or not cap.get("severed"):
-            fails.append(f"derived: {name} has no severed entry in the record")
+        if cap is None or not cap.get("degraded_mode"):
+            fails.append(f"derived: {name} has no {dm} entry in the record")
             continue
-        value = str(cap["severed"])
-        sv = [r for r in cap.get("rows") or [] if str(r).startswith("SV-")]
+        value = str(cap["degraded_mode"])
+        sv = [r for r in cap.get("rows") or [] if str(r).startswith(prefix)]
         if value == capability_phases.NOT_STATED:
             says = "not stated"
         else:
@@ -180,12 +178,12 @@ def severed(record: dict, sysml: str) -> str:
         rows.append(f"| {name} | {says} | {', '.join(sv) or '-'} |")
     if fails:
         raise CheckError("".join(f + "\n" for f in fails))
-    head = (f"Severed behaviour: {stated} of {len(rows)} capabilities have it stated in a decision "
+    head = (f"{heading}: {stated} of {len(rows)} capabilities have it stated in a decision "
             f"record; {len(rows) - stated} do not.")
-    return "\n".join([head, "", "| Capability | Severed behaviour | Row |", "|---|---|---|", *rows])
+    return "\n".join([head, "", f"| Capability | {heading} | Row |", "|---|---|---|", *rows])
 
 
-# --- Rs-Tx ---------------------------------------------------------------------
+# --- taxonomy ---------------------------------------------------------------------
 
 def taxonomy(sysml: str, masked: str) -> str:
     from render_profile import match_brace  # render_profile imports this module
@@ -217,37 +215,40 @@ def taxonomy(sysml: str, masked: str) -> str:
     return "\n".join(out)
 
 
-# --- Am-If ---------------------------------------------------------------------
+# --- dictionary ---------------------------------------------------------------------
 
-def dictionary(ontology_dir: Path) -> str:
+def dictionary(ontology_dir: Path, terms, dirname: str) -> str:
+    """The table of declared terms. Every *.yaml file in the directory needs a declared term, and every declared
+    file has to exist and its path resolve. `terms` is a list of (file, path); `dirname` is the declared dir,
+    for the messages."""
     try:
         present = sorted(p.name for p in ontology_dir.glob("*.yaml"))
     except OSError as e:
         raise InputError(f"cannot list {ontology_dir}: {e}")
-    declared = {f for f, _ in DICTIONARY}
-    fails = [f"derived: ontology/{f} has no dictionary row" for f in present if f not in declared]
-    fails += [f"derived: the dictionary names ontology/{f}, which does not exist" for f in sorted(declared) if f not in present]
+    declared = {f for f, _ in terms}
+    fails = [f"derived: {dirname}/{f} has no dictionary row" for f in present if f not in declared]
+    fails += [f"derived: the dictionary names {dirname}/{f}, which does not exist" for f in sorted(declared) if f not in present]
     if fails:
         raise CheckError("".join(f + "\n" for f in fails))
     loaded: dict[str, object] = {}
     out = ["| File | Term | Kind | Entries | Fields |", "|---|---|---|---|---|"]
-    for f, path in DICTIONARY:
+    for f, path in terms:
         if f not in loaded:
             try:
                 loaded[f] = yaml.safe_load((ontology_dir / f).read_text(encoding="utf-8"))
             except (OSError, yaml.YAMLError) as e:
-                raise InputError(f"cannot read ontology/{f}: {e}")
+                raise InputError(f"cannot read {dirname}/{f}: {e}")
         node = loaded[f]
         for k in path.split("."):
             if not isinstance(node, dict) or k not in node:
-                raise CheckError(f"derived: ontology/{f} has no {path}\n")
+                raise CheckError(f"derived: {dirname}/{f} has no {path}\n")
             node = node[k]
         if node == [] or node == {}:
             kind, count, fields = ("empty list" if node == [] else "empty map"), 0, []
         elif isinstance(node, list):
             dicts = [e for e in node if isinstance(e, dict)]
             if dicts and len(dicts) != len(node):
-                raise CheckError(f"derived: ontology/{f} {path} mixes records and values\n")
+                raise CheckError(f"derived: {dirname}/{f} {path} mixes records and values\n")
             kind, count = ("records" if dicts else "values"), len(node)
             fields = sorted({k for e in dicts for k in e})
         elif isinstance(node, dict):
@@ -257,14 +258,13 @@ def dictionary(ontology_dir: Path) -> str:
             else:
                 kind, count, fields = "record", len(node), [str(k) for k in node]
         else:
-            raise CheckError(f"derived: ontology/{f} {path} is a single value, not a term\n")
+            raise CheckError(f"derived: {dirname}/{f} {path} is a single value, not a term\n")
         fields = [x for x in fields if not x.startswith("_")]
         out.append(f"| {f} | {path} | {kind} | {count} | {', '.join(fields) or 'none'} |")
     return "\n".join(out)
 
 
 EXEMPT_CATEGORIES = ("rule", "infrastructure", "process", "alignment")
-NOT_REQUIRED = ("superseded", "rejected", "deprecated", "withdrawn")
 VIEW_ADR_RE = re.compile(r"ADR-(\d{4})(?!\d)")
 
 
@@ -275,11 +275,12 @@ def cell(text: str) -> str:
 def adr_class(adr: str, text: str) -> str:
     status = marks.adr_status(text)
     norm = (status or "").replace("*", "").strip().lower()
-    for word in ("accepted", "proposed") + NOT_REQUIRED:
-        if norm.startswith(word):
-            return word.capitalize()
-    raise CheckError(f"derived: {adr} has no status beginning accepted, proposed, "
-                     "superseded, rejected, deprecated or withdrawn\n")
+    declared_statuses = declared.statuses("derived")
+    for st in declared_statuses:
+        if norm.startswith(st.lead):
+            return st.word
+    leads = [st.lead for st in declared_statuses]
+    raise CheckError(f"derived: {adr} has no status beginning {', '.join(leads[:-1])} or {leads[-1]}\n")
 
 
 def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -> str:
@@ -288,6 +289,7 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
     except OSError as e:
         raise InputError(f"cannot list {decisions}: {e}")
     fails: list[str] = []
+    in_force = {st.word for st in declared.statuses("derived") if st.in_force}
     info: dict[str, tuple[str, str]] = {}
     for p in files:
         m = re.match(r"ADR-\d{4}", p.name)
@@ -317,7 +319,7 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
     except OSError as e:
         raise InputError(f"cannot list {views}: {e}")
     for v in view_files:
-        if v.stem == "Am-Tr":
+        if v.stem == declared.home("trace", "derived"):
             continue
         try:
             vt = v.read_text(encoding="utf-8")
@@ -325,14 +327,15 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
             raise InputError(f"cannot read {v}: {e}")
         for n in VIEW_ADR_RE.findall(re.sub(r"<!--.*?-->", "", vt, flags=re.DOTALL)):
             cited.setdefault(f"ADR-{n}", set()).add(v.stem)
+    phases_home = declared.home("capability-phases", "derived")
     for cap in (record.get("capabilities") or {}).values():
         if not isinstance(cap, dict):
             continue
         for a in cap.get("adrs") or []:
-            cited.setdefault(capability_phases.adr_id(a), set()).add("St-Rm-P")
+            cited.setdefault(capability_phases.adr_id(a), set()).add(phases_home)
         for o in cap.get("still_open") or []:
             if isinstance(o, dict) and o.get("adr"):
-                cited.setdefault(capability_phases.adr_id(o["adr"]), set()).add("St-Rm-P")
+                cited.setdefault(capability_phases.adr_id(o["adr"]), set()).add(phases_home)
     try:
         data = yaml.safe_load(exemptions.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as e:
@@ -363,18 +366,19 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
             continue
         if cited.get(adr):
             fails.append(f"derived: exemption {adr} is stale: it is cited by {', '.join(sorted(cited[adr]))}")
-        if info[adr][1] not in ("Accepted", "Proposed"):
+        if info[adr][1] not in in_force:
             fails.append(f"derived: exemption {adr} is not in scope: its status is {info[adr][1].lower()}")
     for adr, (_, status) in sorted(info.items()):
-        if status in ("Accepted", "Proposed") and not cited.get(adr) and adr not in exempt:
+        if status in in_force and not cited.get(adr) and adr not in exempt:
             fails.append(f"derived: {adr} ({status}) is cited by no view and is not in adr-exemptions.yaml")
     if fails:
         raise CheckError("".join(f + "\n" for f in fails))
-    scope = [a for a, (_, s) in info.items() if s in ("Accepted", "Proposed")]
+    in_force_leads = " or ".join(st.lead for st in declared.statuses("derived") if st.in_force)
+    scope = [a for a, (_, s) in info.items() if s in in_force]
     out_of = [a for a in sorted(info) if a not in scope]
     n_cited = sum(1 for a in scope if cited.get(a))
     n_ex = len(scope) - n_cited
-    out = [f"{len(info)} decision records. {len(scope)} accepted or proposed: {n_cited} cited by a view, "
+    out = [f"{len(info)} decision records. {len(scope)} {in_force_leads}: {n_cited} cited by a view, "
            f"{n_ex} exempt. {len(out_of)} not required.", "",
            "| Not cited | Status | Category | Reason |", "|---|---|---|---|"]
     for a in sorted(scope):
@@ -397,17 +401,18 @@ def build(marker: str, root: Path, record_path: Path, sysml: str, masked: str) -
     if marker == DEPENDENCIES_MARKER:
         record = capability_phases.load_record(record_path)
         try:
-            roadmap = (repo / "decisions" / capability_phases.roadmap_file()).read_text(encoding="utf-8")
+            roadmap = (project.DECISIONS / capability_phases.roadmap_file()).read_text(encoding="utf-8")
         except OSError as e:
             raise InputError(f"cannot read the roadmap note: {e.strerror or e}")
         return dependencies(record, roadmap)
-    if marker == SEVERED_MARKER:
-        return severed(capability_phases.load_record(record_path), sysml)
+    if marker == degraded_marker():
+        return degraded_mode_table(capability_phases.load_record(record_path), sysml)
     if marker == TAXONOMY_MARKER:
         return taxonomy(sysml, masked)
     if marker == DICTIONARY_MARKER:
-        return dictionary(repo / "ontology")
+        dd = declared.dictionary("derived")
+        return dictionary(repo / dd.dir, [(t.file, t.path) for t in dd.terms], dd.dir)
     if marker == TRACE_MARKER:
-        return traceability(repo / "decisions", root / "views",
+        return traceability(project.DECISIONS, root / "views",
                             capability_phases.load_record(record_path), root / "adr-exemptions.yaml")
     raise KeyError(marker)

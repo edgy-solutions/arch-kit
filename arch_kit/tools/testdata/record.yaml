@@ -1,0 +1,19 @@
+groups:
+  Top: The top group
+environments:
+  A: the first environment
+entries:
+  e1:
+    anchor: RUN 2026-09-26 anchor one
+    environment: A
+capabilities:
+  Alpha:
+    description: Alpha does one thing. It does it in the open.
+    adrs:
+      - ADR-0001 §status
+    measured:
+      - entry: e1
+        line: alpha ran
+    degraded_mode: not stated
+    rows:
+      - IS-1

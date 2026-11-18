@@ -13,7 +13,7 @@ Usage:
         --chart PATH --values FILE [--values FILE ...] --release NAME
         [--readiness FILE] [--record FILE] [--slots FILE]
         [--date YYYY-MM-DD] [--mmdc PATH] [--puppeteer-config FILE]
-        [--relabel FILE ...]
+        [--relabel FILE ...] [--barred FILE ...]
 
 --chart, --values and --release are required: there is no partial export.
 Mermaid diagrams are rendered to inline SVG at build time by mermaid-cli
@@ -63,10 +63,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import adr_sections  # noqa: E402
 import capability_phases  # noqa: E402
 import check_views  # noqa: E402
+import declared  # noqa: E402
+import export_text  # noqa: E402
 import project  # noqa: E402
 import relabel  # noqa: E402
 import render_profile as rp  # noqa: E402
-from capability_phases import PHASES, CheckError  # noqa: E402
+from capability_phases import CheckError, load_barred, scan_barred  # noqa: E402
 from data_exchange import InputError  # noqa: E402
 
 EXIT_OK, EXIT_CHECK, EXIT_INPUT = 0, 1, 2
@@ -99,6 +101,20 @@ Diagram = Callable[[str, str], str]
 
 def natural_key(s: str) -> list:
     return [int(p) if p.isdigit() else p.lower() for p in re.split(r"(\d+)", s)]
+
+
+def css() -> str:
+    """The stylesheet, with the group class and the declared phases' badge rules filled in."""
+    phases = declared.phases("render_html")
+    rules = "\n".join(f".phase-{declared.slug(p.name)}{{background:var(--{p.badge}-bg);color:var(--{p.badge}-fg)}}"
+                      for p in phases)
+    return (CSS.replace("GROUPCLASS", group_class()).replace("PHASECSS", rules)
+            .replace("PHASEPRINT", ",".join(f".phase-{declared.slug(p.name)}" for p in phases)))
+
+
+def group_class() -> str:
+    """The CSS class of a row that starts a new group: the declared group column, lowercased, as a slug, then `-start`."""
+    return declared.group_slug("render_html") + "-start"
 
 
 def esc(s: str) -> str:
@@ -335,7 +351,12 @@ ROADMAP_PAGE = "decision-roadmap"
 
 
 class Decisions:
-    """The decision records the export holds a page for: every decisions/ADR-*.md, then the roadmap note."""
+    """The decision records the export holds a page for: every decisions/ADR-*.md, then the roadmap note.
+
+    The relabel rules are applied here, as the records load, and again over the finished HTML (relabel.apply_html).
+    This pass stays for the slugs: heading anchors, ids and the pick/shown labels are derived from the record text,
+    and a name that reached an id or an href through a slug could not be rewritten afterwards.
+    """
 
     def __init__(self, directory: Path, rules=()):
         self.dir = Path(directory)
@@ -784,17 +805,29 @@ def hold_words(content: str) -> str:
     return "".join(p if i % 2 else re.sub(r"\S+", tok, p) for i, p in enumerate(parts))
 
 
-def style_table(t: str, view: bool = True) -> str:
+def table_grid(t: str):
+    """(rows, head_starts, grid) of one rendered table, or None without rows. grid[i] is the (tag, attrs, content)
+    cells of row i; head_starts holds the start offsets of the rows that are header rows."""
     split = t.find("<tbody")
     rows = list(ROW_RE.finditer(t))
     if not rows:
-        return t
+        return None
     head_starts = {m.start() for m in rows if (m.start() < split if split >= 0 else m is rows[0])}
     grid = [[(c.group(1), c.group(2), c.group(3)) for c in CELL_RE.finditer(m.group(1))] for m in rows]
+    return rows, head_starts, grid
+
+
+def style_table(t: str, view: bool = True) -> str:
+    parsed = table_grid(t)
+    if parsed is None:
+        return t
+    rows, head_starts, grid = parsed
     ncols = max(len(r) for r in grid)
     head_texts = [plain(c[2]) for c in grid[0]] if rows[0].start() in head_starts else []
-    lane_col = head_texts.index("Lane") if view and "Lane" in head_texts else -1
-    phase_col = head_texts.index("Phase") if view and "Phase" in head_texts else -1
+    group_name = str(project.need("labels.group.column", "render_html"))
+    group_col = head_texts.index(group_name) if view and group_name in head_texts else -1
+    phase_name = str(project.need("labels.phase.column", "render_html"))
+    phase_col = head_texts.index(phase_name) if view and phase_name in head_texts else -1
     mins: dict[int, int] = {}
     for col in range(ncols):
         words, cell = 0, 0
@@ -819,20 +852,21 @@ def style_table(t: str, view: bool = True) -> str:
                 if not pname and text:
                     attrs += f' style="min-width:{mins[col]}ch"'
             elif col == phase_col:
-                if text not in PHASES:
-                    raise CheckError(f"phase column: {text!r} is not one of {', '.join(PHASES)}\n")
-                content = f'<span class="badge phase-{text.replace(" ", "-")}">{text}</span>'
+                names = declared.phase_names("render_html")
+                if text not in names:
+                    raise CheckError(f"phase column: {text!r} is not one of {', '.join(names)}\n")
+                content = f'<span class="badge phase-{declared.slug(text)}">{text}</span>'
                 badge = True
             if not pname and not badge:
                 content = hold_words(content)
             out.append(f"<{tag}{attrs}>{content}</{tag}>")
         cls = ""
         if not is_head:
-            if lane_col >= 0 and lane_col < len(cells):
-                lane = plain(cells[lane_col][2])
-                if state["body"] > 0 and lane != state["prev"]:
-                    cls = ' class="lane-start"'
-                state["prev"] = lane
+            if group_col >= 0 and group_col < len(cells):
+                group = plain(cells[group_col][2])
+                if state["body"] > 0 and group != state["prev"]:
+                    cls = f' class="{group_class()}"'
+                state["prev"] = group
             state["body"] += 1
         tr_open = m.group(0)[: m.group(0).index(">") + 1]
         if cls:
@@ -843,8 +877,8 @@ def style_table(t: str, view: bool = True) -> str:
 
 
 def style_tables(body_html: str, view: bool = True) -> str:
-    """Table styling the CSS cannot do alone: words held whole, column minimums, phase badges, lane rules.
-    Call it after apply_header_cells. A decision page passes view=False: no phase badge or lane rule. Text inside svg blocks and in grid tables is left alone."""
+    """Table styling the CSS cannot do alone: words held whole, column minimums, phase badges, group rules.
+    Call it after apply_header_cells. A decision page passes view=False: no phase badge or group rule. Text inside svg blocks and in grid tables is left alone."""
     def one(m: re.Match) -> str:
         t = m.group(0)
         return t if "gridtable" in t[: t.index(">")] else style_table(t, view)
@@ -890,14 +924,10 @@ th,td{border:1px solid var(--line);padding:4px 8px;vertical-align:top;text-align
 thead th{background:var(--head);color:#fff}
 tbody th{background:var(--soft)}
 tbody tr:nth-child(even)>*{background:var(--zebra)}
-tr.lane-start>*{border-top:2px solid var(--head)}
+tr.GROUPCLASS>*{border-top:2px solid var(--head)}
 .pending{display:inline-block;margin-left:8px;padding:0 8px;border:1px dashed currentColor;border-radius:10px;font-size:13px;font-weight:600}
 .badge{display:inline-block;white-space:nowrap;padding:0 8px;border-radius:10px;font-size:13px;font-weight:600}
-.phase-measured{background:var(--m-bg);color:var(--m-fg)}
-.phase-built-unmeasured{background:var(--b-bg);color:var(--b-fg)}
-.phase-accepted-design{background:var(--a-bg);color:var(--a-fg)}
-.phase-proposed{background:var(--p-bg);color:var(--p-fg)}
-.phase-row{background:var(--r-bg);color:var(--r-fg)}
+PHASECSS
 pre{margin:0;padding:12px;background:var(--soft);font-size:13px;line-height:1.4}
 code{font-family:ui-monospace,Consolas,monospace;font-size:.92em}
 figure.diagram{margin:1em 0;padding:8px;border:1px solid var(--line);overflow-x:auto;background:#fff}
@@ -937,7 +967,7 @@ nav.views ul,nav.capabilities ul,nav.decisions ul{columns:2 280px;padding-left:1
   table{font-size:8pt;width:100%}
   thead th{background:none;color:inherit;border-bottom:2px solid var(--head)}
   tbody tr:nth-child(even)>*,tbody th,.gridtable td:has(.filled){background:none}
-  .badge,.phase-measured,.phase-built-unmeasured,.phase-accepted-design,.phase-proposed,.phase-row{background:none;color:inherit;padding:0;border-radius:0;font-weight:600}
+  .badge,PHASEPRINT{background:none;color:inherit;padding:0;border-radius:0;font-weight:600}
   th:nth-child(n+4){min-width:0!important}
   .decision th{min-width:0!important}
   .decision td:nth-child(-n+3),.decision th:nth-child(-n+3){overflow-wrap:normal}
@@ -1040,7 +1070,6 @@ JS = """
 
 # --- capability and decision pages -------------------------------------------
 
-CAP_NAME_VIEWS = ("St-Tx", "St-Rm-P")
 STAMP_DIRTY = " (working tree differs from this commit)"
 SHALLOW_MESSAGE = "the repository is a shallow clone: decision stamps need full history (fetch-depth: 0)"
 
@@ -1121,9 +1150,9 @@ def link_capability_names(vid: str, body_html: str, cap_names: list[str]) -> str
 def status_word(lead: str | None) -> str:
     if not lead:
         return "no status"
-    for w in ("accepted", "proposed"):
-        if lead.startswith(w):
-            return w.capitalize()
+    known = declared.lead_of(lead, "render_html")
+    if known:
+        return known.word
     return lead.split()[0].capitalize()
 
 
@@ -1162,8 +1191,8 @@ def capability_pages(a: argparse.Namespace, uaf: "rp.Renderer", views: dict, nam
         if phase is None:
             raise CheckError(f"{name}: the record gives it no phase\n")
         label = capability_phases.increment_label(cap, road_rows)
-        lane = str(record["lanes"][cmap[name]])
-        head = f'<h1>{esc(name)}</h1><p class="cap-group">Group: {esc(lane)}</p>'
+        group = str(record["groups"][cmap[name]])
+        head = f'<h1>{esc(name)}</h1><p class="cap-group">Group: {esc(group)}</p>'
         if label:
             head += f'<p class="cap-increment">Increment: {esc(label)}</p>'
         source = capability_phases.derived_citations(cap) or capability_phases.record_citations(cap)
@@ -1180,7 +1209,7 @@ def capability_pages(a: argparse.Namespace, uaf: "rp.Renderer", views: dict, nam
                    "<p>Not measured: the readiness doc has no entry for this capability.</p>")
         built = list(dict.fromkeys(f"templates/{b['template']}" for b in cap.get("built") or []))
         pend = ' <span class="pending" data-pending>decision pending</span>' if cap.get("pending") else ""
-        evid = (f'<h2>Phase</h2><p><span class="badge phase-{phase.replace(" ", "-")}">{esc(phase)}</span>{pend}</p>'
+        evid = (f'<h2>{esc(str(project.need("labels.phase.column", "render_html")))}</h2><p><span class="badge phase-{phase.replace(" ", "-")}">{esc(phase)}</span>{pend}</p>'
                 f'<h2>Evidence</h2>{ev_html}<p>Built: {esc(", ".join(built) or "-")}</p>')
         items = []
         for adr, lab in capability_phases.record_citations(cap):
@@ -1192,18 +1221,21 @@ def capability_pages(a: argparse.Namespace, uaf: "rp.Renderer", views: dict, nam
         for text in cap.get("pending") or []:
             items.append(f"<li>Decision pending: {esc(str(text))}</li>")
         decs = f'<h2>Decisions</h2><ul>{"".join(items) or "<li>-</li>"}</ul>'
-        sev = cap.get("severed")
+        sev = cap.get("degraded_mode")
+        dm_attr = str(project.need("labels.degraded_mode.attribute", "render_html"))
+        dm_heading = str(project.need("labels.degraded_mode.heading", "render_html"))
+        dm_prefix = str(project.need("labels.degraded_mode.open_row_prefix", "render_html"))
         if sev and sev != capability_phases.NOT_STATED:
             sadr, slab = adr_sections.parse_citation(sev)
-            sev_html = (f'<p data-severed>Stated in {link(name, sadr, slab)} '
+            sev_html = (f'<p {dm_attr}>Stated in {link(name, sadr, slab)} '
                         f'{esc(dec.heading(sadr, slab).text)}.</p>')
         else:
-            sv = [r for r in cap.get("rows") or [] if str(r).startswith("SV-")]
+            sv = [r for r in cap.get("rows") or [] if str(r).startswith(dm_prefix)]
             subj = register.get(sv[0], ("", ""))[0] if sv else ""
-            sev_html = ('<p data-severed>Not stated by a decision record. Open row: '
+            sev_html = (f'<p {dm_attr}>Not stated by a decision record. Open row: '
                         f'{esc(sv[0]) if sv else "-"}{f" ({esc(subj)})" if subj else ""}.</p>')
         pat = re.compile(rf"\b{re.escape(name)}\b")
-        cited = sorted({v for v, t in sources.items() if pat.search(t)} | {"St-Rm-P"} & set(views))
+        cited = sorted({v for v, t in sources.items() if pat.search(t)} | {declared.home("capability-phases", "render_html")} & set(views))
         cites = "".join(f'<li><a href="#view-{esc(v)}">{esc(names[v])} ({esc(v)})</a></li>' for v in cited)
         rows = []
         for rid in cap.get("rows") or []:
@@ -1211,7 +1243,7 @@ def capability_pages(a: argparse.Namespace, uaf: "rp.Renderer", views: dict, nam
             rows.append(f"<li>{esc(rid)}: {esc(subject)} ({esc(status)})</li>" if subject else f"<li>{esc(rid)}</li>")
         sections.append(
             f'<section id="cap-{esc(name)}" class="page capability" data-capability="{esc(name)}">{head}'
-            f'<p><a href="#front">Front page</a></p>{what}{evid}<h2>Severed behaviour</h2>{sev_html}{decs}'
+            f'<p><a href="#front">Front page</a></p>{what}{evid}<h2>{esc(dm_heading)}</h2>{sev_html}{decs}'
             f'<h2>Cited by</h2><ul>{cites}</ul>'
             f'<h2>Open rows</h2>{"<ul>" + "".join(rows) + "</ul>" if rows else "<p>-</p>"}{prov}</section>')
         nav.append(f'<li><a href="#cap-{esc(name)}">{esc(name)}</a></li>')
@@ -1237,8 +1269,11 @@ def decision_pages(views: dict, dec: Decisions, prov: str) -> tuple[list[str], l
     return sections, nav
 
 
-def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
-    """The whole file as text. a holds chart, values, release, readiness, record, slots."""
+COUNT_MARK = "RELABEL-COUNT-PLACEHOLDER"  # the front page sentence, until the HTML pass has counted
+
+
+def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, list, int]:
+    """The document before the final pass, the relabel rules, and the replacements made in the records. a holds chart, values, release, readiness, record, slots."""
     if MarkdownIt is None:
         raise InputError("markdown-it-py is not installed: pip install markdown-it-py==4.0.0")
     renderers: dict[str, rp.Renderer] = {}
@@ -1254,7 +1289,10 @@ def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
     rules = relabel.load(getattr(a, "relabel", None) or [])
     dec = Decisions(project.DECISIONS, rules)
 
-    dx_text, dx_cells = dx_variants({p: r.dx_content() for p, r in renderers.items()})
+    if uaf.exchange:
+        dx_text, dx_cells = dx_variants({p: r.dx_content() for p, r in renderers.items()})
+    else:
+        dx_text, dx_cells = "", {}
 
     # names that change, per view
     sources = {p: renderers[p].export_sources() for p in ("dodaf202", "naf4")}
@@ -1279,9 +1317,9 @@ def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
         _, body = uaf.view_text(vid, rp.demote(dx_text))
         page = Page(vid, views, checked(diagram, vid), dec)
         body_html = page.render(body.rstrip("\n") + "\n")
-        if vid in CAP_NAME_VIEWS:
+        if vid in declared.views("render_html")["capability_links"]:
             body_html = link_capability_names(vid, body_html, list(capability_phases.model_capabilities(uaf.sysml)))
-        if vid == uaf.home:
+        if uaf.exchange and vid == uaf.home:
             body_html = apply_header_cells(body_html, dx_cells)
             if "zzpname" in body_html:
                 raise CheckError(f"view {vid}: a data-exchange header marker was not placed\n")
@@ -1308,9 +1346,7 @@ def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
     dec_sections, dec_nav = decision_pages(views, dec, prov)
     sections += cap_sections + dec_sections
 
-    shown = (f"Decision records are shown with {dec.replaced} names replaced by neutral labels at export "
-             f"({len(rules)} rules). The records in the repository are unchanged." if rules
-             else "Decision records are shown verbatim.")
+    shown = COUNT_MARK if rules else "Decision records are shown verbatim."
     grids = [grid_uaf(rows, views, names, uaf.uaf_label),
              grid_selected(renderers["dodaf202"], rows, names),
              grid_selected(renderers["naf4"], rows, names)]
@@ -1325,15 +1361,57 @@ def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
              f'<nav class="decisions"><h2>Decision records</h2><ul>{"".join(dec_nav)}</ul></nav>'
              f'<nav class="declarations"><h2>For a deployment</h2><ul><li><a href="#declarations">'
              f'{esc(DECLARATIONS_TITLE)}</a></li></ul></nav>{prov}</section>')
-    return (f'<!doctype html>\n<html lang="en" data-profile="uaf" {title_attrs}>\n<head>\n<meta charset="utf-8">\n'
+    doc = (f'<!doctype html>\n<html lang="en" data-profile="uaf" {title_attrs}>\n<head>\n<meta charset="utf-8">\n'
             f'<meta name="viewport" content="width=device-width, initial-scale=1">\n'
             f'<meta http-equiv="Content-Security-Policy" content="{CSP}">\n'
-            f'<title>{esc(titles["uaf"])}</title>\n<style>\n{CSS}\n</style>\n</head>\n<body>\n'
+            f'<title>{esc(titles["uaf"])}</title>\n<style>\n{css()}\n</style>\n</head>\n<body>\n'
             f'<header class="bar"><span class="sys">{esc(system or "Architecture")}</span>'
             f'<a href="#front">Front page</a><span class="profiles" role="group" aria-label="Profile">{buttons}</span>'
             f'<input id="q" type="search" placeholder="Search" aria-label="Search the views" autocomplete="off"></header>\n'
             f'<div id="results" hidden></div>\n<main>\n{front}\n' + "\n".join(sections) +
             f'\n</main>\n<script>\n{JS}\n</script>\n</body>\n</html>\n')
+    return doc, rules, dec.replaced
+
+
+def leaks(doc: str, rules, barred) -> list[str]:
+    """What the finished document still carries: a relabel survivor, or a barred value. Never the value itself."""
+    fails = []
+    for i, rule in enumerate(rules):
+        hits = max(sum(h[2] for h in relabel.survivors(doc, [rule])),
+                   sum(h[2] for h in relabel.survivors(export_text.unescaped(doc), [rule])))
+        if hits:
+            fails.append(f"relabel rule {i + 1} survives {hits} time(s)")
+    fails += [f.replace("quotes: the export: carries", "the export carries", 1)
+              for f in scan_barred({"the export": export_text.barred_strings(doc)}, barred)] if barred else []
+    return fails
+
+
+def finish(doc: str, rules, barred, record_replaced: int = 0) -> tuple[str, int]:
+    """The relabel pass over the finished HTML, the front page sentence, then the leak scan.
+
+    Returns the document and the replacements in the HTML. The sentence reports those plus record_replaced.
+    """
+    doc, n = relabel.apply_html(doc, rules) if rules else (doc, 0)
+    if rules:
+        if doc.count(COUNT_MARK) != 1:
+            raise CheckError("the front page sentence was not placed\n")
+        doc = doc.replace(COUNT_MARK, esc(
+            f"Names are replaced by neutral labels at export: {record_replaced + n} in this page "
+            f"({len(rules)} rules). The sources in the repository are unchanged."))
+    fails = leaks(doc, rules, barred)
+    if fails:
+        raise CheckError("the export still leaks, nothing written: " + "; ".join(fails) + "\n")
+    return doc, n
+
+
+def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
+    """The whole file as text: the document, relabelled as a whole, and scanned. A leak is a CheckError."""
+    doc, rules, record_replaced = assemble(a, diagram, date)
+    try:
+        barred = load_barred(a.barred) if getattr(a, "barred", None) else []
+    except CheckError as e:
+        raise InputError(e.args[0]) from None
+    return finish(doc, rules, barred, record_replaced)[0]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1346,11 +1424,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--record", default=str(ROOT / "capability-record.yaml"))
     ap.add_argument("--slots")
     ap.add_argument("--relabel", action="append", default=[],
-                    help="a list of PATTERN<TAB>REPLACEMENT lines applied to the decision records at export")
+                    help="a list of PATTERN<TAB>REPLACEMENT lines applied to the whole export")
+    ap.add_argument("--barred", action="append", default=[],
+                    help="a barred list: the render refuses to write a file that carries one of its values")
     ap.add_argument("--date", help="YYYY-MM-DD (default: today, UTC)")
     ap.add_argument("--mmdc", help="the mermaid-cli binary (default: docs/arch/tools/export/node_modules/.bin/mmdc)")
     ap.add_argument("--puppeteer-config", help="a puppeteer config file for mermaid-cli")
     a = ap.parse_args(argv)
+    declared.require_public_lists("render_html", relabel=bool(a.relabel), barred=bool(a.barred))
     try:
         date = a.date or datetime.datetime.now(datetime.timezone.utc).date().isoformat()
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):

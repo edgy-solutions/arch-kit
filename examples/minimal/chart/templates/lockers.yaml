@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-parcel-intake-kiosk
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: parcel-intake-kiosk
+  annotations:
+    larkspur.example/produces-topics: "depot/parcels"
+spec:
+  selector:
+    matchLabels: {app: parcel-intake}
+  template:
+    metadata:
+      labels: {app: parcel-intake}
+    spec:
+      containers:
+        - name: intake
+          image: registry.invalid/parcel-intake:1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-parcel-router-depot
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: parcel-router-depot
+  annotations:
+    larkspur.example/consumer-groups: "depot/router"
+spec:
+  selector:
+    matchLabels: {app: parcel-router}
+  template:
+    metadata:
+      labels: {app: parcel-router}
+    spec:
+      containers:
+        - name: router
+          image: registry.invalid/parcel-router:1

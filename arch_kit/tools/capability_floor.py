@@ -7,7 +7,7 @@ nothing catches it. This module reads the render the other way. Every
 workload, kind, flag and route the chart renders has to be claimed in the
 record's `rendered:` section by the capabilities it serves (or marked
 infrastructure with a reason), and a capability that claims a rendered item
-cannot sit below `built unmeasured`.
+cannot sit below the declared floor phase (`floor` in the declaration).
 
 `rendered:` maps a section (workload, kind, flag, route) to a map of item to
 a claim. A claim is a non-empty list of capability names, or
@@ -21,9 +21,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import data_exchange
+import declared
 from capability_phases import CheckError, phase_of
 
-FLOOR_PHASES = ("measured", "built unmeasured")
 SECTIONS = ("workload", "kind", "flag", "route")
 NAME_LABELS = ("app.kubernetes.io/component", "component", "app")
 
@@ -120,9 +120,9 @@ def check_floor(record: dict, capabilities, statuses: dict, items: dict[str, set
                     fails.append(f"floor: {section} {item} names {name}, which is not a capability in the model")
                     continue
                 phase = phase_of(caps.get(name) or {}, statuses)
-                if phase not in FLOOR_PHASES:
+                if phase not in declared.floor_phases("capability_floor"):
                     fails.append(f"floor: {name} is {phase or 'no phase'}, but the render shows "
-                                 f"{section} {item}, so it cannot be below built unmeasured")
+                                 f"{section} {item}, so it cannot be below {declared.floor_name('capability_floor')}")
     return fails
 
 
