@@ -18,7 +18,7 @@ assume.
 
 ## Status
 
-**`0.1.0`, not yet tagged.** The kit is being extracted from the first project that used it. That project's export
+**`0.1.0`, tagged `v0.1.0`.** The kit was extracted from the first project that used it. That project's export
 is the acceptance test: after every step it must come out byte-identical, or each difference is listed and explained.
 
 | Step | | State |
@@ -30,11 +30,11 @@ is the acceptance test: after every step it must come out byte-identical, or eac
 | 5 | Each portal declares its hosting and its audience | done |
 | 6a | The decision-index check moves into the kit, with its names declared | done |
 | 6b | The `arch-kit` command, a declared term dictionary, an optional declared data exchange, and the [example project](examples/minimal/README.md) with its self-test | done |
-| 6c | A reusable GitHub Action, and readiness for `v0.1.0` (the tag is made after review) | done |
+| 6c | A reusable GitHub Action, and readiness for `v0.1.0` (tagged after review) | done |
 | 6d | Caught up with the first project's later tool changes: `check_views --record`, and the CV-3 text naming a passed record | done |
-| 7 | The first project pins `v0.1.0`, with the golden comparison in its CI | planned |
+| 7 | The first project pins `v0.1.0`, with the golden comparison in its CI | in review |
 
-Until the `v0.1.0` tag exists, pin a full commit sha, not a branch. Some conventions are still fixed rather than declared. The
+Pin the tag `v0.1.0` or a full commit sha, never a branch. Some conventions are still fixed rather than declared. The
 [declaration reference](docs/declaration.md#what-is-not-declared-yet) lists them.
 
 ## How it works
@@ -145,8 +145,8 @@ check, `check_decision_indexes`):
     barred: path/to/barred.txt
 ```
 
-**The tag `v0.1.0` exists only once it is made.** Until then, pin a full commit sha:
-`uses: edgy-solutions/arch-kit@<full sha>`.
+A pushed tag is never moved. A project that wants a pin that cannot move at all pins the tag's commit instead:
+`uses: edgy-solutions/arch-kit@e0b9b3c40520440a09a4e0e6050ea5017de05848` (`v0.1.0`).
 
 | Input | Required | Meaning |
 |---|---|---|

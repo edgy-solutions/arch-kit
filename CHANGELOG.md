@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0
+## 0.1.0 (2026-11-17)
 
 The first release. Each step of Phase 1 in a sentence:
 
