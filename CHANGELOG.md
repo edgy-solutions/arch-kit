@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+New optional declaration keys for what 0.1.0 fixed. Every default is the 0.1.0 value, so an existing declaration's
+output is unchanged.
+
+- `files.*`: the content file names (`profiles`, `slots`, `appendix`, `inventory`, `readme`, `record`, `adr_exemptions`, `annotation_exceptions`).
+- `decisions.index.readme` is also read by `capability_phases` when the other `decisions.index` keys are absent.
+- `decisions.records.prefix` and `.digits`: the decision record id and file name.
+- `decisions.index.register_id.letters` and `.digits`: the register id grammar of `check_decision_indexes`.
+- `derived.roadmap.increments` and `.fold_ins`: the roadmap note's table headers.
+
 ## 0.1.0
 
 The first release. Each step of Phase 1 in a sentence:

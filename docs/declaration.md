@@ -84,6 +84,11 @@ So a project that never runs the data-exchange generator does not need to declar
 | `readiness.default` | The default readiness document, relative to the chart directory, used when `--readiness` is not given | `render_html`, `render_profile` |
 | `decisions.index.*` | The register index and document index file names, the globs that name register homes and indexed documents, the local prefix and the foreign prefixes (see below) | `check_decision_indexes` |
 | `derived.dictionary.dir`, `derived.dictionary.terms` | The term dictionary: a directory under the repository root, and the (file, path) pairs the dictionary table shows (see below) | `derived`, and through it `check_views` and `render_html` |
+| `files.*` | The content file names under `paths.root`: `profiles`, `slots`, `appendix`, `inventory`, `readme`, `record`, `adr_exemptions`, `annotation_exceptions`. Optional; default is today's name for each (see below) | `check_views`, `check_annotations`, `check_export`, `check_views_canary`, `browser_facts`, `data_exchange`, `derived`, `render_html`, `render_profile` |
+| `decisions.index.readme` | Also the name of the decision document index that `capability_phases` reads when no other `decisions.index` key is declared. Optional; default `README.md` | `capability_phases` |
+| `decisions.records.prefix`, `decisions.records.digits` | The decision record id grammar: `PREFIX-<digits>`, file `PREFIX-<digits>-<slug>.md`. Optional; default `ADR` and `4` (see below) | `adr_sections`, `capability_phases`, `check_export`, `check_views`, `derived`, `render_html`, `check_decision_indexes` |
+| `decisions.index.register_id.letters`, `.digits` | The register id grammar. Optional; default `2` and `[1, 2]` (see below) | `check_decision_indexes` |
+| `derived.roadmap.increments`, `derived.roadmap.fold_ins` | The header cells of the roadmap note's two tables. Optional; default is the original headers (see below) | `derived` |
 
 ### The term dictionary
 
@@ -100,6 +105,25 @@ how many entries it has, and the field names, never an entry. `terms` is a non-e
 `*.yaml` name, and `path` is a dotted path into that file. A `*.yaml` file in `dir` that no term names fails, and so
 does a declared file that is absent or a path that does not resolve. The key is required, because the table is built
 whether or not the project has a dictionary directory: declare a directory with one small file if it has none.
+
+### Content file names
+
+```yaml
+files:                        # under paths.root; every key optional; the default is shown
+  profiles: profiles.yaml
+  slots: slots.yaml
+  appendix: APPENDIX-A.md
+  inventory: INVENTORY.md
+  readme: README.md
+  record: capability-record.yaml
+  adr_exemptions: adr-exemptions.yaml
+  annotation_exceptions: annotation-exceptions.yaml
+```
+
+A value is a plain relative path: no `..`, not absolute, no drive letter. An unknown key under `files` or a bad
+value exits 2 and names the key. Messages and help text print the declared name. A declaration without `files`
+behaves exactly as before. The decision document index (`README.md` under `paths.decisions`) is
+`decisions.index.readme`, and is read from there even when the other `decisions.index` keys are absent.
 
 ### The decision index
 
@@ -312,23 +336,54 @@ the browser script expects: the number of views, pages by kind, the phase badges
 group starts and the ids above. The script exits 2 without `--facts`. `wide_table_columns` is the widest table in the
 `table` view's source; when the data-exchange home is that view, the generated Exchanges table counts too.
 
-## What is not declared yet
+### Decision record and register ids
 
-Some things are still fixed in the kit. The labels, phases, statuses and views are declared. The file names are not yet scheduled (see the README's status section):
+```yaml
+decisions:
+  records:              # optional; a record id is PREFIX-<digits>, its file PREFIX-<digits>-<slug>.md
+    prefix: ADR         # capital letters and digits, starting with a letter (default ADR)
+    digits: 4           # an integer 1..8 (default 4)
+  index:
+    register_id:        # optional; the register id grammar
+      letters: 2        # an integer 1..6: that many capital letters (default 2)
+      digits: [1, 2]    # [min, max], 1 <= min <= max <= 6 (default [1, 2])
+```
 
-- the content file names under `paths.root` (`profiles.yaml`, `slots.yaml`, `APPENDIX-A.md`, `INVENTORY.md`,
-  `README.md`, `capability-record.yaml`, `adr-exemptions.yaml`, `annotation-exceptions.yaml`, `ontology/*.yaml`), and
-  the decision index and record names under `paths.decisions` (`README.md`, `ADR-NNNN-<slug>.md`);
-- the grammar of `check_decision_indexes`: a register id is two capital letters and one or two digits (`XY-7`,
-  `QZ-01`), declared by a bolded heading `**XY-7 — ...` or a table row `| **QZ-01** |`; a status is a `` `Status: ...` ``
-  line above the heading, or the last column of the table row; a decision record is `ADR-NNNN-<slug>.md`, and a
-  citation is `prefix:ADR-NNNN`;
-- the roadmap note's tables: the increment table has the header `| # | increment | what isolates | home | depends on |`,
-  the required fold-in table has `| row | slice | folds into | why it costs the increment nothing |`
-  (`ROADMAP_HEADER` and `FOLD_HEADER` in `derived.py`), and the note needs a `Status:` line. They are the kit's
-  format for the roadmap note.
+`decisions.records` may be declared without `decisions.index`. Messages that print the record form (`ADR-NNNN`)
+print the declared prefix and one `N` per digit. A bad value exits 2 and names the key. The `register_homes` and
+`indexed` globs are the project's own and are not changed by `records.prefix`.
 
-Until they are declared, a project has to follow the first consumer's conventions for them.
+### The roadmap note's tables
+
+```yaml
+derived:
+  roadmap:              # optional; the defaults are shown
+    increments: ["#", increment, what isolates, home, depends on]
+    fold_ins: [row, slice, folds into, why it costs the increment nothing]
+```
+
+Each is a non-empty list of distinct, non-empty header cells. The columns are still read by position, so a declared
+header needs at least as many cells as the default (5 and 4), else exit 2 naming the key. `derived.dictionary` keeps
+its own unknown-key check; `derived` may hold `dictionary` and `roadmap`.
+
+## Formerly fixed, now declared
+
+Each of these was fixed in 0.1.0. The default is the old fixed value, so a declaration that does not use the key
+behaves as before.
+
+- The content file names under `paths.root`: `files.profiles`, `files.slots`, `files.appendix`, `files.inventory`,
+  `files.readme`, `files.record`, `files.adr_exemptions`, `files.annotation_exceptions`.
+- The decision document index name under `paths.decisions`: `decisions.index.readme` (default `README.md`).
+- The decision record id and file name: `decisions.records.prefix` and `decisions.records.digits` (default `ADR` and
+  `4`, so `ADR-NNNN-<slug>.md` and the citation `prefix:ADR-NNNN`).
+- The register id grammar of `check_decision_indexes`: `decisions.index.register_id.letters` and `.digits` (default
+  two capital letters and one or two digits, such as `XY-7` and `QZ-01`).
+- The roadmap note's table headers: `derived.roadmap.increments` and `derived.roadmap.fold_ins`.
+- `ontology/*.yaml` is `derived.dictionary.dir`, already declared; no kit code names that path otherwise.
+
+Still the loader's, not the declaration's: the status line of a decision record and of the roadmap note (a
+`## Status` section, else a `Status:` line) is read by the project's loader (`adr_status`, `adr_lead`,
+`roadmap_rows`), so the kit fixes nothing about it.
 
 ## The exchange reader
 
