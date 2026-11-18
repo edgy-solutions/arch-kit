@@ -80,6 +80,20 @@ class CheckError(Exception):
     """A citation did not resolve: exit 1. Carries stderr to pass through."""
 
 
+def name_record(text: str, record_path, default_path) -> str:
+    """St-Rm-P text: when the render uses a record other than the framework's, stop naming the framework's.
+
+    The link to the framework record (its file name, linked from the views directory) becomes plain words.
+    A text without the link is a CheckError, so a reworded view cannot quietly keep the wrong source."""
+    if Path(record_path).resolve() == Path(default_path).resolve():
+        return text
+    name = Path(default_path).name
+    link = f"[{name}](../{name})"
+    if link not in text:
+        raise CheckError(f"St-Rm-P: the link {link} is not in the view; the deployment's record cannot be named\n")
+    return text.replace(link, f"`{name}`, the deployment's own")
+
+
 # --- record and model ---------------------------------------------------------
 
 def key_names(tool: str) -> dict[str, str]:
