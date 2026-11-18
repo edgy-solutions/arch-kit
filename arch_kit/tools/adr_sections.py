@@ -19,10 +19,12 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import declared
 import project
 
-CITATION_RE = re.compile(r"^(ADR-\d{4}) §([0-9A-Za-z](?:[\w-]|\.(?=\w))*)$")
-CITATION_IN_TEXT_RE = re.compile(r"(?<![\w-])(ADR-\d{4}) §([0-9A-Za-z](?:[\w-]|\.(?=\w))*)")
+RECORD_ID = declared.record_patterns("adr_sections")[0]
+CITATION_RE = re.compile(r"^(" + RECORD_ID + r") §([0-9A-Za-z](?:[\w-]|\.(?=\w))*)$")
+CITATION_IN_TEXT_RE = re.compile(r"(?<![\w-])(" + RECORD_ID + r") §([0-9A-Za-z](?:[\w-]|\.(?=\w))*)")
 HEADING_RE = re.compile(r"^ {0,3}(#{2,4})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$")
 FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 NUMBER_RE = re.compile(r"^(\d+[a-z]?(?:\.\d+)*)(?=[.\s])")
@@ -41,7 +43,7 @@ def parse_citation(s: str) -> tuple[str, str]:
     """(adr id, label) of `ADR-NNNN §LABEL`; ValueError on anything else, a bare id included."""
     m = CITATION_RE.match(str(s).strip())
     if not m:
-        raise ValueError(f"{str(s)!r} is not a citation of the form ADR-NNNN §LABEL")
+        raise ValueError(f"{str(s)!r} is not a citation of the form {declared.record_form('adr_sections')} §LABEL")
     return m.group(1), m.group(2)
 
 
@@ -95,7 +97,7 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.reconfigure(encoding="utf-8")
     argv = sys.argv[1:] if argv is None else argv
     if len(argv) != 1:
-        print("usage: adr_sections.py ADR-NNNN", file=sys.stderr)
+        print(f"usage: adr_sections.py {declared.record_form('adr_sections')}", file=sys.stderr)
         return 2
     found = sorted(DECISIONS.glob(f"{argv[0]}-*.md"))
     if len(found) != 1:

@@ -321,7 +321,7 @@ def rule_links(t: Tree) -> list[str]:
 
 COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 CITED_VIEW = uaf.CAPABILITY_TAXONOMY
-DECISION_FILE_RE = re.compile(r"^(ADR-\d{4})-.+\.md$")
+DECISION_FILE_RE = re.compile(r"^(" + declared.record_patterns("check_views")[0] + r")-.+\.md$")
 TEXT_LINK_RE = re.compile(r"\[([^\]\n]*)\]\(([^)\s]+)\)")
 
 
@@ -348,7 +348,7 @@ def rule_decision_links(t: Tree) -> list[str]:
                 c = adr_sections.CITATION_RE.match(label)
                 if not c:
                     fails.append(f"decision-links: {vid}: link text {label!r} is not a citation of the form "
-                                 f"ADR-NNNN §LABEL")
+                                 f"{declared.record_form('check_views')} §LABEL")
                     continue
                 if c.group(1) != m.group(1):
                     fails.append(f"decision-links: {vid}: link text {label!r} cites {c.group(1)} "

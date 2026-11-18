@@ -363,8 +363,9 @@ class Decisions:
         self.rules = list(rules)
         self.replaced = 0
         self.files: dict[str, Path] = {}
-        for f in sorted(self.dir.glob("ADR-*.md")):
-            m = re.match(r"ADR-\d{4}", f.name)
+        rec_re, rec_glob = declared.record_patterns("render_html")
+        for f in sorted(self.dir.glob(rec_glob)):
+            m = re.match(rec_re, f.name)
             if not m:
                 continue
             if m.group(0) in self.files:

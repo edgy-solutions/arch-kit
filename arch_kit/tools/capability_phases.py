@@ -73,7 +73,7 @@ NOT_STATED = "not stated"
 SECTIONS = ("groups", "environments", "entries", "capabilities")
 CAP_KEYS = ("description", "derived_from", "adrs", "built", "measured", "rows", "still_open", "increment",
             "degraded_mode", "pending")
-ADR_ID_RE = re.compile(r"ADR-\d{4}")
+ADR_ID_RE = re.compile(declared.record_patterns("capability_phases")[0])
 
 
 class CheckError(Exception):
@@ -357,7 +357,7 @@ def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> l
             try:
                 adr_sections.parse_citation(degraded)
             except ValueError:
-                fails.append(f"{name}: {dm} {degraded!r} is neither '{NOT_STATED}' nor a citation ADR-NNNN §LABEL")
+                fails.append(f"{name}: {dm} {degraded!r} is neither '{NOT_STATED}' nor a citation {declared.record_form('capability_phases')} §LABEL")
             else:
                 fails += check_section(name, degraded, decisions_dir)
                 check_adr(name, adr_id(degraded))

@@ -65,7 +65,7 @@ def homes() -> dict[str, str]:
 
 ROADMAP_HEADER = ["#", "increment", "what isolates", "home", "depends on"]
 FOLD_HEADER = ["row", "slice", "folds into", "why it costs the increment nothing"]
-ADR_RE = re.compile(r"ADR-\d{4}")
+ADR_RE = re.compile(declared.record_patterns("derived")[0])
 
 def bare(cell: str) -> str:
     return cell.replace("**", "").replace("`", "").strip()
@@ -265,7 +265,7 @@ def dictionary(ontology_dir: Path, terms, dirname: str) -> str:
 
 
 EXEMPT_CATEGORIES = ("rule", "infrastructure", "process", "alignment")
-VIEW_ADR_RE = re.compile(r"ADR-(\d{4})(?!\d)")
+VIEW_ADR_RE = re.compile(declared.record_id("derived")[0] + r"-(\d{" + str(declared.record_id("derived")[1]) + r"})(?!\d)")
 
 
 def cell(text: str) -> str:
@@ -285,14 +285,14 @@ def adr_class(adr: str, text: str) -> str:
 
 def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -> str:
     try:
-        files = sorted(decisions.glob("ADR-*.md"))
+        files = sorted(decisions.glob(declared.record_patterns("derived")[1]))
     except OSError as e:
         raise InputError(f"cannot list {decisions}: {e}")
     fails: list[str] = []
     in_force = {st.word for st in declared.statuses("derived") if st.in_force}
     info: dict[str, tuple[str, str]] = {}
     for p in files:
-        m = re.match(r"ADR-\d{4}", p.name)
+        m = ADR_RE.match(p.name)
         if not m:
             continue
         adr = m.group(0)
@@ -304,7 +304,7 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
         if line is None:
             fails.append(f"derived: {adr} has no '# ' title line")
             continue
-        title = re.sub(r"^ADR-\d{4}", "", line[2:].strip())
+        title = re.sub("^" + ADR_RE.pattern, "", line[2:].strip())
         title = re.sub(r"^\s*[:—–-]\s*", "", title).strip()
         # The framework's name appears only in the attribution line, which a
         # deployment can drop, so a title prints it as "the framework".
@@ -326,7 +326,7 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
         except OSError as e:
             raise InputError(f"cannot read {v}: {e}")
         for n in VIEW_ADR_RE.findall(re.sub(r"<!--.*?-->", "", vt, flags=re.DOTALL)):
-            cited.setdefault(f"ADR-{n}", set()).add(v.stem)
+            cited.setdefault(f"{declared.record_id('derived')[0]}-{n}", set()).add(v.stem)
     phases_home = declared.home("capability-phases", "derived")
     for cap in (record.get("capabilities") or {}).values():
         if not isinstance(cap, dict):

@@ -179,7 +179,7 @@ def check_diagrams(raw: str, tree: check_views.Tree) -> list[str]:
     return fails
 
 
-STAMP_RE = re.compile(r"^Commit [0-9a-f]{7,}, \d{4}-\d{2}-\d{2}: decisions/ADR-\d{4}-.+\.md")
+STAMP_RE = re.compile(r"^Commit [0-9a-f]{7,}, \d{4}-\d{2}-\d{2}: decisions/" + declared.record_patterns("check_export")[0] + r"-.+\.md")
 WHAT_RE = re.compile(r"<p data-what>(.*?)</p>", re.S)
 STAMP_P_RE = re.compile(r'<p class="stamp" data-stamp>(.*?)</p>', re.S)
 
@@ -206,10 +206,11 @@ def check_capabilities(raw: str, tree: check_views.Tree) -> list[str]:
 def check_decisions(raw: str, tree: check_views.Tree) -> list[str]:
     """One page per decision record, each stamped with the commit it was read at."""
     fails: list[str] = []
-    pages = {pid: body for pid, body in PAGE_RE.findall(raw) if pid.startswith(("adr-", "decision-"))}
+    pages = {pid: body for pid, body in PAGE_RE.findall(raw) if pid.startswith((declared.record_id("check_export")[0].lower() + "-", "decision-"))}
     directory = project.DECISIONS
+    rec_prefix, rec_digits = declared.record_id("check_export")
     if directory.is_dir():
-        want = sorted(f.name[:8].lower() for f in directory.glob("ADR-*.md")) + ["decision-roadmap"]
+        want = sorted(f.name[:len(rec_prefix) + 1 + rec_digits].lower() for f in directory.glob(declared.record_patterns("check_export")[1])) + ["decision-roadmap"]
         got = sorted(i for i in pages if i != "decision-roadmap") + ["decision-roadmap"] * ("decision-roadmap" in pages)
         if got != want:
             fails.append(f"decisions: the export has {len(pages)} decision pages, decisions/ has {len(want)}"
@@ -219,7 +220,7 @@ def check_decisions(raw: str, tree: check_views.Tree) -> list[str]:
         m = STAMP_P_RE.search(body)
         if not m:
             fails.append(f"decisions: {pid} has no data-stamp line")
-        elif pid.startswith("adr-") and not STAMP_RE.match(plain(m.group(1))):
+        elif pid.startswith(declared.record_id("check_export")[0].lower() + "-") and not STAMP_RE.match(plain(m.group(1))):
             fails.append(f"decisions: {pid} has a malformed stamp: {plain(m.group(1))[:80]!r}")
     return fails
 

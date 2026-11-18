@@ -198,7 +198,8 @@ def require_public_lists(tool: str, **given: bool) -> None:
             project.die(f"error: the portal's audience is public: {tool} needs {names[flag]}")
 
 
-INDEX_KEYS = ("register", "readme", "register_homes", "indexed", "local_prefix", "foreign")
+INDEX_KEYS = ("register", "readme", "register_homes", "indexed", "local_prefix", "foreign", "register_id")
+INDEX_OPTIONAL = ("foreign", "register_id")
 PREFIX_RE = r"[a-z][a-z0-9-]*"
 
 
@@ -282,6 +283,82 @@ def _prefix(value, key):
     return value
 
 
+RECORD_KEYS = ("prefix", "digits")
+REGISTER_ID_KEYS = ("letters", "digits")
+
+
+def _int(value, key, low, high):
+    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+        _bad(key, f"must be an integer from {low} to {high}")
+    return value
+
+
+def record_id(tool: str) -> tuple:
+    """(prefix, digits) of a decision record id (`decisions.records`); a record id is PREFIX-<digits> and its
+    file PREFIX-<digits>-<slug>.md. The default is ADR and 4."""
+    import re
+    if "record_id" not in _CACHE:
+        decisions = project.CONFIG.get("decisions")
+        node = decisions.get("records") if isinstance(decisions, dict) else None
+        prefix, digits = "ADR", 4
+        if node is not None:
+            if not isinstance(node, dict):
+                _bad("decisions.records", "must be a map")
+            for k in node:
+                if k not in RECORD_KEYS:
+                    _bad("decisions.records", f"unknown key {k!r}")
+            if "prefix" in node:
+                prefix = node["prefix"]
+                if not isinstance(prefix, str) or not re.fullmatch(r"[A-Z][A-Z0-9]*", prefix):
+                    _bad("decisions.records.prefix", f"{prefix!r} is not a prefix: uppercase letters and digits, "
+                                                     f"starting with a letter")
+            if "digits" in node:
+                digits = _int(node["digits"], "decisions.records.digits", 1, 8)
+        _CACHE["record_id"] = (prefix, digits)
+    return _CACHE["record_id"]
+
+
+def record_patterns(tool: str) -> tuple:
+    """(regex text, file glob) for a decision record: `PREFIX-\d{N}` and `PREFIX-*.md`."""
+    prefix, digits = record_id(tool)
+    return f"{prefix}-" + chr(92) + f"d{{{digits}}}", f"{prefix}-*.md"
+
+
+def record_form(tool: str) -> str:
+    """The form a message shows for a record id: the prefix, a hyphen and one N per digit (ADR-NNNN by default)."""
+    prefix, digits = record_id(tool)
+    return f"{prefix}-" + "N" * digits
+
+
+def register_id(tool: str) -> tuple:
+    """(letters, min digits, max digits) of a register id (`decisions.index.register_id`): that many capital
+    letters, a hyphen, then min to max digits. The default is 2, 1 and 2."""
+    if "register_id" not in _CACHE:
+        decisions = project.CONFIG.get("decisions")
+        index = decisions.get("index") if isinstance(decisions, dict) else None
+        node = index.get("register_id") if isinstance(index, dict) else None
+        letters, low, high = 2, 1, 2
+        base = "decisions.index.register_id"
+        if node is not None:
+            if not isinstance(node, dict):
+                _bad(base, "must be a map")
+            for k in node:
+                if k not in REGISTER_ID_KEYS:
+                    _bad(base, f"unknown key {k!r}")
+            if "letters" in node:
+                letters = _int(node["letters"], base + ".letters", 1, 6)
+            if "digits" in node:
+                pair = node["digits"]
+                if not isinstance(pair, list) or len(pair) != 2:
+                    _bad(base + ".digits", "must be a list of two integers, [min, max]")
+                low = _int(pair[0], base + ".digits", 1, 6)
+                high = _int(pair[1], base + ".digits", 1, 6)
+                if low > high:
+                    _bad(base + ".digits", "min must not exceed max")
+        _CACHE["register_id"] = (letters, low, high)
+    return _CACHE["register_id"]
+
+
 def decisions_index(tool: str) -> DecisionIndex:
     """The declared decision-index names (`decisions.index`): the files, globs and repository prefixes."""
     if "decisions_index" not in _CACHE:
@@ -292,7 +369,7 @@ def decisions_index(tool: str) -> DecisionIndex:
             if k not in INDEX_KEYS:
                 _bad("decisions.index", f"unknown key {k!r}")
         for k in INDEX_KEYS:
-            if k != "foreign":
+            if k not in INDEX_OPTIONAL:
                 project.need("decisions.index." + k, tool)
         base = "decisions.index."
         lists = {}
