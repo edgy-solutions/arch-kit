@@ -232,12 +232,12 @@ def check_declarations(raw: str, tree: check_views.Tree) -> list[str]:
     pages = [body for pid, body in PAGE_RE.findall(raw) if pid == "declarations"]
     if len(pages) != 1:
         return [f"declarations: the export has {len(pages)} declarations pages, expected one"]
-    lines = check_views.outside_fences(tree.text(tree.root / "INVENTORY.md"))
+    lines = check_views.outside_fences(tree.text(tree.root / declared.content_file("inventory", "check_export")))
     at = [i for i, ln in enumerate(lines) if ln.strip() == check_views.SLOT_INVENTORY_HEADER]
     want = [r[0].strip("` ") for r in check_views.table_after(lines, at[0])[1] if r] if len(at) == 1 else []
     got = [plain(c) for c in re.findall(r"<tr>\s*<td[^>]*>(.*?)</td>", pages[0], re.S)]
     if got != want:
-        return [f"declarations: the page lists {len(got)} slots, INVENTORY.md's slot table {len(want)}, "
+        return [f"declarations: the page lists {len(got)} slots, {declared.content_file('inventory', 'check_export')}'s slot table {len(want)}, "
                 f"or in another order"]
     return []
 

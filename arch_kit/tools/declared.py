@@ -216,6 +216,59 @@ class DecisionIndex(NamedTuple):
     foreign: tuple
 
 
+FILE_DEFAULTS = {
+    "profiles": "profiles.yaml",
+    "slots": "slots.yaml",
+    "appendix": "APPENDIX-A.md",
+    "inventory": "INVENTORY.md",
+    "readme": "README.md",
+    "record": "capability-record.yaml",
+    "adr_exemptions": "adr-exemptions.yaml",
+    "annotation_exceptions": "annotation-exceptions.yaml",
+}
+
+
+def _relative(value, key):
+    """Exit 2 unless value is a plain relative path with no '..', no leading slash and no drive letter."""
+    import re
+    if not isinstance(value, str) or not value.strip() or value != value.strip() or value.startswith(("/", "\\")) \
+            or re.match(r"^[A-Za-z]:", value) or ".." in re.split(r"[/\\]", value):
+        _bad(key, "must be a plain relative path with no '..'")
+    return value
+
+
+def content_file(key: str, tool: str) -> str:
+    """The declared name of a content file under paths.root (`files.<key>`), or its default.
+
+    Every key is optional; the default is the name the kit has always used. An unknown key, or a value that is
+    not a plain relative path, exits 2 naming the key."""
+    if "files" not in _CACHE:
+        node = project.CONFIG.get("files")
+        out = dict(FILE_DEFAULTS)
+        if node is not None:
+            if not isinstance(node, dict):
+                _bad("files", "must be a map")
+            for k, v in node.items():
+                if k not in FILE_DEFAULTS:
+                    _bad(f"files.{k}", f"unknown key; the keys are {', '.join(FILE_DEFAULTS)}")
+                out[k] = _relative(v, f"files.{k}")
+        _CACHE["files"] = out
+    if key not in FILE_DEFAULTS:
+        raise KeyError(key)
+    return _CACHE["files"][key]
+
+
+def decisions_readme(tool: str) -> str:
+    """The decision document index file name: `decisions.index.readme` when declared, else README.md.
+
+    Unlike decisions_index() it needs none of the other `decisions.index` keys."""
+    node = project.CONFIG.get("decisions")
+    index = node.get("index") if isinstance(node, dict) else None
+    if isinstance(index, dict) and "readme" in index:
+        return _name(index["readme"], "decisions.index.readme")
+    return "README.md"
+
+
 def _name(value, key):
     if not isinstance(value, str) or not value.strip() or value != value.strip() or any(c.isspace() for c in value):
         _bad(key, "must be a non-empty string with no spaces")
@@ -294,9 +347,7 @@ def dictionary(tool: str) -> Dictionary:
                 _bad("derived.dictionary", f"unknown key {k!r}")
         d = project.need(base + "dir", tool)
         terms = project.need(base + "terms", tool)
-        if not isinstance(d, str) or not d.strip() or d != d.strip() or d.startswith(("/", "\\")) \
-                or re.match(r"^[A-Za-z]:", d) or ".." in re.split(r"[/\\]", d):
-            _bad(base + "dir", "must be a plain relative path with no '..'")
+        _relative(d, base + "dir")
         out = []
         for i, item in enumerate(_list(terms, base + "terms")):
             key = f"{base}terms[{i}]"

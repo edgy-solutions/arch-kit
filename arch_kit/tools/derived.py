@@ -344,7 +344,7 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
         raise InputError(f"{exemptions}: expected a map")
     for k in data:
         if k != "exempt":
-            fails.append(f"derived: adr-exemptions.yaml has top-level key {k!r}, not 'exempt'")
+            fails.append(f"derived: {declared.content_file('adr_exemptions', 'derived')} has top-level key {k!r}, not 'exempt'")
     exempt = data.get("exempt") or {}
     if not isinstance(exempt, dict):
         raise InputError(f"{exemptions}: 'exempt' is not a map")
@@ -370,7 +370,7 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
             fails.append(f"derived: exemption {adr} is not in scope: its status is {info[adr][1].lower()}")
     for adr, (_, status) in sorted(info.items()):
         if status in in_force and not cited.get(adr) and adr not in exempt:
-            fails.append(f"derived: {adr} ({status}) is cited by no view and is not in adr-exemptions.yaml")
+            fails.append(f"derived: {adr} ({status}) is cited by no view and is not in {declared.content_file('adr_exemptions', 'derived')}")
     if fails:
         raise CheckError("".join(f + "\n" for f in fails))
     in_force_leads = " or ".join(st.lead for st in declared.statuses("derived") if st.in_force)
@@ -414,5 +414,5 @@ def build(marker: str, root: Path, record_path: Path, sysml: str, masked: str) -
         return dictionary(repo / dd.dir, [(t.file, t.path) for t in dd.terms], dd.dir)
     if marker == TRACE_MARKER:
         return traceability(project.DECISIONS, root / "views",
-                            capability_phases.load_record(record_path), root / "adr-exemptions.yaml")
+                            capability_phases.load_record(record_path), root / declared.content_file("adr_exemptions", "derived"))
     raise KeyError(marker)

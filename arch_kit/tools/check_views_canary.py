@@ -35,13 +35,12 @@ HERE = Path(__file__).resolve().parent
 ARCH = project.ROOT
 REPO = project.REPO
 TOOL = HERE / "check_views.py"
-RECORD = "capability-record.yaml"
 EXIT_OK, EXIT_CHECK, EXIT_INPUT = 0, 1, 2
 
 
 def edit_record(root: Path, change) -> None:
     """Load the copied record, apply change(record), dump it back."""
-    p = root / RECORD
+    p = root / declared.content_file("record", "check_views_canary")
     record = yaml.safe_load(p.read_text(encoding="utf-8"))
     change(record)
     p.write_text(yaml.safe_dump(record, sort_keys=False, allow_unicode=True), encoding="utf-8", newline="\n")
@@ -58,7 +57,7 @@ def drop_first_workload_claim(record: dict) -> None:
 
 def plant_word(a: argparse.Namespace, clean_output: str) -> str:
     """A literal word from the first evidence cell of the real render, safe to look for in output."""
-    record = capability_phases.load_record(ARCH / RECORD)
+    record = capability_phases.load_record(ARCH / declared.content_file("record", "check_views_canary"))
     cells = capability_phases.evidence_cells(record, Path(a.readiness).read_text(encoding="utf-8"))
     first = next((c[0] for c in cells.values() if c), None)
     if not first:
