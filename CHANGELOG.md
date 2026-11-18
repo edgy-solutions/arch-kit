@@ -11,7 +11,7 @@ output is unchanged.
 - `decisions.index.register_id.letters` and `.digits`: the register id grammar of `check_decision_indexes`.
 - `derived.roadmap.increments` and `.fold_ins`: the roadmap note's table headers.
 
-## 0.1.0
+## 0.1.0 (2026-11-17)
 
 The first release. Each step of Phase 1 in a sentence:
 

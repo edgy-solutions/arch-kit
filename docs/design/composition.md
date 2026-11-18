@@ -1,6 +1,6 @@
 # Design record: composed portals and the "consumer of" relation
 
-**Status: draft, proposed, complete for the ruling. Nothing in it is ruled, and nothing is built.**
+**Status: proposed, with proposed answers to its questions, pending the project owner's ruling. Nothing is built.**
 
 Proposes a decision: one portal can compose the records of other projects, and any project can declare that it
 consumes a portal or part of one. Consumption is declared by the consumer only, is rendered on both sides, and every
@@ -206,3 +206,20 @@ Each question names the alternative.
    lists. That misses a name that crosses from one component's pages into another's.
 7. Is a `private` component in a `public` composed portal refused outright (§8)? The alternative is to leave it out,
    with a warning.
+
+## Proposed answers, pending the ruling
+
+These are recommendations, not the ruling. Question 4 is left to the project owner.
+
+1. **Yes, the consumer declares.** The project owner has already ruled this, on 2026-11-16.
+2. **Yes, `portal: none`.** It is an explicit value, so a missing portal is always declared and never assumed.
+3. **Yes, a warning by default.** Drift never fails the consumed side's build. A consumer can declare itself strict
+   with `drift: fail`, and then its own build fails on its own stale pin.
+4. **The project owner's question.** The recommendation is that five accepted decision records be guidance, not a
+   rule the kit enforces.
+5. **Re-render each component from its sources.** One kit version then renders everything, and every check runs on
+   the whole export. Stitching finished exports would mix kit versions, and would trust each component's own build.
+   The cost is that the composed build needs read access to every component's repository.
+6. **Yes, every component's lists combined.** A name barred in one component is barred across the whole portal.
+7. **Yes, refused outright.** It fails closed, and that includes the component's name: no part of a private
+   component, not even its name, appears in a public portal.
