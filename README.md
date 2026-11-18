@@ -18,7 +18,7 @@ assume.
 
 ## Status
 
-**Pre-release: `0.1.0.dev0`.** The kit is being extracted from the first project that used it. That project's export
+**`0.1.0`, not yet tagged.** The kit is being extracted from the first project that used it. That project's export
 is the acceptance test: after every step it must come out byte-identical, or each difference is listed and explained.
 
 | Step | | State |
@@ -30,10 +30,10 @@ is the acceptance test: after every step it must come out byte-identical, or eac
 | 5 | Each portal declares its hosting and its audience | done |
 | 6a | The decision-index check moves into the kit, with its names declared | done |
 | 6b | The `arch-kit` command, a declared term dictionary, an optional declared data exchange, and the [example project](examples/minimal/README.md) with its self-test | done |
-| 6c | A reusable GitHub Action and `v0.1.0` | planned |
+| 6c | A reusable GitHub Action, and readiness for `v0.1.0` (the tag is made after review) | done |
 | 7 | The first project pins `v0.1.0`, with the golden comparison in its CI | planned |
 
-Until `v0.1.0`, pin a commit, not a branch. Some conventions are still fixed rather than declared. The
+Until the `v0.1.0` tag exists, pin a full commit sha, not a branch. Some conventions are still fixed rather than declared. The
 [declaration reference](docs/declaration.md#what-is-not-declared-yet) lists them.
 
 ## How it works
@@ -124,6 +124,49 @@ node "$PYTHONPATH/arch_kit/tools/export/check_export_browser.mjs" export.html --
 `python -m arch_kit [--config FILE] TOOL [ARGS...]` runs any tool, and so does the installed `arch-kit` command (`arch-kit [--config FILE] TOOL`). Run it with no tool to list them. `--config`
 points at a declaration somewhere else.
 
+### 4. Run it in CI: the Action
+
+One `uses:` line runs the whole chain (`check_views`, `render_html`, `check_export`, `browser_facts` and the browser
+check, `check_decision_indexes`):
+
+```yaml
+- uses: actions/checkout@<sha>
+  with:
+    fetch-depth: 0        # the render stamps each decision from git
+- uses: edgy-solutions/arch-kit@v0.1.0
+  with:
+    config: docs/arch/arch-kit.yaml
+    chart: path/to/chart
+    release: myrelease
+    values: |
+      path/to/values.yaml
+    relabel: path/to/relabel.txt
+    barred: path/to/barred.txt
+```
+
+**The tag `v0.1.0` exists only once it is made.** Until then, pin a full commit sha:
+`uses: edgy-solutions/arch-kit@<full sha>`.
+
+| Input | Required | Meaning |
+|---|---|---|
+| `config` | yes | path to the project's `arch-kit.yaml` |
+| `chart`, `release` | yes | as `render_html` takes them. The Action does not run Helm itself; a project with no declared exchange needs only a chart directory |
+| `values`, `readiness` | no | `values` is newline-separated |
+| `relabel`, `barred` | no | newline-separated lists of files, passed as repeated flags. A public audience requires both |
+| `out` | no | the output directory (default `$RUNNER_TEMP/arch-kit-export`); each tool's log is written there and its tail printed |
+| `browser` | no | `true` (default) runs the browser check |
+| `index-check` | no | `true` (default) runs `check_decision_indexes` |
+
+Outputs: `hosting`, `audience` (from `arch-kit portal`) and `artifact-id` (empty when nothing was uploaded).
+
+What happens to the export depends on `portal.hosting`. `ci-artifact` uploads `out` as the artifact
+`arch-kit-export`. **`static-site` and `none` publish nothing in this version.** A later step will publish a site.
+
+The Action reads no secret. A list that must stay private is passed in by the caller, as the path of a file the
+caller wrote from its own secret. The runner needs Chrome on the PATH, as the hosted Ubuntu image has, and the
+Action installs Node 22 (the render draws diagrams with mermaid-cli even when `browser` is `false`).
+Every third-party action it uses is pinned to a full commit sha.
+
 ## Content layout
 
 The tools read these files under `paths.root` and `paths.decisions`. The file names are fixed for now.
@@ -171,6 +214,7 @@ filled at render time.
 | `derived` | Builds the tables a view takes from a declared artefact instead of writing them |
 | `marks` | Fills a Sources row's Evidence from the cited record's status line |
 | `adr_sections` | Reads a decision record's sections, and resolves `ADR-NNNN §LABEL` citations |
+| `portal` | Prints the declared `portal.hosting` and `portal.audience` on one line, for the Action |
 | `relabel` | Replaces internal names in decision records as they are exported. The sources are not changed |
 | `validate_sysml` | Parses the model with the reference parser, and proves the parser rejects two broken copies |
 

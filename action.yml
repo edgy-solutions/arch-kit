@@ -1,0 +1,165 @@
+name: arch-kit
+description: Check and export a project's architecture records with arch-kit, and upload the export when the project declares it.
+# The Action reads no secret. A list that must stay private is passed in by the caller, as a path to a file the
+# caller wrote from its own secret. Every third-party action below is pinned to a full commit sha, version in the
+# comment. The runner needs bash, Chrome on the PATH (the hosted Ubuntu image has it) and a checkout with full
+# history (the render stamps decisions from git). It does not need Helm.
+
+inputs:
+  config:
+    description: Path to the project's arch-kit.yaml.
+    required: true
+  chart:
+    description: The chart directory, as render_html takes it.
+    required: true
+  release:
+    description: The release name, as render_html takes it.
+    required: true
+  values:
+    description: Values files, newline-separated, in order.
+    required: false
+    default: ''
+  readiness:
+    description: The readiness document, as render_html takes it.
+    required: false
+    default: ''
+  relabel:
+    description: Relabel lists, newline-separated. Passed as repeated --relabel flags.
+    required: false
+    default: ''
+  barred:
+    description: Barred lists, newline-separated. Passed as repeated --barred flags.
+    required: false
+    default: ''
+  out:
+    description: The output directory.
+    required: false
+    default: ${{ runner.temp }}/arch-kit-export
+  browser:
+    description: Run the browser check (true or false).
+    required: false
+    default: 'true'
+  index-check:
+    description: Run check_decision_indexes (true or false).
+    required: false
+    default: 'true'
+
+outputs:
+  hosting:
+    description: The declared portal.hosting.
+    value: ${{ steps.portal.outputs.hosting }}
+  audience:
+    description: The declared portal.audience.
+    value: ${{ steps.portal.outputs.audience }}
+  artifact-id:
+    description: The id of the uploaded artifact. Empty when nothing was uploaded.
+    value: ${{ steps.upload.outputs.artifact-id }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: '3.12'
+
+    - name: Install arch-kit
+      shell: bash
+      run: |
+        python -m pip install "$GITHUB_ACTION_PATH"
+
+    # Node is needed by the render too: render_html draws diagrams with mermaid-cli, so this step does not
+    # depend on `browser`.
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: '22'
+
+    - name: Install the export tooling
+      shell: bash
+      working-directory: ${{ github.action_path }}/arch_kit/tools/export
+      env:
+        PUPPETEER_SKIP_DOWNLOAD: 'true'
+      run: |
+        npm ci
+
+    - name: Check and render
+      id: chain
+      shell: bash
+      env:
+        IN_CONFIG: ${{ inputs.config }}
+        IN_CHART: ${{ inputs.chart }}
+        IN_RELEASE: ${{ inputs.release }}
+        IN_VALUES: ${{ inputs.values }}
+        IN_READINESS: ${{ inputs.readiness }}
+        IN_RELABEL: ${{ inputs.relabel }}
+        IN_BARRED: ${{ inputs.barred }}
+        IN_OUT: ${{ inputs.out }}
+        IN_BROWSER: ${{ inputs.browser }}
+        IN_INDEX_CHECK: ${{ inputs.index-check }}
+        PYTHONIOENCODING: utf-8
+        PYTHONUTF8: '1'
+      run: |
+        set -u
+        mkdir -p "$IN_OUT"
+        values=(); relabel=(); barred=()
+        while IFS= read -r l; do [ -n "$l" ] && values+=(--values "$l"); done <<< "$IN_VALUES"
+        while IFS= read -r l; do [ -n "$l" ] && relabel+=(--relabel "$l"); done <<< "$IN_RELABEL"
+        while IFS= read -r l; do [ -n "$l" ] && barred+=(--barred "$l"); done <<< "$IN_BARRED"
+        readiness=(); [ -n "$IN_READINESS" ] && readiness=(--readiness "$IN_READINESS")
+        if [ -z "${PUPPETEER_EXECUTABLE_PATH:-}" ]; then
+          PUPPETEER_EXECUTABLE_PATH="$(command -v google-chrome || command -v chromium || true)"
+          export PUPPETEER_EXECUTABLE_PATH
+        fi
+        printf '{"args": ["--no-sandbox"]}\n' > "$IN_OUT/puppeteer.json"
+        failed=0
+        # step NAME COMMAND...: run, log to $IN_OUT/NAME.log, print the tail and the exit code.
+        step() {
+          local name=$1; shift
+          "$@" > "$IN_OUT/$name.log" 2>&1
+          local rc=$?
+          echo "::group::$name (exit $rc)"
+          tail -n 15 "$IN_OUT/$name.log"
+          echo "::endgroup::"
+          if [ "$rc" != 0 ]; then echo "$name exited $rc"; failed=1; fi
+          return $rc
+        }
+        # The installed package has no node_modules: mermaid-cli is the one `npm ci` put in the Action's checkout.
+        mmdc="$GITHUB_ACTION_PATH/arch_kit/tools/export/node_modules/.bin/mmdc"
+        [ -f "$mmdc.cmd" ] && mmdc="$mmdc.cmd"   # Windows
+        ak() { arch-kit --config "$IN_CONFIG" "$@"; }
+        step check_views ak check_views --chart "$IN_CHART" --release "$IN_RELEASE" "${values[@]}" "${readiness[@]}" "${barred[@]}"
+        step render_html ak render_html --out "$IN_OUT/export.html" --chart "$IN_CHART" --release "$IN_RELEASE" \
+          "${values[@]}" "${readiness[@]}" "${relabel[@]}" "${barred[@]}" --mmdc "$mmdc" --puppeteer-config "$IN_OUT/puppeteer.json"
+        step check_export ak check_export --export "$IN_OUT/export.html" "${relabel[@]}" "${barred[@]}"
+        if [ "$IN_BROWSER" = true ]; then
+          step browser_facts ak browser_facts --out "$IN_OUT/facts.json"
+          step browser node "$GITHUB_ACTION_PATH/arch_kit/tools/export/check_export_browser.mjs" "$IN_OUT/export.html" \
+            --shots "$IN_OUT/shots" --facts "$IN_OUT/facts.json" --puppeteer-config "$IN_OUT/puppeteer.json"
+        fi
+        if [ "$IN_INDEX_CHECK" = true ]; then
+          step check_decision_indexes ak check_decision_indexes
+        fi
+        exit "$failed"
+
+    - name: Read the portal declaration
+      id: portal
+      shell: bash
+      env:
+        IN_CONFIG: ${{ inputs.config }}
+        PYTHONUTF8: '1'
+      run: |
+        read -r hosting audience < <(arch-kit --config "$IN_CONFIG" portal)
+        echo "hosting=$hosting" >> "$GITHUB_OUTPUT"
+        echo "audience=$audience" >> "$GITHUB_OUTPUT"
+        case "$hosting" in
+          ci-artifact) ;;
+          static-site|none) echo "portal.hosting is $hosting: nothing is published in this version" ;;
+        esac
+
+    - name: Upload the export
+      id: upload
+      if: steps.portal.outputs.hosting == 'ci-artifact'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: arch-kit-export
+        path: ${{ inputs.out }}
+        if-no-files-found: error
