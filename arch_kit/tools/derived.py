@@ -63,9 +63,7 @@ def homes() -> dict[str, str]:
             degraded_marker(): home(str(project.need("labels.degraded_mode.marker", "derived")))}
 
 
-ROADMAP_HEADER = ["#", "increment", "what isolates", "home", "depends on"]
-FOLD_HEADER = ["row", "slice", "folds into", "why it costs the increment nothing"]
-ADR_RE = re.compile(r"ADR-\d{4}")
+ADR_RE = re.compile(declared.record_patterns("derived")[0])
 
 def bare(cell: str) -> str:
     return cell.replace("**", "").replace("`", "").strip()
@@ -97,8 +95,9 @@ def table_with(text: str, header: list[str], what: str) -> list[list[str]]:
 # --- dependencies ---------------------------------------------------------------------
 
 def dependencies(record: dict, roadmap: str) -> str:
-    rows = table_with(roadmap, ROADMAP_HEADER, "increment")
-    folds = table_with(roadmap, FOLD_HEADER, "fold-in")
+    increments, fold_ins = declared.roadmap_headers("derived")
+    rows = table_with(roadmap, increments, "increment")
+    folds = table_with(roadmap, fold_ins, "fold-in")
     names = [bare(r[1]) for r in rows]
     numbered = {bare(r[0]): bare(r[1]) for r in rows if bare(r[0]).isdigit()}
     caps = {k: (v or {}) for k, v in record["capabilities"].items()}
@@ -265,7 +264,7 @@ def dictionary(ontology_dir: Path, terms, dirname: str) -> str:
 
 
 EXEMPT_CATEGORIES = ("rule", "infrastructure", "process", "alignment")
-VIEW_ADR_RE = re.compile(r"ADR-(\d{4})(?!\d)")
+VIEW_ADR_RE = re.compile(declared.record_id("derived")[0] + r"-(\d{" + str(declared.record_id("derived")[1]) + r"})(?!\d)")
 
 
 def cell(text: str) -> str:
@@ -285,14 +284,14 @@ def adr_class(adr: str, text: str) -> str:
 
 def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -> str:
     try:
-        files = sorted(decisions.glob("ADR-*.md"))
+        files = sorted(decisions.glob(declared.record_patterns("derived")[1]))
     except OSError as e:
         raise InputError(f"cannot list {decisions}: {e}")
     fails: list[str] = []
     in_force = {st.word for st in declared.statuses("derived") if st.in_force}
     info: dict[str, tuple[str, str]] = {}
     for p in files:
-        m = re.match(r"ADR-\d{4}", p.name)
+        m = ADR_RE.match(p.name)
         if not m:
             continue
         adr = m.group(0)
@@ -304,7 +303,7 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
         if line is None:
             fails.append(f"derived: {adr} has no '# ' title line")
             continue
-        title = re.sub(r"^ADR-\d{4}", "", line[2:].strip())
+        title = re.sub("^" + ADR_RE.pattern, "", line[2:].strip())
         title = re.sub(r"^\s*[:—–-]\s*", "", title).strip()
         # The framework's name appears only in the attribution line, which a
         # deployment can drop, so a title prints it as "the framework".
@@ -326,7 +325,7 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
         except OSError as e:
             raise InputError(f"cannot read {v}: {e}")
         for n in VIEW_ADR_RE.findall(re.sub(r"<!--.*?-->", "", vt, flags=re.DOTALL)):
-            cited.setdefault(f"ADR-{n}", set()).add(v.stem)
+            cited.setdefault(f"{declared.record_id('derived')[0]}-{n}", set()).add(v.stem)
     phases_home = declared.home("capability-phases", "derived")
     for cap in (record.get("capabilities") or {}).values():
         if not isinstance(cap, dict):
@@ -344,7 +343,7 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
         raise InputError(f"{exemptions}: expected a map")
     for k in data:
         if k != "exempt":
-            fails.append(f"derived: adr-exemptions.yaml has top-level key {k!r}, not 'exempt'")
+            fails.append(f"derived: {declared.content_file('adr_exemptions', 'derived')} has top-level key {k!r}, not 'exempt'")
     exempt = data.get("exempt") or {}
     if not isinstance(exempt, dict):
         raise InputError(f"{exemptions}: 'exempt' is not a map")
@@ -370,7 +369,7 @@ def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -
             fails.append(f"derived: exemption {adr} is not in scope: its status is {info[adr][1].lower()}")
     for adr, (_, status) in sorted(info.items()):
         if status in in_force and not cited.get(adr) and adr not in exempt:
-            fails.append(f"derived: {adr} ({status}) is cited by no view and is not in adr-exemptions.yaml")
+            fails.append(f"derived: {adr} ({status}) is cited by no view and is not in {declared.content_file('adr_exemptions', 'derived')}")
     if fails:
         raise CheckError("".join(f + "\n" for f in fails))
     in_force_leads = " or ".join(st.lead for st in declared.statuses("derived") if st.in_force)
@@ -414,5 +413,5 @@ def build(marker: str, root: Path, record_path: Path, sysml: str, masked: str) -
         return dictionary(repo / dd.dir, [(t.file, t.path) for t in dd.terms], dd.dir)
     if marker == TRACE_MARKER:
         return traceability(project.DECISIONS, root / "views",
-                            capability_phases.load_record(record_path), root / "adr-exemptions.yaml")
+                            capability_phases.load_record(record_path), root / declared.content_file("adr_exemptions", "derived"))
     raise KeyError(marker)

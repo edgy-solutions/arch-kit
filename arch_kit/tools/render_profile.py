@@ -174,7 +174,7 @@ def load_yaml(path: Path):
 
 
 def load_slots_registry(root: Path) -> set[str]:
-    reg = load_yaml(root / "slots.yaml") or {}
+    reg = load_yaml(root / declared.content_file("slots", "render_profile")) or {}
     return set((reg.get("slots") or {}).keys())
 
 
@@ -188,7 +188,7 @@ def load_slot_values(path: str | None, registry: set[str]) -> dict[str, str]:
         raise InputError(f"{path}: expected a map of slot name to string")
     for k, v in data.items():
         if k not in registry:
-            raise InputError(f"{path}: slot '{k}' is not in slots.yaml")
+            raise InputError(f"{path}: slot '{k}' is not in {declared.content_file('slots', 'render_profile')}")
         if not isinstance(v, str):
             raise InputError(f"{path}: slot '{k}' must be a string")
     return dict(data)
@@ -323,7 +323,7 @@ def drop_h1(doc: str, attribution: str | None) -> str:
 class Renderer:
     def __init__(self, a: argparse.Namespace, out_dir: Path):
         self.a, self.out_dir = a, out_dir
-        self.prof = load_yaml(ROOT / "profiles.yaml") or {}
+        self.prof = load_yaml(ROOT / declared.content_file("profiles", "render_profile")) or {}
         self.profile = a.profile
         self.label = self.prof["profiles"][self.profile]["label"]
         self.uaf_label = self.prof["profiles"]["uaf"]["label"]
@@ -410,7 +410,7 @@ class Renderer:
             if mk in body and vid != home:
                 raise InputError(f"view {vid}: the marker {mk} belongs only in {home}")
         if vid == declared.home("capability-phases", "render_profile"):
-            body = capability_phases.name_record(body, self.a.record, ROOT / "capability-record.yaml")
+            body = capability_phases.name_record(body, self.a.record, ROOT / declared.content_file("record", "render_profile"))
         body = marks.fill(body, (ROOT / entry["file"]).parent, project.DECISIONS, vid)
         body = inline_model(body, self.sysml, self.masked)
         body = rewrite_links(body, (ROOT / entry["file"]).parent, self.out_dir)
@@ -530,8 +530,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--values", action="append", default=[])
     ap.add_argument("--release", help="the Helm release name the chart is rendered under")
     ap.add_argument("--allow-no-kinds", metavar="REASON")
-    ap.add_argument("--record", default=str(ROOT / "capability-record.yaml"),
-                    help="the capability record (default: docs/arch/capability-record.yaml)")
+    ap.add_argument("--record", default=str(ROOT / declared.content_file("record", "render_profile")),
+                    help="the capability record (default: the declared record file under the root, files.record)")
     ap.add_argument("--readiness", help="the readiness doc (default: the declared readiness.default, from the chart directory)")
     a = ap.parse_args(argv)
     try:

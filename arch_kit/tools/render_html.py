@@ -26,7 +26,7 @@ never shown in its place.
 
 Every page carries the chart name and version, a digest of the values files
 read, the generation date (--date, default today UTC) and the line that says
-this is declared, not measured. The grids are built from APPENDIX-A.md,
+this is declared, not measured. The grids are built from the appendix file (files.appendix),
 parsed as check_views parses it. Markdown goes through markdown-it-py with
 raw html off.
 
@@ -127,7 +127,7 @@ def appendix_ids(root: Path) -> list[list[str]]:
     rows = got[1] if got else []
     rows = [r for r in rows if len(r) == 5]
     if not rows:
-        raise InputError("APPENDIX-A.md holds no mapping table")
+        raise InputError(f"{declared.content_file('appendix', 'render_html')} holds no mapping table")
     return rows
 
 
@@ -363,8 +363,9 @@ class Decisions:
         self.rules = list(rules)
         self.replaced = 0
         self.files: dict[str, Path] = {}
-        for f in sorted(self.dir.glob("ADR-*.md")):
-            m = re.match(r"ADR-\d{4}", f.name)
+        rec_re, rec_glob = declared.record_patterns("render_html")
+        for f in sorted(self.dir.glob(rec_glob)):
+            m = re.match(rec_re, f.name)
             if not m:
                 continue
             if m.group(0) in self.files:
@@ -713,12 +714,12 @@ def declarations_md(views: dict) -> str:
 
     One row per slot that no declared artefact fills yet: what it fills, the
     declaration and the artefact INVENTORY names for it, and the views that show it."""
-    lines = check_views.outside_fences((ROOT / "INVENTORY.md").read_text(encoding="utf-8"))
+    lines = check_views.outside_fences((ROOT / declared.content_file("inventory", "render_html")).read_text(encoding="utf-8"))
     at = [i for i, ln in enumerate(lines) if ln.strip() == check_views.SLOT_INVENTORY_HEADER]
     if len(at) != 1:
-        raise InputError(f"INVENTORY.md has {len(at)} slot tables, expected one")
+        raise InputError(f"{declared.content_file('inventory', 'render_html')} has {len(at)} slot tables, expected one")
     _, rows = check_views.table_after(lines, at[0])
-    registry = (rp.load_yaml(ROOT / "slots.yaml") or {}).get("slots") or {}
+    registry = (rp.load_yaml(ROOT / declared.content_file("slots", "render_html")) or {}).get("slots") or {}
     shown: dict[str, list[str]] = {}
     for vid, e in views.items():
         for name in rp.SLOT_RE.findall((ROOT / e["file"]).read_text(encoding="utf-8")):
@@ -727,17 +728,17 @@ def declarations_md(views: dict) -> str:
     body = []
     for r in rows:
         if len(r) != 3:
-            raise InputError(f"INVENTORY.md's slot table has a row of {len(r)} cells, expected 3")
+            raise InputError(f"{declared.content_file('inventory', 'render_html')}'s slot table has a row of {len(r)} cells, expected 3")
         name = r[0].strip("` ")
         if name not in registry:
-            raise InputError(f"INVENTORY.md's slot table names {name}, which slots.yaml does not hold")
+            raise InputError(f"{declared.content_file('inventory', 'render_html')}'s slot table names {name}, which {declared.content_file('slots', 'render_html')} does not hold")
         if not shown.get(name):
-            raise InputError(f"INVENTORY.md's slot table names {name}, which no view shows")
+            raise InputError(f"{declared.content_file('inventory', 'render_html')}'s slot table names {name}, which no view shows")
         fills = str((registry[name] or {}).get("fills") or "").strip()
         where = ", ".join(f"[{v}]({Path(views[v]['file']).name})" for v in shown[name])
         body.append(f"| `{name}` | {fills} | {r[1]} | {r[2]} | {where} |")
     if not body:
-        raise InputError("INVENTORY.md's slot table has no rows")
+        raise InputError(f"{declared.content_file('inventory', 'render_html')}'s slot table has no rows")
     return "\n".join([
         f"These views mark {len(body)} facts about a deployment with a slot that no declared artefact fills yet. "
         "The framework cannot know them. Each row names the declaration a deployment would write, the artefact "
@@ -748,7 +749,7 @@ def declarations_md(views: dict) -> str:
         "|---|---|---|---|---|",
         *body,
         "",
-        "Built from [INVENTORY.md](../INVENTORY.md) and [slots.yaml](../slots.yaml) when the export is rendered.",
+        f"Built from [{(inv := declared.content_file('inventory', 'render_html'))}](../{inv}) and [{(sl := declared.content_file('slots', 'render_html'))}](../{sl}) when the export is rendered.",
         "",
     ])
 
@@ -1159,7 +1160,7 @@ def status_word(lead: str | None) -> str:
 def capability_pages(a: argparse.Namespace, uaf: "rp.Renderer", views: dict, names: dict, dec: Decisions,
                      prov: str) -> tuple[list[str], list[str]]:
     """(page sections, nav items): one page per capability in the model, in model order."""
-    record = capability_phases.load_record(getattr(a, "record", None) or ROOT / "capability-record.yaml")
+    record = capability_phases.load_record(getattr(a, "record", None) or ROOT / declared.content_file("record", "render_html"))
     cmap = capability_phases.model_capabilities(uaf.sysml)
     ddir = dec.dir
     cdir = Path(a.chart)
@@ -1421,7 +1422,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--values", action="append", default=[], required=True)
     ap.add_argument("--release", required=True, help="the Helm release name the chart is rendered under")
     ap.add_argument("--readiness", help="the readiness doc (default: the declared readiness.default, from the chart directory)")
-    ap.add_argument("--record", default=str(ROOT / "capability-record.yaml"))
+    ap.add_argument("--record", default=str(ROOT / declared.content_file("record", "render_html")))
     ap.add_argument("--slots")
     ap.add_argument("--relabel", action="append", default=[],
                     help="a list of PATTERN<TAB>REPLACEMENT lines applied to the whole export")

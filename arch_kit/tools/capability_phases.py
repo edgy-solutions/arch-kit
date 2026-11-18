@@ -73,7 +73,7 @@ NOT_STATED = "not stated"
 SECTIONS = ("groups", "environments", "entries", "capabilities")
 CAP_KEYS = ("description", "derived_from", "adrs", "built", "measured", "rows", "still_open", "increment",
             "degraded_mode", "pending")
-ADR_ID_RE = re.compile(r"ADR-\d{4}")
+ADR_ID_RE = re.compile(declared.record_patterns("capability_phases")[0])
 
 
 class CheckError(Exception):
@@ -282,14 +282,14 @@ def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> l
             if f in entry:
                 fails.append(f"entry {key} has a field '{f}': phase and evidence are computed, not recorded")
 
-    index_text = read_text(decisions_dir / "README.md")
+    index_text = read_text(decisions_dir / declared.decisions_readme("capability_phases"))
     follow = read_text(decisions_dir / follow_ups_file())
     debt = read_text(decisions_dir / debt_file())
     road = read_text(decisions_dir / roadmap_file())
     registers = register_rows(follow) if follow is not None else {}
     road_rows = roadmap_rows(road) if road is not None else []
     for label, text in ((f"decisions/{follow_ups_file()}", follow), (f"decisions/{debt_file()}", debt),
-                        (f"decisions/{roadmap_file()}", road), ("decisions/README.md", index_text)):
+                        (f"decisions/{roadmap_file()}", road), (f"decisions/{declared.decisions_readme('capability_phases')}", index_text)):
         if text is None:
             fails.append(f"{label} cannot be read")
 
@@ -305,7 +305,7 @@ def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> l
         lead = adr_lead(decisions_dir, adr)
         if adr not in seen_adrs:
             if index_text is not None and f"[{adr}:" not in index_text:
-                fails.append(f"{name}: {adr} is not in decisions/README.md")
+                fails.append(f"{name}: {adr} is not in decisions/{declared.decisions_readme('capability_phases')}")
             leads = [s.lead for s in declared.statuses("capability_phases") if s.in_force]
             if not lead or not lead.startswith(tuple(leads)):
                 fails.append(f"{name}: {adr} has no readable ## Status line beginning {' or '.join(leads)}")
@@ -357,7 +357,7 @@ def check_record(record: dict, capabilities: dict[str, str], decisions_dir) -> l
             try:
                 adr_sections.parse_citation(degraded)
             except ValueError:
-                fails.append(f"{name}: {dm} {degraded!r} is neither '{NOT_STATED}' nor a citation ADR-NNNN §LABEL")
+                fails.append(f"{name}: {dm} {degraded!r} is neither '{NOT_STATED}' nor a citation {declared.record_form('capability_phases')} §LABEL")
             else:
                 fails += check_section(name, degraded, decisions_dir)
                 check_adr(name, adr_id(degraded))
@@ -484,7 +484,7 @@ def render_table(record: dict, capabilities: dict[str, str], decisions_dir, temp
         raise CheckError("".join(f"phases: {f}\n" for f in fails))
 
     statuses = statuses_of(record, decisions_dir)
-    index_text = read_text(decisions_dir / "README.md") or ""
+    index_text = read_text(decisions_dir / declared.decisions_readme("capability_phases")) or ""
     road_rows = roadmap_rows(read_text(decisions_dir / roadmap_file()) or "")
     rows, counts, used = [], dict.fromkeys(declared.phase_names("capability_phases"), 0), set()
     for name, parent in capabilities.items():

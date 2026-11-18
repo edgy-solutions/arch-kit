@@ -19,11 +19,15 @@
 #                 their status tokens
 #   IDX_INDEXED   globs, space-separated: each document matching one must be
 #                 named in IDX_README
-#   IDX_LOCAL     the local prefix: `PREFIX:ADR-NNNN` must resolve here
+#   IDX_LOCAL     the local prefix: `PREFIX:<record id>` must resolve here
 #   IDX_FOREIGN   one line per foreign prefix, in order: the prefix, a tab,
 #                 then the pin check's path relative to the decisions
 #                 directory (empty for none)
 #   IDX_ROOT      the repository root, relative to the decisions directory
+#   IDX_RECORD_PREFIX, IDX_RECORD_DIGITS   a decision record id is PREFIX-<digits>
+#                 and its file PREFIX-<digits>-<slug>.md (default ADR, 4)
+#   IDX_ID_LETTERS, IDX_ID_MIN, IDX_ID_MAX   a register id is that many capital
+#                 letters, a hyphen, then MIN to MAX digits (default 2, 1, 2)
 #
 # Exit 0 = clean. Exit 1 = drift, with the specifics printed.
 #
@@ -50,6 +54,12 @@ set -uo pipefail
 : "${IDX_DIRNAME:?}" "${IDX_REGISTER:?}" "${IDX_README:?}" "${IDX_HOMES:?}" "${IDX_INDEXED:?}"
 : "${IDX_LOCAL:?}" "${IDX_ROOT:?}"
 IDX_FOREIGN="${IDX_FOREIGN:-}"
+# The grammar of the ids, from the declaration; the defaults are the original fixed forms.
+rp="${IDX_RECORD_PREFIX:-ADR}"
+rd="${IDX_RECORD_DIGITS:-4}"
+idlet="[A-Z]{${IDX_ID_LETTERS:-2}}"
+idnum="[0-9]{${IDX_ID_MIN:-1},${IDX_ID_MAX:-2}}"
+recform="$rp-$(printf '%*s' "$rd" '' | tr ' ' N)"
 fail=0
 
 # --- scope, derived rather than listed --------------------------------------
@@ -72,9 +82,9 @@ homes_files=$(ls $IDX_HOMES 2>/dev/null)
 # Also deliberately not scanned from plans or the document index: a plan that
 # describes the status-token design contains an EXAMPLE row, and an example is
 # not a declaration.
-prefixes=$( { grep -ohE "^\*\*[A-Z]{2}-[0-9]{1,2} —" $homes_files
-              grep -ohE "^\| \*\*[A-Z]{2}-[0-9]{1,2}\*\* \|" $homes_files
-            } 2>/dev/null | grep -oE "[A-Z]{2}" | sort -u | paste -sd'|' -)
+prefixes=$( { grep -ohE "^\*\*${idlet}-${idnum} —" $homes_files
+              grep -ohE "^\| \*\*${idlet}-${idnum}\*\* \|" $homes_files
+            } 2>/dev/null | grep -oE "$idlet" | sort -u | paste -sd'|' -)
 if [ -z "$prefixes" ]; then
   echo "FAIL: no register prefixes found — the derivation is broken, not the corpus"
   exit 1
@@ -85,9 +95,9 @@ fi
 # would include the index in its own corpus, so every row would vouch for
 # itself and the phantom-row direction could never fail. A verification that
 # includes its own subject in its evidence is not a verification.
-corpus=$(grep -ohE "\b($prefixes)-[0-9]{1,2}\b" \
+corpus=$(grep -ohE "\b($prefixes)-${idnum}\b" \
            $(ls *.md | grep -vxF "$IDX_REGISTER") | sort -u)
-rows=$(grep -ohE "^\| ($prefixes)-[0-9]{1,2} " "$IDX_REGISTER" \
+rows=$(grep -ohE "^\| ($prefixes)-${idnum} " "$IDX_REGISTER" \
          | tr -d '| ' | sort -u)
 
 missing=$(comm -23 <(echo "$corpus") <(echo "$rows"))
@@ -132,7 +142,7 @@ fi
 #   others — a `Status: …` line immediately above the row's **ID — heading.
 home_status() {
   # table-shaped rows: | **GD-01** | … | … | open |
-  sed -nE "s/^\| \*\*(($prefixes)-[0-9]{1,2})\*\* \|.*\| ([^|]*) \|\$/\1\t\3/p" $homes_files \
+  sed -nE "s/^\| \*\*(($prefixes)-${idnum})\*\* \|.*\| ([^|]*) \|\$/\1\t\3/p" $homes_files \
     | sed -E 's/[[:space:]]+$//'
   # prose rows: a `Status: …` line, then the **ID — heading it labels.
   # `prefixes` is passed in with -v; awk is single-quoted, so a shell variable
@@ -151,7 +161,7 @@ home_status() {
 }
 
 index_status() {
-  sed -nE "s/^\| (($prefixes)-[0-9]{1,2}) \|.*\| ([^|]*) \|\$/\1\t\3/p" "$IDX_REGISTER" \
+  sed -nE "s/^\| (($prefixes)-${idnum}) \|.*\| ([^|]*) \|\$/\1\t\3/p" "$IDX_REGISTER" \
     | sed -E 's/[[:space:]]+$//'
 }
 
@@ -187,8 +197,8 @@ fi
 # ---------------------------------------------------------------------------
 # CROSS-REPO CITATIONS — ADR numbers can name two different documents
 # ---------------------------------------------------------------------------
-# `LOCAL:ADR-0029` and `FOREIGN:ADR-0029` are different decisions. An
-# unqualified number is therefore already ambiguous, and a convergence of
+# `LOCAL:ADR-0029` and `FOREIGN:ADR-0029` are different decisions (ADR is the
+# declared record prefix, and 4 its digits). An unqualified number is therefore already ambiguous, and a convergence of
 # corpora will only add more of them.
 #
 # THE CONVENTION IS LOCALITY: an unqualified `ADR-NNNN` means THIS repo, which
@@ -226,21 +236,21 @@ done
 # checker whose whole job is catching that shape. The unanchored pattern is
 # equivalent here (verified against the corpus: same two hits) and has nothing
 # to mis-transcribe.
-xrefs=$(grep -ohE "[a-z][a-z0-9-]*:ADR-[0-9]{4}" *.md 2>/dev/null | sort -u)
+xrefs=$(grep -ohE "[a-z][a-z0-9-]*:$rp-[0-9]{$rd}" *.md 2>/dev/null | sort -u)
 
 bad_prefix=$(printf '%s\n' "$xrefs" | grep -vE "^($KNOWN_REPOS):" | grep -v '^$')
 if [ -n "$bad_prefix" ]; then
   echo "FAIL: cross-repo citations with an unrecognised prefix:" >&2
   printf '%s\n' "$bad_prefix" | sed 's/^/    /' >&2
-  echo "      Known repos: $known_list. An unqualified ADR-NNNN means" >&2
+  echo "      Known repos: $known_list. An unqualified $recform means" >&2
   echo "      THIS repo by locality and needs no prefix." >&2
   fail=1
 fi
 
 missing_local=""
-for ref in $(printf '%s\n' "$xrefs" | grep -E "^$IDX_LOCAL:ADR-[0-9]{4}$"); do
-  num="${ref#$IDX_LOCAL:ADR-}"
-  ls ADR-${num}-*.md >/dev/null 2>&1 || missing_local="${missing_local}    ${ref}"$'\n'
+for ref in $(printf '%s\n' "$xrefs" | grep -E "^$IDX_LOCAL:$rp-[0-9]{$rd}$"); do
+  num="${ref#$IDX_LOCAL:$rp-}"
+  ls $rp-${num}-*.md >/dev/null 2>&1 || missing_local="${missing_local}    ${ref}"$'\n'
 done
 if [ -n "$missing_local" ]; then
   echo "FAIL: $IDX_LOCAL:-prefixed citations with no matching document here:" >&2
@@ -255,7 +265,7 @@ foreign_summary=""
 pins_all=""
 while IFS=$'\t' read -r fp fpin; do
   [ -n "$fp" ] || continue
-  foreign=$(printf '%s\n' "$xrefs" | grep -cE "^$fp:ADR-" || true)
+  foreign=$(printf '%s\n' "$xrefs" | grep -cE "^$fp:$rp-" || true)
   if [ -z "$fpin" ]; then
     foreign_summary="${foreign_summary}  ${foreign:-0} ${fp}:-prefixed reference(s); no pin check is declared for this prefix."$'\n'
     continue

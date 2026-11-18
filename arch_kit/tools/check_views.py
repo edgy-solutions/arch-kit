@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """check_views.py - check the architecture views against the rules that keep them honest.
 
-Reads docs/arch (views, profiles.yaml, slots.yaml, README.md, INVENTORY.md,
+Reads docs/arch (views, profiles.yaml, slots.yaml, README.md, INVENTORY.md; each of those
+names is the default of a `files.*` key and may be declared otherwise,
 the SysML model) and the decision records the views cite. Writes one
 `FAIL: <rule>: <what>` line per finding on stderr, and exits 1 if there is
 any. When nothing fails it prints an `ok:` count line.
@@ -71,6 +72,10 @@ LINK_RE = re.compile(r"\[[^\]\n]*\]\(([^)\s]+)\)")
 CODE_SPAN_RE = re.compile(r"`[^`\n]*`")
 
 
+def _file(key: str) -> str:
+    return declared.content_file(key, "check_views")
+
+
 class InputError(Exception):
     """Bad input: exit 2."""
 
@@ -80,11 +85,11 @@ class Tree:
 
     def __init__(self, root: Path, record: Path | None = None):
         self.root = root
-        self.record = record or root / "capability-record.yaml"
-        self.profiles = self.yaml(root / "profiles.yaml")
-        self.slots = self.yaml(root / "slots.yaml")
+        self.record = record or root / declared.content_file("record", "check_views")
+        self.profiles = self.yaml(root / declared.content_file("profiles", "check_views"))
+        self.slots = self.yaml(root / declared.content_file("slots", "check_views"))
         self.views: dict = self.profiles.get("views") or {}
-        self.readme = self.text(root / "README.md")
+        self.readme = self.text(root / declared.content_file("readme", "check_views"))
         self.sysml = self.text(project.model_file("check_views", root))
         self.masked = mask_sysml(self.sysml)
         self.view_text = {vid: self.text(root / e["file"]) for vid, e in self.views.items()
@@ -175,7 +180,7 @@ def vocabulary(readme: str, head: str) -> set[str]:
 def appendix_parse(root: Path) -> tuple[str, list[list[str]]] | None:
     """(header line, body rows) of the first table of APPENDIX-A.md, or None if the file is missing."""
     try:
-        text = (root / "APPENDIX-A.md").read_text(encoding="utf-8")
+        text = (root / _file("appendix")).read_text(encoding="utf-8")
     except OSError:
         return None
     return table_after(outside_fences(text), 0)
@@ -211,17 +216,17 @@ def rule_exports(t: Tree) -> list[str]:
             allowed = names.get(vid, {}).get(prof, set())
             for x in ids or []:
                 if x not in allowed:
-                    fails.append(f"exports: {vid} {prof} exports {x}, which APPENDIX-A.md does not name for that view")
+                    fails.append(f"exports: {vid} {prof} exports {x}, which {_file('appendix')} does not name for that view")
     return fails
 
 
 def rule_appendix(t: Tree) -> list[str]:
     got = appendix_parse(t.root)
     if got is None:
-        return ["appendix-a: APPENDIX-A.md does not exist"]
+        return [f"appendix-a: {_file('appendix')} does not exist"]
     header, rows = got
     if header != APPENDIX_HEADER:
-        return [f"appendix-a: APPENDIX-A.md table header is '{header}', expected '{APPENDIX_HEADER}'"]
+        return [f"appendix-a: {_file('appendix')} table header is '{header}', expected '{APPENDIX_HEADER}'"]
     fails, seen = [], set()
     for r in rows:
         if len(r) != 5:
@@ -233,16 +238,16 @@ def rule_appendix(t: Tree) -> list[str]:
     names = appendix_names(t.root)
     for vid, e in t.views.items():
         if vid not in names:
-            fails.append(f"appendix-a: view {vid} has no row in APPENDIX-A.md")
+            fails.append(f"appendix-a: view {vid} has no row in {_file('appendix')}")
             continue
         for prof, reason in (e.get("no_target") or {}).items():
             if reason and names[vid].get(prof):
                 fails.append(f"appendix-a: {vid} has a no_target reason for {prof}, "
-                             f"but APPENDIX-A.md names {', '.join(sorted(names[vid][prof]))}")
+                             f"but {_file('appendix')} names {', '.join(sorted(names[vid][prof]))}")
         if "appendix_a" in e:
-            fails.append(f"appendix-a: view {vid} still has appendix_a in profiles.yaml; the mapping lives in APPENDIX-A.md")
+            fails.append(f"appendix-a: view {vid} still has appendix_a in {_file('profiles')}; the mapping lives in {_file('appendix')}")
     if "deviations" in t.profiles:
-        fails.append("appendix-a: profiles.yaml still has deviations; the mapping lives in APPENDIX-A.md")
+        fails.append(f"appendix-a: {_file('profiles')} still has deviations; the mapping lives in {_file('appendix')}")
     return fails
 
 
@@ -260,7 +265,7 @@ def rule_view_files(t: Tree) -> list[str]:
             fails.append(f"view-files: {vid}: first line is '{first}', expected '{want}'")
     for p in sorted((t.root / "views").glob("*.md")):
         if p.resolve() not in listed:
-            fails.append(f"view-files: {p.name} has no entry in profiles.yaml")
+            fails.append(f"view-files: {p.name} has no entry in {_file('profiles')}")
     return fails
 
 
@@ -273,35 +278,35 @@ def rule_slots(t: Tree) -> list[str]:
             used.setdefault(name, []).append(vid)
     for name in sorted(used):
         if name not in registry:
-            fails.append(f"slots: {name} is used in {', '.join(sorted(set(used[name])))} and not in slots.yaml")
+            fails.append(f"slots: {name} is used in {', '.join(sorted(set(used[name])))} and not in {_file('slots')}")
     for name in sorted(registry):
         if name not in used:
-            fails.append(f"slots: {name} is in slots.yaml and used in no view")
+            fails.append(f"slots: {name} is in {_file('slots')} and used in no view")
         entry = registry[name] or {}
         for key in ("fills", "source"):
             if not entry.get(key):
-                fails.append(f"slots: {name} lacks '{key}' in slots.yaml")
-    inventory = t.text(t.root / "INVENTORY.md").split("\n")
+                fails.append(f"slots: {name} lacks '{key}' in {_file('slots')}")
+    inventory = t.text(t.root / _file("inventory")).split("\n")
     at = [i for i, ln in enumerate(inventory) if ln.strip() == SLOT_INVENTORY_HEADER]
     if len(at) != 1:
-        return fails + [f"slots: INVENTORY.md has {len(at)} slot tables, expected one"]
+        return fails + [f"slots: {_file('inventory')} has {len(at)} slot tables, expected one"]
     _, rows = table_after(inventory, at[0])
     lined = {r[0].strip("` ") for r in rows if r}
     for name in sorted(registry):
         none_yet = str((registry[name] or {}).get("source") or "").startswith("none yet")
         if none_yet and name not in lined:
-            fails.append(f"slots: {name} has no source and no line in INVENTORY.md saying what would fill it")
+            fails.append(f"slots: {name} has no source and no line in {_file('inventory')} saying what would fill it")
         if not none_yet and name in lined:
-            fails.append(f"slots: {name} has a source in slots.yaml and still a line in INVENTORY.md's slot table")
+            fails.append(f"slots: {name} has a source in {_file('slots')} and still a line in {_file('inventory')}'s slot table")
     for name in sorted(lined - set(registry)):
-        fails.append(f"slots: INVENTORY.md's slot table names {name}, which slots.yaml does not hold")
+        fails.append(f"slots: {_file('inventory')}'s slot table names {name}, which {_file('slots')} does not hold")
     return fails
 
 
 def rule_links(t: Tree) -> list[str]:
     fails = []
     files = [(f"views/{Path(e['file']).name}", t.root / e["file"]) for e in t.views.values()]
-    files += [(n, t.root / n) for n in ("README.md", "INVENTORY.md", "APPENDIX-A.md")]
+    files += [(n, t.root / n) for n in (_file("readme"), _file("inventory"), _file("appendix"))]
     for name, path in files:
         if not path.is_file():
             if not name.startswith("views/"):  # a missing view file is view-files' finding
@@ -316,7 +321,7 @@ def rule_links(t: Tree) -> list[str]:
 
 COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 CITED_VIEW = uaf.CAPABILITY_TAXONOMY
-DECISION_FILE_RE = re.compile(r"^(ADR-\d{4})-.+\.md$")
+DECISION_FILE_RE = re.compile(r"^(" + declared.record_patterns("check_views")[0] + r")-.+\.md$")
 TEXT_LINK_RE = re.compile(r"\[([^\]\n]*)\]\(([^)\s]+)\)")
 
 
@@ -343,7 +348,7 @@ def rule_decision_links(t: Tree) -> list[str]:
                 c = adr_sections.CITATION_RE.match(label)
                 if not c:
                     fails.append(f"decision-links: {vid}: link text {label!r} is not a citation of the form "
-                                 f"ADR-NNNN §LABEL")
+                                 f"{declared.record_form('check_views')} §LABEL")
                     continue
                 if c.group(1) != m.group(1):
                     fails.append(f"decision-links: {vid}: link text {label!r} cites {c.group(1)} "
@@ -365,7 +370,7 @@ def rule_sources_table(t: Tree) -> list[str]:
     decisions = vocabulary(t.readme, "| Decision | Meaning |")
     evidences = vocabulary(t.readme, "| Evidence | Meaning |")
     if not decisions or not evidences:
-        fails.append("sources-table: README.md has no Decision or Evidence vocabulary table")
+        fails.append(f"sources-table: {_file('readme')} has no Decision or Evidence vocabulary table")
     for vid, text in t.view_text.items():
         got = sources_table(text)
         if got is None:
@@ -665,7 +670,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--release", help="the Helm release name")
     ap.add_argument("--readiness", help="the readiness document the evidence quotes come from")
     ap.add_argument("--barred", action="append", default=[], help="a barred list file (repeatable)")
-    ap.add_argument("--record", help="the capability record to check (default: <root>/capability-record.yaml). "
+    ap.add_argument("--record", help="the capability record to check (default: <root>/ the declared record file, files.record). "
                     "A deployment's own record, as passed to render_html.py --record")
     ap.add_argument("--allow-partial", metavar="REASON", help="run without quotes and floor, and say why")
     a = ap.parse_args(argv)

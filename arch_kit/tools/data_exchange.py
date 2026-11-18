@@ -51,6 +51,7 @@ from pathlib import Path
 
 import yaml
 
+import declared
 import project
 
 EXIT_OK, EXIT_CHECK, EXIT_INPUT = 0, 1, 2
@@ -74,7 +75,6 @@ RAW_INGEST_RE = re.compile(r"^ingress-[a-z0-9]+(?:-[a-z0-9]+)*-raw$")
 RAW_INGEST_READERS: frozenset[str] = frozenset()
 STAMP_NOT_MEASURED = ("Declared, not measured: this table reads a render; "
                       "nothing here was observed running.")
-PROFILES_PATH = project.ROOT / "profiles.yaml"
 LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
 MEANINGS = {
@@ -542,7 +542,7 @@ def exchange_header(cols: dict) -> list[str]:
 
 
 def load_profiles() -> dict:
-    with open(PROFILES_PATH, encoding="utf-8") as f:
+    with open(project.ROOT / declared.content_file("profiles", "data_exchange"), encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 

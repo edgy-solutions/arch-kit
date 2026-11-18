@@ -1,0 +1,18 @@
+kit: 1
+paths:
+  root: .
+  repo: .
+  decisions: decisions
+decisions:
+  records:
+    prefix: DR
+    digits: 3
+  index:
+    register: REGISTER.md
+    readme: README.md
+    register_homes: [DR-*.md, DEBT.md]
+    indexed: [DR-*.md, PLAN-*.md, DEBT.md, REGISTER.md]
+    local_prefix: loam
+    register_id:
+      letters: 3
+      digits: [1, 3]

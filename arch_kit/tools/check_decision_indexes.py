@@ -4,7 +4,8 @@
 Usage:
     python -m arch_kit check_decision_indexes
 
-Reads `decisions.index` from the declaration, exports the names to check_decision_indexes.sh, and runs it with
+Reads `decisions.index` and `decisions.records` from the declaration, exports the names and the id grammar (the
+IDX_RECORD_* and IDX_ID_* names below the module's constants) to check_decision_indexes.sh, and runs it with
 bash from the declared decisions directory. The script's stdout, stderr and exit code are passed through
 unchanged. Set PINS_OUT to a file to receive the list of pins that each foreign pin check printed.
 
@@ -23,6 +24,8 @@ import declared
 import project
 
 TOOL = "check_decision_indexes"
+IDX_RECORD_PREFIX, IDX_RECORD_DIGITS = declared.record_id(TOOL)
+IDX_ID_LETTERS, IDX_ID_MIN, IDX_ID_MAX = declared.register_id(TOOL)
 SCRIPT = Path(__file__).resolve().with_suffix(".sh")
 
 
@@ -51,7 +54,9 @@ def main() -> int:
     env = dict(os.environ,
                IDX_DIRNAME=directory.name, IDX_REGISTER=index.register, IDX_README=index.readme,
                IDX_HOMES=" ".join(index.register_homes), IDX_INDEXED=" ".join(index.indexed),
-               IDX_LOCAL=index.local_prefix, IDX_FOREIGN="\n".join(foreign), IDX_ROOT=_rel(repo, directory))
+               IDX_LOCAL=index.local_prefix, IDX_FOREIGN="\n".join(foreign), IDX_ROOT=_rel(repo, directory),
+               IDX_RECORD_PREFIX=IDX_RECORD_PREFIX, IDX_RECORD_DIGITS=str(IDX_RECORD_DIGITS),
+               IDX_ID_LETTERS=str(IDX_ID_LETTERS), IDX_ID_MIN=str(IDX_ID_MIN), IDX_ID_MAX=str(IDX_ID_MAX))
     sys.stdout.flush()
     sys.stderr.flush()
     return subprocess.run([bash, str(SCRIPT)], cwd=directory, env=env).returncode

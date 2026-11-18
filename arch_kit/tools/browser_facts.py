@@ -7,7 +7,7 @@ Usage:
 Writes JSON. Nothing is read from the rendered HTML: a fact computed from the page it checks would only say
 the page agrees with itself. The fields:
 
-    views               the number of views in profiles.yaml
+    views               the number of views in the profiles file (files.profiles)
     base_pages          the front page, the views and the declarations page (render_html.build)
     capability_pages    one per capability in the model file (render_html.capability_pages)
     decision_pages      one per decisions/ADR-*.md plus the roadmap note (render_html.Decisions)
@@ -64,7 +64,7 @@ def source_tables(markdown: str) -> list:
 def facts(root: Path) -> dict:
     tree = check_views.Tree(root)
     try:
-        record = capability_phases.load_record(root / "capability-record.yaml")
+        record = capability_phases.load_record(root / declared.content_file("record", "browser_facts"))
     except capability_phases.InputError as e:
         raise check_views.InputError(str(e))
     capabilities = capability_phases.model_capabilities(tree.sysml)

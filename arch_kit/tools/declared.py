@@ -198,7 +198,8 @@ def require_public_lists(tool: str, **given: bool) -> None:
             project.die(f"error: the portal's audience is public: {tool} needs {names[flag]}")
 
 
-INDEX_KEYS = ("register", "readme", "register_homes", "indexed", "local_prefix", "foreign")
+INDEX_KEYS = ("register", "readme", "register_homes", "indexed", "local_prefix", "foreign", "register_id")
+INDEX_OPTIONAL = ("foreign", "register_id")
 PREFIX_RE = r"[a-z][a-z0-9-]*"
 
 
@@ -216,6 +217,59 @@ class DecisionIndex(NamedTuple):
     foreign: tuple
 
 
+FILE_DEFAULTS = {
+    "profiles": "profiles.yaml",
+    "slots": "slots.yaml",
+    "appendix": "APPENDIX-A.md",
+    "inventory": "INVENTORY.md",
+    "readme": "README.md",
+    "record": "capability-record.yaml",
+    "adr_exemptions": "adr-exemptions.yaml",
+    "annotation_exceptions": "annotation-exceptions.yaml",
+}
+
+
+def _relative(value, key):
+    """Exit 2 unless value is a plain relative path with no '..', no leading slash and no drive letter."""
+    import re
+    if not isinstance(value, str) or not value.strip() or value != value.strip() or value.startswith(("/", "\\")) \
+            or re.match(r"^[A-Za-z]:", value) or ".." in re.split(r"[/\\]", value):
+        _bad(key, "must be a plain relative path with no '..'")
+    return value
+
+
+def content_file(key: str, tool: str) -> str:
+    """The declared name of a content file under paths.root (`files.<key>`), or its default.
+
+    Every key is optional; the default is the name the kit has always used. An unknown key, or a value that is
+    not a plain relative path, exits 2 naming the key."""
+    if "files" not in _CACHE:
+        node = project.CONFIG.get("files")
+        out = dict(FILE_DEFAULTS)
+        if node is not None:
+            if not isinstance(node, dict):
+                _bad("files", "must be a map")
+            for k, v in node.items():
+                if k not in FILE_DEFAULTS:
+                    _bad(f"files.{k}", f"unknown key; the keys are {', '.join(FILE_DEFAULTS)}")
+                out[k] = _relative(v, f"files.{k}")
+        _CACHE["files"] = out
+    if key not in FILE_DEFAULTS:
+        raise KeyError(key)
+    return _CACHE["files"][key]
+
+
+def decisions_readme(tool: str) -> str:
+    """The decision document index file name: `decisions.index.readme` when declared, else README.md.
+
+    Unlike decisions_index() it needs none of the other `decisions.index` keys."""
+    node = project.CONFIG.get("decisions")
+    index = node.get("index") if isinstance(node, dict) else None
+    if isinstance(index, dict) and "readme" in index:
+        return _name(index["readme"], "decisions.index.readme")
+    return "README.md"
+
+
 def _name(value, key):
     if not isinstance(value, str) or not value.strip() or value != value.strip() or any(c.isspace() for c in value):
         _bad(key, "must be a non-empty string with no spaces")
@@ -229,6 +283,82 @@ def _prefix(value, key):
     return value
 
 
+RECORD_KEYS = ("prefix", "digits")
+REGISTER_ID_KEYS = ("letters", "digits")
+
+
+def _int(value, key, low, high):
+    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+        _bad(key, f"must be an integer from {low} to {high}")
+    return value
+
+
+def record_id(tool: str) -> tuple:
+    """(prefix, digits) of a decision record id (`decisions.records`); a record id is PREFIX-<digits> and its
+    file PREFIX-<digits>-<slug>.md. The default is ADR and 4."""
+    import re
+    if "record_id" not in _CACHE:
+        decisions = project.CONFIG.get("decisions")
+        node = decisions.get("records") if isinstance(decisions, dict) else None
+        prefix, digits = "ADR", 4
+        if node is not None:
+            if not isinstance(node, dict):
+                _bad("decisions.records", "must be a map")
+            for k in node:
+                if k not in RECORD_KEYS:
+                    _bad("decisions.records", f"unknown key {k!r}")
+            if "prefix" in node:
+                prefix = node["prefix"]
+                if not isinstance(prefix, str) or not re.fullmatch(r"[A-Z][A-Z0-9]*", prefix):
+                    _bad("decisions.records.prefix", f"{prefix!r} is not a prefix: uppercase letters and digits, "
+                                                     f"starting with a letter")
+            if "digits" in node:
+                digits = _int(node["digits"], "decisions.records.digits", 1, 8)
+        _CACHE["record_id"] = (prefix, digits)
+    return _CACHE["record_id"]
+
+
+def record_patterns(tool: str) -> tuple:
+    """(regex text, file glob) for a decision record: `PREFIX-\d{N}` and `PREFIX-*.md`."""
+    prefix, digits = record_id(tool)
+    return f"{prefix}-" + chr(92) + f"d{{{digits}}}", f"{prefix}-*.md"
+
+
+def record_form(tool: str) -> str:
+    """The form a message shows for a record id: the prefix, a hyphen and one N per digit (ADR-NNNN by default)."""
+    prefix, digits = record_id(tool)
+    return f"{prefix}-" + "N" * digits
+
+
+def register_id(tool: str) -> tuple:
+    """(letters, min digits, max digits) of a register id (`decisions.index.register_id`): that many capital
+    letters, a hyphen, then min to max digits. The default is 2, 1 and 2."""
+    if "register_id" not in _CACHE:
+        decisions = project.CONFIG.get("decisions")
+        index = decisions.get("index") if isinstance(decisions, dict) else None
+        node = index.get("register_id") if isinstance(index, dict) else None
+        letters, low, high = 2, 1, 2
+        base = "decisions.index.register_id"
+        if node is not None:
+            if not isinstance(node, dict):
+                _bad(base, "must be a map")
+            for k in node:
+                if k not in REGISTER_ID_KEYS:
+                    _bad(base, f"unknown key {k!r}")
+            if "letters" in node:
+                letters = _int(node["letters"], base + ".letters", 1, 6)
+            if "digits" in node:
+                pair = node["digits"]
+                if not isinstance(pair, list) or len(pair) != 2:
+                    _bad(base + ".digits", "must be a list of two integers, [min, max]")
+                low = _int(pair[0], base + ".digits", 1, 6)
+                high = _int(pair[1], base + ".digits", 1, 6)
+                if low > high:
+                    _bad(base + ".digits", "min must not exceed max")
+        _CACHE["register_id"] = (letters, low, high)
+    return _CACHE["register_id"]
+
+
 def decisions_index(tool: str) -> DecisionIndex:
     """The declared decision-index names (`decisions.index`): the files, globs and repository prefixes."""
     if "decisions_index" not in _CACHE:
@@ -239,7 +369,7 @@ def decisions_index(tool: str) -> DecisionIndex:
             if k not in INDEX_KEYS:
                 _bad("decisions.index", f"unknown key {k!r}")
         for k in INDEX_KEYS:
-            if k != "foreign":
+            if k not in INDEX_OPTIONAL:
                 project.need("decisions.index." + k, tool)
         base = "decisions.index."
         lists = {}
@@ -294,9 +424,7 @@ def dictionary(tool: str) -> Dictionary:
                 _bad("derived.dictionary", f"unknown key {k!r}")
         d = project.need(base + "dir", tool)
         terms = project.need(base + "terms", tool)
-        if not isinstance(d, str) or not d.strip() or d != d.strip() or d.startswith(("/", "\\")) \
-                or re.match(r"^[A-Za-z]:", d) or ".." in re.split(r"[/\\]", d):
-            _bad(base + "dir", "must be a plain relative path with no '..'")
+        _relative(d, base + "dir")
         out = []
         for i, item in enumerate(_list(terms, base + "terms")):
             key = f"{base}terms[{i}]"
@@ -310,6 +438,43 @@ def dictionary(tool: str) -> Dictionary:
             out.append(Term(f, path))
         _CACHE["dictionary"] = Dictionary(d, tuple(out))
     return _CACHE["dictionary"]
+
+
+ROADMAP_DEFAULTS = {
+    "increments": ("#", "increment", "what isolates", "home", "depends on"),
+    "fold_ins": ("row", "slice", "folds into", "why it costs the increment nothing"),
+}
+
+
+def roadmap_headers(tool: str) -> tuple:
+    """The header cells of the roadmap note's two tables (`derived.roadmap.increments`, `.fold_ins`), as lists.
+
+    Both keys are optional; the defaults are the original fixed headers. The columns are still read by position,
+    so a declared header needs at least as many cells as the default."""
+    if "roadmap" not in _CACHE:
+        node = project.CONFIG.get("derived")
+        node = node.get("roadmap") if isinstance(node, dict) else None
+        if node is None:
+            node = {}
+        if not isinstance(node, dict):
+            _bad("derived.roadmap", "must be a map")
+        for k in node:
+            if k not in ROADMAP_DEFAULTS:
+                _bad("derived.roadmap", f"unknown key {k!r}")
+        out = []
+        for k, default in ROADMAP_DEFAULTS.items():
+            key = "derived.roadmap." + k
+            cells = node.get(k, list(default))
+            _list(cells, key)
+            if not all(isinstance(c, str) and c.strip() for c in cells):
+                _bad(key, "every header cell must be a non-empty string")
+            if len(set(cells)) != len(cells):
+                _bad(key, "header cells must be distinct")
+            if len(cells) < len(default):
+                _bad(key, f"needs at least {len(default)} columns, the tool reads them by position")
+            out.append(list(cells))
+        _CACHE["roadmap"] = tuple(out)
+    return tuple(list(h) for h in _CACHE["roadmap"])
 
 
 READERS = ("helm-annotations",)

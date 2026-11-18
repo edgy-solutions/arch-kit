@@ -34,8 +34,9 @@ is the acceptance test: after every step it must come out byte-identical, or eac
 | 6d | Caught up with the first project's later tool changes: `check_views --record`, and the CV-3 text naming a passed record | done |
 | 7 | The first project pins `v0.1.0`, with the golden comparison in its CI | in review |
 
-Pin the tag `v0.1.0` or a full commit sha, never a branch. Some conventions are still fixed rather than declared. The
-[declaration reference](docs/declaration.md#what-is-not-declared-yet) lists them.
+Pin the tag `v0.1.0` or a full commit sha, never a branch. The content file names, the decision record and register id
+grammar and the roadmap table headers, once fixed, are now declared as optional keys whose defaults are the old values.
+The [declaration reference](docs/declaration.md#formerly-fixed-now-declared) lists them.
 
 ## How it works
 
@@ -171,7 +172,7 @@ Every third-party action it uses is pinned to a full commit sha.
 
 ## Content layout
 
-The tools read these files under `paths.root` and `paths.decisions`. The file names are fixed for now.
+The tools read these files under `paths.root` and `paths.decisions`. The file names are the defaults; each can be declared under `files` (see the [declaration reference](docs/declaration.md#content-file-names)).
 
 ```
 <paths.root>/

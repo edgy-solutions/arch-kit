@@ -36,13 +36,13 @@ from pathlib import Path
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import declared  # noqa: E402
 import project  # noqa: E402
 from data_exchange import (EXIT_CHECK, EXIT_INPUT, EXIT_OK, groups_key, produces_key,  # noqa: E402
                            WORKLOAD_KINDS, InputError, Workload, build_model,
                            helm_render, load_docs, load_yaml_file, resolve_release,
                            split_pairs)
 
-DEFAULT_EXCEPTIONS = project.ROOT / "annotation-exceptions.yaml"
 BROKER_ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 TOPIC_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
@@ -167,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--values", action="append", default=[])
     ap.add_argument("--rendered")
     ap.add_argument("--release", help="the Helm release name the render was made under")
-    ap.add_argument("--exceptions", default=str(DEFAULT_EXCEPTIONS))
+    ap.add_argument("--exceptions", default=str(project.ROOT / declared.content_file("annotation_exceptions", "check_annotations")))
     ap.add_argument("--print-rows", action="store_true")
     a = ap.parse_args(argv)
     try:

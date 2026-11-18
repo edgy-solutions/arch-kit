@@ -19,6 +19,7 @@ import yaml
 HERE = Path(__file__).resolve().parent
 KIT = HERE.parent.parent
 FIXTURE = HERE / "testdata" / "decisions-index"
+FIXTURE_DR = HERE / "testdata" / "decisions-index-dr"
 BASH = shutil.which("bash")
 
 
@@ -192,6 +193,81 @@ class IndexCheck(unittest.TestCase):
         self.replace("ADR-0001-alpha.md", " and cites ferro:ADR-0007", "")
         p = self.run_tool(edit)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+
+@unittest.skipUnless(BASH, "needs bash on the PATH")
+class DeclaredGrammar(IndexCheck):
+    """The same checks on a corpus whose records are DR-NNN-<slug>.md and whose register ids are three capital
+    letters and one to three digits (testdata/decisions-index-dr/). Only the cases that name an id are repeated."""
+
+    def setUp(self):
+        self.tree = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tree, True)
+        shutil.copytree(FIXTURE_DR, self.tree, dirs_exist_ok=True)
+        self.dec = self.tree / "decisions"
+
+    def decl(self, edit=None):
+        c = yaml.safe_load((FIXTURE_DR / "arch-kit.yaml").read_text(encoding="utf-8"))
+        if edit:
+            edit(c)
+        path = self.tree / "arch-kit.yaml"
+        path.write_text(yaml.safe_dump(c), encoding="utf-8")
+        return path
+
+    def test_clean(self):
+        p = self.run_tool()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        out = p.stdout.splitlines()
+        self.assertEqual(out[0], "decision indexes clean: 3 IDs, all documents indexed, all statuses agree")
+        self.assertIn("  all loam:-prefixed ones resolve here.", out)
+        self.assertEqual(p.stderr, "")
+
+    def test_a_register_id_with_no_row(self):
+        self.append("DR-002-beta.md", "\nAlso XYZ-3.\n")
+        p = self.run_tool()
+        self.drift(p, "out", "FAIL: register IDs with no row in REGISTER.md:")
+        self.assertIn("    XYZ-3", p.stdout.splitlines())
+
+    def test_a_two_letter_id_is_not_a_register_id_here(self):
+        self.append("DR-002-beta.md", "\nAlso XY-3.\n")
+        p = self.run_tool()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+    def test_a_phantom_row(self):
+        self.append("REGISTER.md", "| XYZ-999 | a ghost | open |\n")
+        p = self.run_tool()
+        self.drift(p, "out", "FAIL: rows in REGISTER.md whose ID exists nowhere else:")
+        self.assertIn("    XYZ-999", p.stdout.splitlines())
+
+    def test_a_status_mismatch(self):
+        self.replace("REGISTER.md", "| XYZ-123 | the second item | closed |", "| XYZ-123 | the second item | open |")
+        p = self.run_tool()
+        self.drift(p, "out", "FAIL: XYZ-123 status disagrees — home says 'closed', index says 'open' "
+                             "(the home is authoritative; fix the index)")
+
+    def test_an_unknown_citation_prefix_names_the_declared_form(self):
+        self.append("PLAN-build.md", "\nSee zz:DR-001.\n")
+        p = self.run_tool()
+        self.drift(p, "err", "FAIL: cross-repo citations with an unrecognised prefix:")
+        self.assertIn("    zz:DR-001", p.stderr.splitlines())
+        self.assertIn("      Known repos: loam. An unqualified DR-NNN means", p.stderr.splitlines())
+
+    def test_an_unresolved_local_citation(self):
+        self.append("PLAN-build.md", "\nSee loam:DR-099.\n")
+        p = self.run_tool()
+        self.drift(p, "err", "FAIL: loam:-prefixed citations with no matching document here:")
+        self.assertIn("    loam:DR-099", p.stderr.splitlines())
+
+    def test_an_id_with_too_many_digits_is_not_found(self):
+        self.append("DR-002-beta.md", "\nAlso XYZ-1234.\n")
+        p = self.run_tool()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+    # The inherited cases are written for the first fixture's ids and files; the ones above replace them.
+    test_a_home_with_no_token = test_no_prefixes_found = test_an_unknown_citation_prefix = None
+    test_a_failed_pin_check = test_pins_out_receives_the_pin_list = None
+    test_a_foreign_prefix_with_no_pin_check_and_a_second_one = test_foreign_is_optional = None
+    test_missing_and_bad_declaration_keys_exit_2_naming_the_key = None
 
 
 if __name__ == "__main__":
