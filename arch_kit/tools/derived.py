@@ -63,8 +63,6 @@ def homes() -> dict[str, str]:
             degraded_marker(): home(str(project.need("labels.degraded_mode.marker", "derived")))}
 
 
-ROADMAP_HEADER = ["#", "increment", "what isolates", "home", "depends on"]
-FOLD_HEADER = ["row", "slice", "folds into", "why it costs the increment nothing"]
 ADR_RE = re.compile(declared.record_patterns("derived")[0])
 
 def bare(cell: str) -> str:
@@ -97,8 +95,9 @@ def table_with(text: str, header: list[str], what: str) -> list[list[str]]:
 # --- dependencies ---------------------------------------------------------------------
 
 def dependencies(record: dict, roadmap: str) -> str:
-    rows = table_with(roadmap, ROADMAP_HEADER, "increment")
-    folds = table_with(roadmap, FOLD_HEADER, "fold-in")
+    increments, fold_ins = declared.roadmap_headers("derived")
+    rows = table_with(roadmap, increments, "increment")
+    folds = table_with(roadmap, fold_ins, "fold-in")
     names = [bare(r[1]) for r in rows]
     numbered = {bare(r[0]): bare(r[1]) for r in rows if bare(r[0]).isdigit()}
     caps = {k: (v or {}) for k, v in record["capabilities"].items()}

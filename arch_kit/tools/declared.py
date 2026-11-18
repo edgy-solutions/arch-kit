@@ -440,6 +440,43 @@ def dictionary(tool: str) -> Dictionary:
     return _CACHE["dictionary"]
 
 
+ROADMAP_DEFAULTS = {
+    "increments": ("#", "increment", "what isolates", "home", "depends on"),
+    "fold_ins": ("row", "slice", "folds into", "why it costs the increment nothing"),
+}
+
+
+def roadmap_headers(tool: str) -> tuple:
+    """The header cells of the roadmap note's two tables (`derived.roadmap.increments`, `.fold_ins`), as lists.
+
+    Both keys are optional; the defaults are the original fixed headers. The columns are still read by position,
+    so a declared header needs at least as many cells as the default."""
+    if "roadmap" not in _CACHE:
+        node = project.CONFIG.get("derived")
+        node = node.get("roadmap") if isinstance(node, dict) else None
+        if node is None:
+            node = {}
+        if not isinstance(node, dict):
+            _bad("derived.roadmap", "must be a map")
+        for k in node:
+            if k not in ROADMAP_DEFAULTS:
+                _bad("derived.roadmap", f"unknown key {k!r}")
+        out = []
+        for k, default in ROADMAP_DEFAULTS.items():
+            key = "derived.roadmap." + k
+            cells = node.get(k, list(default))
+            _list(cells, key)
+            if not all(isinstance(c, str) and c.strip() for c in cells):
+                _bad(key, "every header cell must be a non-empty string")
+            if len(set(cells)) != len(cells):
+                _bad(key, "header cells must be distinct")
+            if len(cells) < len(default):
+                _bad(key, f"needs at least {len(default)} columns, the tool reads them by position")
+            out.append(list(cells))
+        _CACHE["roadmap"] = tuple(out)
+    return tuple(list(h) for h in _CACHE["roadmap"])
+
+
 READERS = ("helm-annotations",)
 
 
