@@ -272,7 +272,7 @@ class Collected(NamedTuple):
     notes: list
 
 
-def collect(tool: str, items: list[str], date: str, relabels=()) -> Collected:
+def collect(tool: str, items: list[str], date: str, relabels=(), slots=None) -> Collected:
     """Check the composition, render every group in its own process, and gather the relations.
 
     Everything that can be refused is refused before any clone is made."""
@@ -284,6 +284,8 @@ def collect(tool: str, items: list[str], date: str, relabels=()) -> Collected:
     for key, entry in listed(comp):
         configs[key] = read_declaration(key, dirs[key], entry)
         (refuse_component if key.startswith("components") else refuse_consumer)(key, configs[key])
+        if key.startswith("components"):
+            refuse_audience(tool, key, configs[key])
     notes: list[str] = []
     groups: list[Group] = []
     with contextlib.ExitStack() as stack:
@@ -296,7 +298,9 @@ def collect(tool: str, items: list[str], date: str, relabels=()) -> Collected:
             key = f"components[{i}]"
             tree = stack.enter_context(pinned(key, dirs[key], entry.commit))
             decl = tree / entry.declaration
-            groups.append(Group(entry.name, key, run_fragment(key, decl, date, cwd=str(tree)), str(tree),
+            groups.append(Group(entry.name, key, run_fragment(key, decl, date, [(slots or {})[entry.lists.relabel]]
+                                                       if entry.lists.relabel in (slots or {}) else (),
+                                                       cwd=str(tree)), str(tree),
                                 entry.commit, entry.declaration, decisions_rel(entry.declaration, configs[key]),
                                 configs[key]))
         uses, own_uses = [], {}
@@ -381,3 +385,113 @@ COMPOSED_CSS = """
 .pin[data-pin="changed"]{color:var(--a-fg)}
 .pin[data-pin="superseded"],.pin[data-pin="pin-not-found"],.pin[data-pin="record-not-found"]{color:var(--p-fg)}
 """.strip()
+
+
+# --- lists and audience -------------------------------------------------------------------------------------------
+
+def add_list_flag(ap) -> None:
+    ap.add_argument("--list", action="append", default=[], metavar="SLOT=FILE",
+                    help="the relabel or barred list for a slot the composition file names (repeatable)")
+
+
+def no_composition_lists(tool: str, items) -> None:
+    if items:
+        _die(tool, "--list needs files.composition: this declaration composes nothing")
+
+
+def slot_table(comp) -> dict:
+    """Slot name to (position key, kind), for every component's two slots, in file order."""
+    out = {}
+    for i, e in enumerate(comp.components):
+        out[e.lists.relabel] = (f"components[{i}]", "relabel")
+        out[e.lists.barred] = (f"components[{i}]", "barred")
+    return out
+
+
+def list_files(tool: str, items: list[str], comp) -> dict:
+    """Slot to the file given for it, from the `--list SLOT=FILE` flags. Exit 2 on any fault.
+
+    A public composing portal needs every slot. A private one may omit any: one stderr line names the empty slots."""
+    table = slot_table(comp)
+    got: dict[str, Path] = {}
+    for n, item in enumerate(items, 1):
+        slot, eq, rest = item.partition("=")
+        if not eq or not slot or not rest:
+            _die(tool, f"--list argument {n} is not SLOT=FILE")
+        if slot not in table:
+            _die(tool, f"--list argument {n} names no slot of the composition file")
+        if slot in got:
+            _die(tool, f"--list: slot {slot} is given twice")
+        if not Path(rest).is_file():
+            _die(tool, f"--list: the file for slot {slot} cannot be read")
+        got[slot] = Path(rest)
+    empty = [s for s in table if s not in got]
+    if empty:
+        if declared.portal_audience(tool) == "public":
+            _die(tool, f"the portal's audience is public: slot {empty[0]} has no list (--list)")
+        print(f"{tool}: slots with no list, ran empty: {', '.join(empty)}", file=sys.stderr)
+    return got
+
+
+def refuse_audience(tool: str, key: str, config: dict) -> None:
+    """A public portal composes only public components. Before any clone; the message carries no name."""
+    if declared.portal_audience(tool) == "public" and audience_of(config) != "public":
+        _bad(key, "its audience is private; a public portal composes only public components")
+
+
+def relabel_lists(tool: str, own: list, slots: dict, comp) -> list:
+    """(label, rules): the portal's own lists in order, then each component's relabel slot in file order."""
+    import relabel
+    out = [(f"--relabel {n}", relabel.load([p])) for n, p in enumerate(own, 1)]
+    for e in comp.components:
+        if e.lists.relabel in slots:
+            out.append((e.lists.relabel, relabel.load([slots[e.lists.relabel]])))
+    seen: dict[str, tuple] = {}
+    for label, rules in out:
+        for n, r in enumerate(rules, 1):
+            prior = seen.get(r.pattern.pattern)
+            if prior and prior[0] != label and prior[2] != r.replacement:
+                from data_exchange import InputError
+                raise InputError(f"relabel lists conflict: {prior[0]} rule {prior[1]} and {label} rule {n} "
+                                 f"have the same pattern and different replacements")
+            seen.setdefault(r.pattern.pattern, (label, n, r.replacement))
+    return out
+
+
+def barred_lists(own: list, slots: dict, comp) -> list:
+    """(label, patterns): the portal's own lists in order, then each component's barred slot in file order."""
+    from capability_phases import CheckError, load_barred
+    from data_exchange import InputError
+    out = []
+    try:
+        for n, p in enumerate(own, 1):
+            out.append((f"--barred {n}", load_barred([p])))
+        for e in comp.components:
+            if e.lists.barred in slots:
+                out.append((e.lists.barred, load_barred([slots[e.lists.barred]])))
+    except CheckError as e:
+        raise InputError(e.args[0]) from None
+    return out
+
+
+def scan_relabel(texts: list, lists: list) -> list[str]:
+    """One finding per surviving rule, naming its list, its number and a count, never the pattern."""
+    import relabel
+    fails = []
+    for label, rules in lists:
+        for n, rule in enumerate(rules, 1):
+            hits = max(sum(h[2] for h in relabel.survivors(t, [rule])) for t in texts)
+            if hits:
+                fails.append(f"relabel list {label} rule {n} survives {hits} time(s)")
+    return fails
+
+
+def scan_barred_lists(strings: list, lists: list) -> list[str]:
+    """One finding per barred rule that matches, naming its list, its number and a count, never the value."""
+    fails = []
+    for label, patterns in lists:
+        for n, p in enumerate(patterns, 1):
+            hits = sum(len(p.findall(s)) for s in strings)
+            if hits:
+                fails.append(f"barred list {label} rule {n} carries {hits} barred value(s)")
+    return fails

@@ -1571,13 +1571,15 @@ def assemble_composed(a: argparse.Namespace, date: str) -> tuple[str, list, int]
     """`files.composition`: one document of every group's pieces, each group under its own name."""
     if MarkdownIt is None:
         raise InputError("markdown-it-py is not installed: pip install markdown-it-py==4.0.0")
-    c = composed.collect("render_html", a.checkout, date, getattr(a, "relabel", None) or [])
+    c = composed.collect("render_html", a.checkout, date, getattr(a, "relabel", None) or [], a.slots_given)
     for note in c.notes:
         print(note, file=sys.stderr)
     name = project.CONFIG.get("name")
     system = name if isinstance(name, str) else ""
     pre = f"{system}: " if system else ""
-    rules = relabel.load(getattr(a, "relabel", None) or [])
+    a.relabel_lists = composed.relabel_lists("render_html", getattr(a, "relabel", None) or [], a.slots_given,
+                                             declared.composition("render_html"))
+    rules = [r for _, rs in a.relabel_lists for r in rs]
     prov = provenance(a, date)
     groups = {g.name for g in c.groups}
     pages = {g.name: {k: f'{g.name}--{r["page"]}' for k, r in g.fragment["records"].items()} for g in c.groups}
@@ -1635,7 +1637,13 @@ def leaks(doc: str, rules, barred) -> list[str]:
     return fails
 
 
-def finish(doc: str, rules, barred, record_replaced: int = 0) -> tuple[str, int]:
+def leaks_composed(doc: str, relabel_lists, barred_lists) -> list[str]:
+    """The composed variant of `leaks`: the union of every list, each finding naming its list and rule, never a value."""
+    return (composed.scan_relabel([doc, export_text.unescaped(doc)], relabel_lists)
+            + composed.scan_barred_lists(export_text.barred_strings(doc), barred_lists))
+
+
+def finish(doc: str, rules, barred, record_replaced: int = 0, lists=None) -> tuple[str, int]:
     """The relabel pass over the finished HTML, the front page sentence, then the leak scan.
 
     Returns the document and the replacements in the HTML. The sentence reports those plus record_replaced.
@@ -1647,7 +1655,7 @@ def finish(doc: str, rules, barred, record_replaced: int = 0) -> tuple[str, int]
         doc = doc.replace(COUNT_MARK, esc(
             f"Names are replaced by neutral labels at export: {record_replaced + n} in this page "
             f"({len(rules)} rules). The sources in the repository are unchanged."))
-    fails = leaks(doc, rules, barred)
+    fails = leaks(doc, rules, barred) if lists is None else leaks_composed(doc, *lists)
     if fails:
         raise CheckError("the export still leaks, nothing written: " + "; ".join(fails) + "\n")
     return doc, n
@@ -1659,6 +1667,9 @@ def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
         doc, rules, record_replaced = assemble_composed(a, date)
     else:
         doc, rules, record_replaced = assemble(a, diagram, date)
+    if getattr(a, "composition", None):
+        blists = composed.barred_lists(a.barred or [], a.slots_given, a.composition)
+        return finish(doc, rules, [], record_replaced, (a.relabel_lists, blists))[0]
     try:
         barred = load_barred(a.barred) if getattr(a, "barred", None) else []
     except CheckError as e:
@@ -1681,6 +1692,7 @@ def main(argv: list[str] | None = None) -> int:
     composed.add_checkout_flag(ap)
     ap.add_argument("--chart")
     ap.add_argument("--values", action="append", default=[])
+    composed.add_list_flag(ap)
     ap.add_argument("--release", help="the Helm release name the chart is rendered under")
     ap.add_argument("--readiness", help="the readiness doc (default: the declared readiness.default, from the chart directory)")
     ap.add_argument("--record", default=str(ROOT / declared.content_file("record", "render_html")))
@@ -1698,6 +1710,8 @@ def main(argv: list[str] | None = None) -> int:
         composed.require_decisions_mode("render_html")
     elif not fragment:
         composed.no_composition_checkouts("render_html", a.checkout)
+        composed.no_composition_lists("render_html", a.list)
+    a.slots_given = {}
     if declared.portal_mode("render_html") != "decisions":
         # --chart, --values and --release are required in full mode; a portal of decisions needs no chart.
         missing = [f for f, v in (("--chart", a.chart), ("--values", a.values), ("--release", a.release)) if not v]
@@ -1705,6 +1719,8 @@ def main(argv: list[str] | None = None) -> int:
             ap.error("the following arguments are required: " + ", ".join(missing))
     if not fragment:
         declared.require_public_lists("render_html", relabel=bool(a.relabel), barred=bool(a.barred))
+    if comp:
+        a.slots_given = composed.list_files("render_html", a.list, comp)
     try:
         date = a.date or datetime.datetime.now(datetime.timezone.utc).date().isoformat()
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):

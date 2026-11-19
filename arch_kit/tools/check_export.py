@@ -112,6 +112,20 @@ def check_relabel(raw: str, rules) -> list[str]:
     return fails
 
 
+def check_barred_composed(raw: str, lists) -> list[str]:
+    """The union of the portal's barred lists and every barred slot; each finding names its list and rule."""
+    return ["barred: " + f for f in composed.scan_barred_lists(export_text.barred_strings(raw), lists)]
+
+
+def check_relabel_composed(raw: str, lists) -> list[str]:
+    """The union of the portal's relabel lists and every relabel slot, and the front page's data-relabel line."""
+    fails = ["relabel: " + f for f in composed.scan_relabel([raw, export_text.unescaped(raw)], lists)]
+    front = [body for pid, body in PAGE_RE.findall(raw) if pid == "front"]
+    if not front or "data-relabel" not in front[0]:
+        fails.append("relabel: the front page has no data-relabel line")
+    return fails
+
+
 def check_provenance(raw: str) -> list[str]:
     pages = PAGE_RE.findall(raw)
     fails: list[str] = []
@@ -291,14 +305,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--barred", action="append", default=[], required=True)
     ap.add_argument("--relabel", action="append", default=[], help="a relabel list the export was rendered with")
     composed.add_checkout_flag(ap)
+    composed.add_list_flag(ap)
     a = ap.parse_args(argv)
     if comp:
         composed.require_decisions_mode("check_export")
     else:
         composed.no_composition_checkouts("check_export", a.checkout)
+        composed.no_composition_lists("check_export", a.list)
     declared.require_public_lists("check_export", relabel=bool(a.relabel))
     decisions_only = declared.portal_mode("check_export") == "decisions"
     dirs = composed.checkouts("check_export", a.checkout, comp) if comp else {}
+    slots = composed.list_files("check_export", a.list, comp) if comp else {}
     try:
         try:
             data = Path(a.export).read_bytes()
@@ -311,13 +328,17 @@ def main(argv: list[str] | None = None) -> int:
         except CheckError as e:
             raise InputError(e.args[0])
         rules = relabel.load(a.relabel) if a.relabel else []
+        if comp:
+            rlists = composed.relabel_lists("check_export", a.relabel, slots, comp)
+            blists = composed.barred_lists(a.barred, slots, comp)
     except (InputError, DataInputError, check_views.InputError, KeyError) as e:
         print(f"error: {e}", file=sys.stderr)
         return EXIT_INPUT
     if comp:
-        fails = (check_barred(raw, barred) + check_provenance(raw) + check_network(raw) + check_size(len(data))
-                 + check_links(raw) + check_components(raw, comp, dirs, composed.own_name("check_export"))
-                 + (check_relabel(raw, rules) if a.relabel else []))
+        fails = (check_barred_composed(raw, blists) + check_provenance(raw) + check_network(raw)
+                 + check_size(len(data)) + check_links(raw)
+                 + check_components(raw, comp, dirs, composed.own_name("check_export"))
+                 + (check_relabel_composed(raw, rlists) if rlists else []))
     elif decisions_only:
         # No views, record, diagrams or declarations page: the decision pages and the structural checks only.
         fails = (check_barred(raw, barred) + check_provenance(raw) + check_network(raw) + check_size(len(data))

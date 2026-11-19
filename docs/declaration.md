@@ -289,6 +289,17 @@ its DIR exits 2, naming `components[i]` or `consumers[i]`, never the project).
   shows only its name, repository and commit, never its `why`. No link leaves the page.
 - `check_export` on a composed export runs the barred, provenance, network, size, links and relabel checks and a
   `components` check; the `decisions` check is not run.
+- `--list SLOT=FILE` (repeatable, on both tools) gives the list for a slot of `lists:` in the composition file: a
+  `relabel` slot holds a relabel list, a `barred` slot a barred list. An unknown or repeated slot, or an unreadable
+  file, exits 2. A public composing portal needs every slot, plus its own `--relabel` and `--barred`; a private one
+  may omit slots, and one stderr line names the slots that ran empty.
+- A component's relabel slot is applied to that component's records as it renders. The final pass over the document
+  applies the portal's own `--relabel` lists in order, then each component's relabel slot in file order. Two rules with
+  the same pattern and different replacements in different lists exit 2, naming both lists and rule numbers.
+- The leak scan and `check_export` run every relabel and barred list together. A finding names its list (a slot name,
+  or `--relabel N` / `--barred N`), the rule number and a count, never the value.
+- A public composing portal refuses a component whose own audience is not public, before any clone is made; the
+  message names the position (`components[i]`), not the project.
 - A component may declare `portal.composed_in: NAME`, which adds one sentence to its own standalone render naming the
   composing portal. Without the key its output is unchanged.
 
