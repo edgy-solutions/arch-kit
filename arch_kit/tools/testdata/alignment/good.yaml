@@ -1,0 +1,61 @@
+# An accepted alignment record that uses every field. Every reference in it is invented.
+title: Sorrel alignment
+status: draft
+context: |
+  How the project compares with two invented references.
+
+  The second paragraph is markdown too.
+references:
+  - key: ref-a
+    title: Example Reference Architecture
+    edition: "Version 2, 2025"
+    identifier: XX-0000
+    obtained: "supplied by the project owner, 2026-11-18"
+    read: partial
+    read_note: "The first two parts were read in full; the rest was skimmed"
+    terms:
+      status: public
+      basis: "public-disclosure notice on every page"
+      cite: "names and paraphrase only"
+    elements:
+      - {id: e1, name: Element one, where: "Part 1, para 1", group: "Part 1: roles"}
+      - {id: e2, name: Element two, where: "Part 1, para 2", group: "Part 1: roles"}
+      - {id: e3, name: Element three, where: "Part 2, para 1", group: "Part 2: services"}
+      - {id: e4, name: Element four, where: "Part 2, para 2", group: "Part 2: services"}
+      - {id: e5, name: Element five, where: "Part 3, para 1", group: "Part 3: planes"}
+  - key: ref-b
+    title: Example Standard for Things
+    edition: "2024"
+    read: title-only
+    read_note: "Named only; not yet read"
+    terms:
+      status: unconfirmed
+      basis: "the publisher's notice has not been checked"
+      cite: "title only"
+rows:
+  - ref: ref-a
+    element: e1
+    counterpart: "The read path's enforcement point"
+    correspondence: corresponds
+    evidence: [ADR-0001, "other:ADR-0007", decisions/README.md]
+    note: "Each asks the decision point and applies the answer."
+  - ref: ref-a
+    element: e2
+    counterpart: "A partial counterpart"
+    correspondence: partial
+    evidence: [ADR-0002]
+    note: "Part of it is built."
+    owed: ADR-0003
+  - ref: ref-a
+    element: e3
+    correspondence: none
+    note: "Nothing in the project corresponds."
+    evidence: [ADR-0001]
+    owed: "other:ADR-0008"
+  - ref: ref-a
+    element: e4
+    correspondence: not-applicable
+    note: "The project has no such thing."
+  - ref: ref-a
+    element: e5
+    correspondence: not_assessed

@@ -61,6 +61,7 @@ except ImportError:  # reported as an input error by main
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import adr_sections  # noqa: E402
+import alignment  # noqa: E402
 import capability_phases  # noqa: E402
 import check_views  # noqa: E402
 import declared  # noqa: E402
@@ -1279,6 +1280,11 @@ def decision_pages(views: dict, dec: Decisions, prov: str) -> tuple[list[str], l
     return sections, nav
 
 
+def alignment_records(dec: Decisions) -> dict[str, dict]:
+    """The project's alignment records, validated, by name; empty when it declares none."""
+    return alignment.load("render_html", [k for k in dec.keys() if k != ROADMAP_KEY])
+
+
 COUNT_MARK = "RELABEL-COUNT-PLACEHOLDER"  # the front page sentence, until the HTML pass has counted
 
 
@@ -1300,6 +1306,7 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
     prov = provenance(a, date)
     rules = relabel.load(getattr(a, "relabel", None) or [])
     dec = Decisions(project.DECISIONS, rules)
+    records = alignment_records(dec)
 
     if uaf.exchange:
         dx_text, dx_cells = dx_variants({p: r.dx_content() for p, r in renderers.items()})
@@ -1395,6 +1402,7 @@ def assemble_decisions(a: argparse.Namespace, date: str) -> tuple[str, list, int
     prov = provenance(a, date)
     rules = relabel.load(getattr(a, "relabel", None) or [])
     dec = Decisions(project.DECISIONS, rules)
+    records = alignment_records(dec)
     dec_sections, dec_nav = decision_pages({}, dec, prov)
     shown = COUNT_MARK if rules else "Decision records are shown verbatim."
     title = f"{pre}decision records"

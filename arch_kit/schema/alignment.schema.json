@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Alignment record",
+  "description": "One record comparing a project with external references, element by element. See docs/design/alignment.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "references", "rows"],
+  "properties": {
+    "title": {"$ref": "#/$defs/text"},
+    "status": {"$ref": "#/$defs/text"},
+    "context": {"$ref": "#/$defs/text"},
+    "references": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/reference"}},
+    "rows": {"type": "array", "items": {"$ref": "#/$defs/row"}}
+  },
+  "$defs": {
+    "text": {"type": "string", "pattern": "\\S"},
+    "name": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+    "terms": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "basis", "cite"],
+      "properties": {
+        "status": {"enum": ["public", "unconfirmed", "restricted"]},
+        "basis": {"$ref": "#/$defs/text"},
+        "cite": {"$ref": "#/$defs/text"}
+      }
+    },
+    "element": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "where", "group"],
+      "properties": {
+        "id": {"$ref": "#/$defs/name"},
+        "name": {"$ref": "#/$defs/text"},
+        "where": {"$ref": "#/$defs/text"},
+        "group": {"$ref": "#/$defs/text"}
+      }
+    },
+    "elements": {"type": "array", "items": {"$ref": "#/$defs/element"}},
+    "seed": {
+      "description": "A seed file: a reference's element list, without key, read, read_note, obtained, seed or groups.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "edition", "terms", "elements"],
+      "properties": {
+        "title": {"$ref": "#/$defs/text"},
+        "edition": {"$ref": "#/$defs/text"},
+        "identifier": {"$ref": "#/$defs/text"},
+        "terms": {"$ref": "#/$defs/terms"},
+        "elements": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/element"}}
+      }
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "read"],
+      "properties": {
+        "key": {"$ref": "#/$defs/name"},
+        "title": {"$ref": "#/$defs/text"},
+        "edition": {"$ref": "#/$defs/text"},
+        "identifier": {"$ref": "#/$defs/text"},
+        "obtained": {"$ref": "#/$defs/text"},
+        "read": {"enum": ["full", "partial", "title-only"]},
+        "read_note": {"$ref": "#/$defs/text"},
+        "terms": {"$ref": "#/$defs/terms"},
+        "seed": {"$ref": "#/$defs/name"},
+        "groups": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/text"}},
+        "elements": {"$ref": "#/$defs/elements"}
+      },
+      "allOf": [
+        {
+          "if": {"required": ["read"], "properties": {"read": {"enum": ["partial", "title-only"]}}},
+          "then": {"required": ["read_note"]}
+        },
+        {
+          "if": {"not": {"required": ["seed"]}},
+          "then": {"required": ["title", "edition", "terms"]}
+        }
+      ]
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "element", "correspondence"],
+      "properties": {
+        "ref": {"$ref": "#/$defs/name"},
+        "element": {"$ref": "#/$defs/name"},
+        "counterpart": {"$ref": "#/$defs/text"},
+        "correspondence": {"enum": ["corresponds", "partial", "none", "not-applicable", "not_assessed"]},
+        "evidence": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/text"}},
+        "note": {"$ref": "#/$defs/text"},
+        "owed": {"$ref": "#/$defs/text"}
+      },
+      "allOf": [
+        {
+          "if": {"required": ["correspondence"], "properties": {"correspondence": {"enum": ["corresponds", "partial"]}}},
+          "then": {"required": ["counterpart", "evidence"]},
+          "else": {"properties": {"counterpart": {"not": {}}}}
+        },
+        {
+          "if": {"required": ["correspondence"], "properties": {"correspondence": {"const": "not_assessed"}}},
+          "then": {"properties": {"evidence": {"not": {}}}}
+        },
+        {
+          "if": {"required": ["correspondence"], "properties": {"correspondence": {"enum": ["none", "not-applicable"]}}},
+          "then": {"required": ["note"]}
+        },
+        {
+          "if": {"required": ["correspondence"], "properties": {"correspondence": {"enum": ["corresponds", "not-applicable", "not_assessed"]}}},
+          "then": {"properties": {"owed": {"not": {}}}}
+        }
+      ]
+    }
+  }
+}

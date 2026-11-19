@@ -9,6 +9,9 @@ arch_kit/schema/record.schema.json describes:
 
 The consumer's own file may spell those keys differently; mapping them is the loader's job.
 Signatures are the ones the kit's tools call.
+
+One more name is optional: `load_alignment(root)`, for a project that keeps its alignment records (see
+docs/design/alignment.md) somewhere other than `files.alignment`. A loader may leave it out; it is not in NAMES.
 """
 from __future__ import annotations
 
@@ -62,9 +65,16 @@ class Loader(Protocol):
     def resolve_quotes(self, record: dict, readiness: list[str], entries: dict | None = None) -> tuple[dict, list[str]]:
         """(capability, index of its measured citation) to the cited readiness quote, and the failures."""
 
+    def load_alignment(self, root: Path) -> dict[str, dict]:
+        """Optional. Record name to alignment record, in the kit's shape; root is paths.root."""
 
-# Every name a loader must provide: KEY_NAMES and each function above.
-NAMES = ("KEY_NAMES", *(n for n, v in vars(Loader).items() if inspect.isfunction(v) and not n.startswith("_")))
+
+# Names a loader may leave out.
+OPTIONAL_NAMES = ("load_alignment",)
+
+# Every name a loader must provide: KEY_NAMES and each function above, less the optional ones.
+NAMES = ("KEY_NAMES", *(n for n, v in vars(Loader).items()
+                        if inspect.isfunction(v) and not n.startswith("_") and n not in OPTIONAL_NAMES))
 
 
 # Under `portal.mode: decisions` the kit reads no capability record, so a loader needs only the decision functions.
