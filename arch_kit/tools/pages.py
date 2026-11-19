@@ -20,7 +20,7 @@ A citation is `[[ident]]` or `[[ident|status]]`. The ident is a component (CO-),
 `alignment:<name>`, or else a decision id (local or foreign). A status is one of measured, built, accepted, proposed,
 and is checked against the record.
 
-render() makes one page per file and the front page's nav items, and nav() wraps the items; lane 02's render_html
+render() makes one page per file and the front page's nav items, and nav() wraps the items; render_html
 wires them in. CSS goes to the page style. This module must not import render_html.
 """
 from __future__ import annotations
