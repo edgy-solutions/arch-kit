@@ -231,6 +231,7 @@ PREFIX_RE = r"[a-z][a-z0-9-]*"
 class Foreign(NamedTuple):
     prefix: str
     pin_check: str | None
+    commit: str | None = None   # set when the prefix comes from the composition file: the full commit it pins
 
 
 class DecisionIndex(NamedTuple):
@@ -255,7 +256,8 @@ FILE_DEFAULTS = {
 
 
 ALIGNMENT_KEY = "alignment"  # a `files` key with no default: a directory of alignment records, absent unless declared
-OPTIONAL_FILE_KEYS = (ALIGNMENT_KEY,)
+COMPOSITION_KEY = "composition"  # a `files` key with no default: the composition file, relative to the declaration
+OPTIONAL_FILE_KEYS = (ALIGNMENT_KEY, COMPOSITION_KEY)
 
 
 def _relative(value, key):
@@ -473,6 +475,13 @@ def decisions_index(tool: str) -> DecisionIndex:
         items = node.get("foreign", [])
         if not isinstance(items, list):
             _bad(base + "foreign", "must be a list")
+        comp = composition(tool)
+        if comp is not None:
+            if "foreign" in node:
+                _bad(base + "foreign", "a project with files.composition takes its foreign prefixes from it; "
+                                       "declare one, not both")
+            items = []
+            foreign = [Foreign(e.name, None, e.commit) for e in (*comp.components, *comp.consumers)]
         for i, item in enumerate(items):
             key = f"{base}foreign[{i}]"
             if not isinstance(item, dict) or "prefix" not in item:
@@ -606,7 +615,7 @@ def exchange_home(profiles: dict, tool: str) -> str | None:
     return home
 
 
-# --- consumes: ----------------------------------------------------------------------------------------------------
+# --- consumes: and the composition file --------------------------------------------------------------------------
 
 COMMIT_RE = r"[0-9a-f]{40}|[0-9a-f]{64}"
 COMMIT_WHY = "must be a full commit id (40 or 64 hex characters), not a branch, tag or short id"
@@ -689,3 +698,131 @@ def consumes(tool: str) -> tuple:
                 out.append(Consumes(portal, repo, commit, records, why, drift))
         _CACHE["consumes"] = tuple(out)
     return _CACHE["consumes"]
+
+
+SLOT_RE = r"[a-z0-9][a-z0-9-]*"
+COMPOSITION_ENTRY_KEYS = ("name", "repo", "commit", "declaration")
+
+
+class Lists(NamedTuple):
+    relabel: str     # a slot name, never a path
+    barred: str
+
+
+class Component(NamedTuple):
+    name: str
+    repo: str
+    commit: str
+    declaration: str
+    lists: Lists
+
+
+class Consumer(NamedTuple):
+    name: str
+    repo: str
+    commit: str
+    declaration: str
+
+
+class Composition(NamedTuple):
+    components: tuple
+    consumers: tuple
+
+    def names(self) -> tuple:
+        """Every name in file order: the components, then the consumers."""
+        return tuple(e.name for e in (*self.components, *self.consumers))
+
+
+def _cbad(key, why):
+    _bad("files.composition", f"{key}: {why}")
+
+
+def composition(tool: str) -> Composition | None:
+    """The composition file (`files.composition`, relative to the declaration), checked, or None when not declared."""
+    import re
+    import yaml
+    if "composition" not in _CACHE:
+        content_file("profiles", tool)  # reads and checks the whole `files` map
+        value = _CACHE["files"].get(COMPOSITION_KEY)
+        result = None
+        if value is not None:
+            if portal_none(tool):
+                _bad("files.composition", "a project with no portal composes nothing")
+            path = project.PATH.resolve().parent / value
+            try:
+                data = yaml.safe_load(path.read_text(encoding="utf-8"))
+            except OSError:
+                _bad("files.composition", f"{path} not found or unreadable")
+            except yaml.YAMLError:
+                _bad("files.composition", f"{path} is not valid YAML")
+            if not isinstance(data, dict):
+                _cbad("composition", "the file must be a map")
+            if data.get("composition") != 1 or isinstance(data.get("composition"), bool):
+                _cbad("composition", "must be 1")
+            for k in data:
+                if k not in ("composition", "components", "consumers"):
+                    _cbad(k, "unknown key")
+            comps = data.get("components")
+            if not isinstance(comps, list) or not comps:
+                _cbad("components", "must be a non-empty list")
+            decl = project.CONFIG.get("decisions")
+            index = decl.get("index") if isinstance(decl, dict) else None
+            local = index.get("local_prefix") if isinstance(index, dict) else None
+            seen, slots = [], []
+
+            def entry(item, key, allowed):
+                if not isinstance(item, dict):
+                    _cbad(key, "must be a map")
+                for k in item:
+                    if k not in allowed:
+                        _cbad(f"{key}.{k}", "unknown key")
+                for k in allowed:
+                    if k not in item and k != "declaration":
+                        _cbad(f"{key}.{k}", "missing key")
+                name = item["name"]
+                if not isinstance(name, str) or not re.fullmatch(PREFIX_RE, name):
+                    _cbad(f"{key}.name", f"{name!r} is not a project name: lowercase letters, digits and hyphens, "
+                                         f"starting with a letter")
+                if name in seen:
+                    _cbad(f"{key}.name", f"duplicate name {name!r}")
+                if name == local:
+                    _cbad(f"{key}.name", f"{name!r} is this project's own decisions.index.local_prefix")
+                seen.append(name)
+                repo, commit = item["repo"], item["commit"]
+                if not isinstance(repo, str) or not repo or any(c.isspace() for c in repo):
+                    _cbad(f"{key}.repo", "must be a non-empty string with no whitespace")
+                if not isinstance(commit, str) or not re.fullmatch(COMMIT_RE, commit):
+                    _cbad(f"{key}.commit", COMMIT_WHY)
+                d = item.get("declaration", DEFAULT_DECLARATION)
+                if not isinstance(d, str) or not d.strip() or d != d.strip() or d.startswith(("/", "\\")) \
+                        or re.match(r"^[A-Za-z]:", d) or ".." in re.split(r"[/\\]", d):
+                    _cbad(f"{key}.declaration", "must be a plain relative path with no '..'")
+                return name, repo, commit, d
+
+            built = []
+            for i, item in enumerate(comps):
+                key = f"components[{i}]"
+                name, repo, commit, d = entry(item, key, (*COMPOSITION_ENTRY_KEYS, "lists"))
+                lists = item["lists"]
+                if not isinstance(lists, dict) or set(lists) != {"relabel", "barred"}:
+                    _cbad(key + ".lists", "must be a map with exactly the keys relabel and barred")
+                for k in ("relabel", "barred"):
+                    slot = lists[k]
+                    if not isinstance(slot, str) or not re.fullmatch(SLOT_RE, slot):
+                        what = "a slot names a slot, never a path" if isinstance(slot, str) and \
+                            ("/" in slot or chr(92) in slot) else f"must match {SLOT_RE}"
+                        _cbad(f"{key}.lists.{k}", f"{slot!r}: {what}")
+                    if slot in slots:
+                        _cbad(f"{key}.lists.{k}", f"slot {slot!r} is used twice")
+                    slots.append(slot)
+                built.append(Component(name, repo, commit, d, Lists(lists["relabel"], lists["barred"])))
+            cons = data.get("consumers", [])
+            if not isinstance(cons, list):
+                _cbad("consumers", "must be a list")
+            built_c = []
+            for i, item in enumerate(cons):
+                name, repo, commit, d = entry(item, f"consumers[{i}]", COMPOSITION_ENTRY_KEYS)
+                built_c.append(Consumer(name, repo, commit, d))
+            result = Composition(tuple(built), tuple(built_c))
+        _CACHE["composition"] = result
+    return _CACHE["composition"]

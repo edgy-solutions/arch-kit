@@ -179,6 +179,9 @@ Every `*.yaml` in it is one alignment record (see [the alignment record](design/
 stem. A declared directory that does not exist, or holds no `*.yaml`, exits 2 naming `files.alignment`. A project
 that declares neither this key nor the loader function below has no alignment records and renders as before.
 
+Another key with no default is `files.composition`: the path of the composition file, relative to the declaration
+(not to `paths.root`). Absent means no composition. See [the composition file](#the-composition-file) below.
+
 A loader may instead define `load_alignment(root)`, where `root` is `paths.root`. It returns a dict of record name to
 record, in the same shape. The function is optional: it is not one of the names every loader provides. Declaring
 `files.alignment` and defining `load_alignment` together exits 2 naming both. The records are validated the same way
@@ -198,6 +201,9 @@ decisions:
       - prefix: ferro
         pin_check: scripts/pin-stub.sh   # repository-relative; optional
 ```
+
+With `files.composition` declared, the foreign prefixes come from the composition file (below) and `foreign` must be
+absent: declaring both exits 2.
 
 `check_decision_indexes` reads it. The files are under `paths.decisions`. Every key is required except `foreign`
 (default: none) and `pin_check` (default: no pin check for that prefix); `register_homes` is also not read when the
@@ -226,6 +232,42 @@ missing key exits 2, and the message names it.
 Phase 2's composition record (arch-kit issue 6, a draft) proposes one table of known project names, for citations,
 compositions and consumption. If it is ruled, the prefixes move there. Until then `local_prefix` and `foreign` are
 the shape.
+
+## The composition file
+
+`files.composition` names a file beside the declaration that lists the projects a composing portal knows. It is
+the one table of known projects (see [composition](design/composition.md)): the decision index check reads its
+repository prefixes from it.
+
+```yaml
+composition: 1
+components:
+  - name: example-platform                 # a project name
+    repo: https://example.org/example-platform.git
+    commit: 0123456789abcdef0123456789abcdef01234567   # a full commit
+    declaration: docs/arch/arch-kit.yaml   # optional: its declaration in its repository; this is the default
+    lists: {relabel: platform-relabel, barred: platform-barred}   # required: slot names, never paths or values
+consumers:                                  # optional
+  - name: example-app
+    repo: https://example.org/example-app.git
+    commit: 89abcdef0123456789abcdef0123456789abcdef
+    declaration: docs/arch/arch-kit.yaml   # optional, as above
+```
+
+Every error exits 2 and names `files.composition` and the key within the file. `composition` must be 1 and
+`components` non-empty. Names are project names (lowercase letters, digits and hyphens, starting with a letter),
+unique across `components` and `consumers` together, and none may equal this project's own
+`decisions.index.local_prefix`. `repo` and `commit` follow the rules of `consumes:`. `declaration` is a plain relative
+path with no `..`. `lists` has exactly `relabel` and `barred`; each value is a slot name matching
+`[a-z0-9][a-z0-9-]*`, used once in the whole file, and never a path (a `/` or a backslash is refused). A project with
+`portal: none` that declares `files.composition` exits 2: it composes nothing.
+
+With a composition, `check_decision_indexes` takes the foreign prefixes from the file, components first and then
+consumers, each pinned at its `commit`, and runs no pin check for them. Its summary names each prefix and the first
+seven characters of its commit, and says that each cited record existing at the pin is checked when composed, not
+there. `PINS_OUT`, when set, receives a line `- <prefix> <commit> -` for each, in the shape of the pin list a pin check
+prints (citing file, prefix, commit, cited path), with `-` where the composition file has no value. Without a
+composition the tool's input and output are unchanged.
 
 ## A complete example
 

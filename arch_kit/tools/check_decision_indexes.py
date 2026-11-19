@@ -7,7 +7,8 @@ Usage:
 Reads `decisions.index` and `decisions.records` from the declaration, exports the names and the id grammar (the
 IDX_RECORD_* and IDX_ID_* names below the module's constants) to check_decision_indexes.sh, and runs it with
 bash from the declared decisions directory. The script's stdout, stderr and exit code are passed through
-unchanged. Set PINS_OUT to a file to receive the list of pins that each foreign pin check printed.
+unchanged. With `files.composition` declared, the foreign prefixes and their commits come from the composition file
+(IDX_FOREIGN_COMMITS) and no pin check runs for them. Set PINS_OUT to a file to receive the list of pins that each foreign pin check printed.
 
 With `decisions.index.register: none` (allowed only when portal.mode is decisions) the project declares that it has
 no register: the script gets IDX_NO_REGISTER=1 and empty IDX_REGISTER and IDX_HOMES, checks 1, 3 and 4 do not run,
@@ -53,6 +54,7 @@ def main() -> int:
                             f"{path} is not a file")
             pin = _rel(path, directory)
         foreign.append(f"{entry.prefix}\t{pin}")
+    commits = "\n".join(f"{e.prefix}\t{e.commit}" for e in index.foreign if e.commit)
     bash = shutil.which("bash")
     if bash is None:
         project.die(f"arch-kit: {TOOL} needs bash on the PATH")
@@ -62,6 +64,9 @@ def main() -> int:
                IDX_LOCAL=index.local_prefix, IDX_FOREIGN="\n".join(foreign), IDX_ROOT=_rel(repo, directory),
                IDX_RECORD_PREFIX=IDX_RECORD_PREFIX, IDX_RECORD_FILE_PREFIX="1" if declared.record_file_prefixed(TOOL) else "0", IDX_RECORD_DIGITS=str(IDX_RECORD_DIGITS),
                IDX_ID_LETTERS=str(IDX_ID_LETTERS), IDX_ID_MIN=str(IDX_ID_MIN), IDX_ID_MAX=str(IDX_ID_MAX))
+    env.pop("IDX_FOREIGN_COMMITS", None)
+    if commits:
+        env["IDX_FOREIGN_COMMITS"] = commits
     sys.stdout.flush()
     sys.stderr.flush()
     return subprocess.run([bash, str(SCRIPT)], cwd=directory, env=env).returncode
