@@ -38,6 +38,7 @@ def _rel(path: Path, start: Path) -> str:
 
 
 def main() -> int:
+    project.require_portal(TOOL)
     index = declared.decisions_index(TOOL)
     directory, repo = project.DECISIONS, project.REPO
     if not directory.is_dir():

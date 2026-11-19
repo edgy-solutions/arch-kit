@@ -93,6 +93,7 @@ def anchor_id(adr_id: str, heading: Heading) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    project.require_portal("adr_sections")
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     argv = sys.argv[1:] if argv is None else argv

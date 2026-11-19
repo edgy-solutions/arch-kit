@@ -1,0 +1,10 @@
+kit: 1
+paths:
+  root: .
+  repo: .
+  decisions: .
+consumes:
+  - portal: example-platform
+    repo: https://example.org/example-platform.git
+    commit: 0123456789abcdef0123456789abcdef01234567
+    why: "Uses the whole portal."

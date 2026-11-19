@@ -662,6 +662,7 @@ PARTIAL_FLAGS = [("--chart", "chart"), ("--values", "values"), ("--release", "re
 
 
 def main(argv: list[str] | None = None) -> int:
+    project.require_portal("check_views")
     ap = argparse.ArgumentParser(description="Check the architecture views against the rules.")
     ap.add_argument("--root", default=str(project.ROOT))
     ap.add_argument("--chart", help="the chart directory the floor renders and the table reads templates from")

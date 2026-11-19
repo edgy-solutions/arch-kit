@@ -168,7 +168,17 @@ AUDIENCES = ("public", "private")
 MODES = ("full", "decisions")
 
 
+def portal_none(tool: str) -> bool:
+    """True when the declaration's `portal` is the scalar `none`: a project with no portal of its own, which still
+    declares what it consumes. Distinct from the map form's `portal.hosting: none`."""
+    return project.CONFIG.get("portal") == "none"
+
+
 def _portal(field: str, allowed: tuple, tool: str) -> str:
+    if portal_none(tool):
+        if field == "hosting":
+            return "none"
+        project.die(f"arch-kit: {project.PATH}: portal: portal: none has no audience")
     key = "portal." + field
     if not isinstance(project.need("portal", tool), dict):
         _bad("portal", "must be a map")
@@ -192,7 +202,7 @@ def portal_mode(tool: str) -> str:
     """What the portal holds: `full` (the default when `portal.mode` is absent) or `decisions`, the decision records,
     their index and the roadmap only. Unlike hosting and audience the key is optional."""
     node = project.CONFIG.get("portal")
-    if node is None:
+    if node is None or portal_none(tool):
         return "full"
     if not isinstance(node, dict):
         _bad("portal", "must be a map")
@@ -245,6 +255,7 @@ FILE_DEFAULTS = {
 
 
 ALIGNMENT_KEY = "alignment"  # a `files` key with no default: a directory of alignment records, absent unless declared
+OPTIONAL_FILE_KEYS = (ALIGNMENT_KEY,)
 
 
 def _relative(value, key):
@@ -268,8 +279,8 @@ def content_file(key: str, tool: str) -> str:
             if not isinstance(node, dict):
                 _bad("files", "must be a map")
             for k, v in node.items():
-                if k not in FILE_DEFAULTS and k != ALIGNMENT_KEY:
-                    _bad(f"files.{k}", f"unknown key; the keys are {', '.join((*FILE_DEFAULTS, ALIGNMENT_KEY))}")
+                if k not in FILE_DEFAULTS and k not in OPTIONAL_FILE_KEYS:
+                    _bad(f"files.{k}", f"unknown key; the keys are {', '.join((*FILE_DEFAULTS, *OPTIONAL_FILE_KEYS))}")
                 out[k] = _relative(v, f"files.{k}")
         _CACHE["files"] = out
     if key not in FILE_DEFAULTS:
@@ -317,31 +328,52 @@ def _int(value, key, low, high):
     return value
 
 
+def record_grammar(config: dict, bad=None) -> tuple:
+    """(prefix, digits, file_prefix) of a decision record id, from a declaration's parsed map (`decisions.records`).
+
+    Pure: it reads only `config`. `bad(key, why)` is called on a malformed value and must not return; the default
+    exits 2 through the project's own declaration. The defaults are ADR, 4 and true."""
+    import re
+    bad = bad or _bad
+    decisions = config.get("decisions")
+    node = decisions.get("records") if isinstance(decisions, dict) else None
+    prefix, digits, file_prefix = "ADR", 4, True
+    if node is not None:
+        if not isinstance(node, dict):
+            bad("decisions.records", "must be a map")
+        for k in node:
+            if k not in RECORD_KEYS:
+                bad("decisions.records", f"unknown key {k!r}")
+        if "prefix" in node:
+            prefix = node["prefix"]
+            if not isinstance(prefix, str) or not re.fullmatch(r"[A-Z][A-Z0-9]*", prefix):
+                bad("decisions.records.prefix", f"{prefix!r} is not a prefix: uppercase letters and digits, "
+                                                f"starting with a letter")
+        if "digits" in node:
+            d = node["digits"]
+            if isinstance(d, bool) or not isinstance(d, int) or not 1 <= d <= 8:
+                bad("decisions.records.digits", "must be an integer from 1 to 8")
+            digits = d
+        if "file_prefix" in node:
+            file_prefix = node["file_prefix"]
+            if not isinstance(file_prefix, bool):
+                bad("decisions.records.file_prefix", f"{file_prefix!r} must be true or false")
+    return prefix, digits, file_prefix
+
+
+def record_file_regex(prefix: str, digits: int, file_prefix: bool) -> tuple:
+    """(regex text, file glob) for a record file NAME under a grammar. Pure; record_file_patterns calls it."""
+    d = chr(92) + "d"
+    if file_prefix:
+        return f"{prefix}-(?P<n>{d}{{{digits}}})-.+" + chr(92) + ".md", f"{prefix}-*.md"
+    return f"(?P<n>{d}{{{digits}}})-.+" + chr(92) + ".md", "[0-9]" * digits + "-*.md"
+
+
 def record_id(tool: str) -> tuple:
     """(prefix, digits) of a decision record id (`decisions.records`); a record id is PREFIX-<digits> and its
     file PREFIX-<digits>-<slug>.md. The default is ADR and 4."""
-    import re
     if "record_id" not in _CACHE:
-        decisions = project.CONFIG.get("decisions")
-        node = decisions.get("records") if isinstance(decisions, dict) else None
-        prefix, digits, file_prefix = "ADR", 4, True
-        if node is not None:
-            if not isinstance(node, dict):
-                _bad("decisions.records", "must be a map")
-            for k in node:
-                if k not in RECORD_KEYS:
-                    _bad("decisions.records", f"unknown key {k!r}")
-            if "prefix" in node:
-                prefix = node["prefix"]
-                if not isinstance(prefix, str) or not re.fullmatch(r"[A-Z][A-Z0-9]*", prefix):
-                    _bad("decisions.records.prefix", f"{prefix!r} is not a prefix: uppercase letters and digits, "
-                                                     f"starting with a letter")
-            if "digits" in node:
-                digits = _int(node["digits"], "decisions.records.digits", 1, 8)
-            if "file_prefix" in node:
-                file_prefix = node["file_prefix"]
-                if not isinstance(file_prefix, bool):
-                    _bad("decisions.records.file_prefix", f"{file_prefix!r} must be true or false")
+        prefix, digits, file_prefix = record_grammar(project.CONFIG)
         _CACHE["record_id"] = (prefix, digits)
         _CACHE["record_file_prefix"] = file_prefix
     return _CACHE["record_id"]
@@ -359,10 +391,7 @@ def record_file_patterns(tool: str) -> tuple:
     digits as `n`. With `decisions.records.file_prefix` true (the default) a name is PREFIX-<digits>-<slug>.md;
     with false it is <digits>-<slug>.md. The record id is PREFIX-<digits> either way."""
     prefix, digits = record_id(tool)
-    d = chr(92) + "d"
-    if _CACHE["record_file_prefix"]:
-        return f"{prefix}-(?P<n>{d}{{{digits}}})-.+" + chr(92) + ".md", f"{prefix}-*.md"
-    return f"(?P<n>{d}{{{digits}}})-.+" + chr(92) + ".md", "[0-9]" * digits + "-*.md"
+    return record_file_regex(prefix, digits, _CACHE["record_file_prefix"])
 
 
 def record_id_of_file(tool: str, name: str):
@@ -575,3 +604,88 @@ def exchange_home(profiles: dict, tool: str) -> str | None:
                         f"has no exchange.reader: a home with nothing to put in it")
         return None
     return home
+
+
+# --- consumes: ----------------------------------------------------------------------------------------------------
+
+COMMIT_RE = r"[0-9a-f]{40}|[0-9a-f]{64}"
+COMMIT_WHY = "must be a full commit id (40 or 64 hex characters), not a branch, tag or short id"
+DRIFTS = ("warn", "fail")
+CONSUMES_KEYS = ("portal", "repo", "commit", "records", "why", "drift")
+CONSUMES_REQUIRED = ("portal", "repo", "commit", "why")
+DEFAULT_DECLARATION = "docs/arch/arch-kit.yaml"
+
+
+class Consumes(NamedTuple):
+    portal: str
+    repo: str
+    commit: str
+    records: tuple | None     # None when omitted: the whole portal
+    why: str
+    drift: str
+
+
+def _repo(value, key):
+    if not isinstance(value, str) or not value or any(c.isspace() for c in value):
+        _bad(key, "must be a non-empty string with no whitespace")
+    return value
+
+
+def _commit(value, key):
+    import re
+    if not isinstance(value, str) or not re.fullmatch(COMMIT_RE, value):
+        _bad(key, COMMIT_WHY)
+    return value
+
+
+def consumes(tool: str) -> tuple:
+    """The declared `consumes:` entries, or () when there are none. Validated only; nothing renders from it."""
+    import re
+    if "consumes" not in _CACHE:
+        node = project.CONFIG.get("consumes")
+        out = []
+        if node is not None:
+            if not isinstance(node, list) or not node or not all(isinstance(i, dict) for i in node):
+                _bad("consumes", "must be a non-empty list of maps")
+            for i, item in enumerate(node):
+                key = f"consumes[{i}]"
+                for k in item:
+                    if k not in CONSUMES_KEYS:
+                        _bad(key, f"unknown key {k!r}")
+                for k in CONSUMES_REQUIRED:
+                    if k not in item:
+                        _bad(f"{key}.{k}", "missing key")
+                portal = _prefix(item["portal"], key + ".portal")
+                if any(c.portal == portal for c in out):
+                    _bad(key + ".portal", f"duplicate portal {portal!r}")
+                repo = _repo(item["repo"], key + ".repo")
+                commit = _commit(item["commit"], key + ".commit")
+                why = item["why"]
+                if not isinstance(why, str) or not why.strip() or "\n" in why or "\r" in why:
+                    _bad(key + ".why", "must be a non-empty one-line string")
+                drift = item.get("drift", "warn")
+                if drift not in DRIFTS:
+                    _bad(key + ".drift", f"{drift!r} is not one of {', '.join(DRIFTS)}")
+                records = None
+                if "records" in item:
+                    prefix, digits = record_id(tool)
+                    shape = f"{re.escape(prefix)}-" + chr(92) + f"d{{{digits}}}"
+                    rkey = key + ".records"
+                    refs = item["records"]
+                    if not isinstance(refs, list) or not refs:
+                        _bad(rkey, "must be a non-empty list of strings")
+                    for j, ref in enumerate(refs):
+                        if not isinstance(ref, str):
+                            _bad(f"{rkey}[{j}]", "must be a string")
+                        if ref.startswith("capability:"):
+                            name = ref[len("capability:"):]
+                            if not name or any(c.isspace() for c in name):
+                                _bad(f"{rkey}[{j}]", f"{ref!r}: capability:<name> needs a name with no whitespace")
+                        elif not re.fullmatch(shape, ref):
+                            _bad(f"{rkey}[{j}]", f"{ref!r} is neither {record_form(tool)} nor capability:<name>")
+                        if refs.index(ref) != j:
+                            _bad(f"{rkey}[{j}]", f"duplicate record {ref!r}")
+                    records = tuple(refs)
+                out.append(Consumes(portal, repo, commit, records, why, drift))
+        _CACHE["consumes"] = tuple(out)
+    return _CACHE["consumes"]

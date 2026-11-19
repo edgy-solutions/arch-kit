@@ -71,6 +71,7 @@ def plant_word(a: argparse.Namespace, clean_output: str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    project.require_portal("check_views_canary")
     ap = argparse.ArgumentParser(description="Prove check_views' quotes and floor rules can fail.")
     ap.add_argument("--chart", required=True)
     ap.add_argument("--values", action="append", default=[], required=True)

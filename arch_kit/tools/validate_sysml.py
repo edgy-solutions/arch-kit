@@ -123,6 +123,7 @@ def validate(model: str, runner: Callable[[str], str]) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    project.require_portal("validate_sysml")
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--jar", required=True)
     ap.add_argument("--library", required=True)

@@ -212,6 +212,7 @@ filled at render time.
 | `data_exchange` | Generates the data-exchange view (producers, consumers, routes per tier) from a Helm render. It is the one reader, `helm-annotations`, and a project opts in with `exchange: {reader: helm-annotations}`. It expects the ConfigMaps `egress-kinds`, `egress-routes`, `egress-assembler-config`, `egress-intake-config` and `destinations-deployment`; the workloads `egress-gate*`, `egress-forwarder`, `egress-assembler` and `egress-intake`; one `redpanda-<tier>` StatefulSet per tier; and a special tier `hq`. A chart not shaped that way declares no exchange. See [the exchange reader](docs/declaration.md#the-exchange-reader) |
 | `check_annotations` | Checks that each workload in a render declares the topics it produces and the groups it consumes |
 | `check_decision_indexes` | Checks that the decision indexes agree with the decision records: [four checks](docs/rules.md#check_decision_indexes-the-decision-indexes), and citations across repositories |
+| `check_consumes` | Checks this project's own `consumes:` entries against local clones of the consumed projects: [what it checks](docs/declaration.md#what-a-project-consumes-consumes) |
 | `capability_phases` | Computes each capability's phase and evidence from the record |
 | `capability_floor` | Uses the render as a floor: everything deployed must be claimed by a capability that is at least built |
 | `derived` | Builds the tables a view takes from a declared artefact instead of writing them |

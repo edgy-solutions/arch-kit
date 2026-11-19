@@ -522,6 +522,7 @@ def write_files(out_dir: Path, files: dict[str, str]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    project.require_portal("render_profile")
     ap = argparse.ArgumentParser(description="Render the architecture views as one output profile.")
     ap.add_argument("--profile", required=True, choices=PROFILE_NAMES)
     ap.add_argument("--out")

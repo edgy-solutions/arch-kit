@@ -672,6 +672,7 @@ def helm_render(chart: str, values: list[str], release: str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    project.require_portal("data_exchange")
     ap = argparse.ArgumentParser(description="Generate the data-exchange view from a helm render.")
     ap.add_argument("--chart")
     ap.add_argument("--values", action="append", default=[])

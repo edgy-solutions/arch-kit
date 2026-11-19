@@ -59,6 +59,43 @@ a chart carries only the date and the declared note, not the chart and digest li
 without it there is no roadmap page and no roadmap entry on the front page. Any other value exits 2 and the message
 names `portal.mode`. `examples/decisions-only` is a complete project in this mode.
 
+### A project with no portal: `portal: none`
+
+`portal: none` (the scalar, not the map's `portal.hosting: none`) declares a project with no portal of its own. It
+still declares what it consumes, so it needs only `kit`, `portal: none` and `consumes:`; `name` is optional. `paths`
+is optional too. When it is present it is read as it always is, and every other declaration still requires it.
+`portal: none` with no `consumes:` exits 2. `check_consumes` runs, `render_html` prints
+`portal: none: nothing to render`, writes no file and exits 0, and every other tool exits 2 with
+`arch-kit: <file>: portal: none: <tool> has no portal to check`.
+
+### What a project consumes: `consumes:`
+
+An optional list at the top level. Each entry names a portal the project depends on, or records in it, and pins it:
+
+```yaml
+consumes:
+  - portal: example-platform      # required: the consumed project's name (a prefix: lowercase letters, digits, hyphens)
+    repo: https://example.org/example-platform.git   # required: a non-empty string with no whitespace
+    commit: 0123456789abcdef0123456789abcdef01234567   # required: a full commit, 40 or 64 lowercase hex characters
+    records: [ADR-0012, capability:LabelledRecords]    # optional: omitted means the whole portal
+    why: "Labels its outbound records with the platform's label model."   # required: one line
+    drift: warn                   # optional: warn (the default) or fail
+```
+
+A branch, a tag, a short id or uppercase hex in `commit` exits 2. `records` is a non-empty list of strings, each a
+decision id or `capability:<name>`; no duplicates. A decision id is checked here only for the shape of this
+project's own `decisions.records` grammar. Two entries with the same `portal`, an unknown key, or a missing required
+key exit 2. `drift` is validated and not yet acted on. `render_html` and `check_export` validate `consumes:` and
+render nothing from it: their output is the same with or without it.
+
+`check_consumes [--checkout NAME=DIR[:DECL]]...` checks the entries against local clones. `DIR` is a clone of the
+consumed project `NAME`, and `DECL` the path of its declaration inside the clone (default
+`docs/arch/arch-kit.yaml`). For each entry with a checkout it checks that the pinned commit exists, reads the consumed
+declaration at the pin, and checks that each decision id exists at the pin, using the consumed project's own record
+grammar (`decisions.records`) and decisions directory. A `capability:` reference prints `checked when composed`: the
+tool never imports the consumed project's code. An entry with no checkout prints `not checked: no checkout given`, and
+the summary counts it as not checked, which is not a pass. Exit 0 when nothing failed, 1 on a failure, 2 on input.
+
 ## Keys a tool needs when it uses them
 
 These keys are optional when the declaration loads. A tool that needs an absent key exits 2 with:

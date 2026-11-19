@@ -50,13 +50,22 @@ def _load():
         _die(f"arch-kit: {path}: not valid YAML")
     if not isinstance(config, dict) or config.get("kit") != 1:
         _die(f"arch-kit: {path}: key 'kit' must be 1")
+    base = path.resolve().parent
+    if config.get("portal") == "none":
+        # A project with no portal of its own: it declares what it consumes, and needs no paths.
+        if not config.get("consumes"):
+            _die(f"arch-kit: {path}: portal: none needs consumes:")
+        files = config.get("files")
+        if isinstance(files, dict) and "composition" in files:
+            _die(f"arch-kit: {path}: files.composition: a project with no portal composes nothing")
+        if "paths" not in config:
+            return config, {key: None for key in KEYS}, path
     paths = config.get("paths")
     if not isinstance(paths, dict):
         _die(f"arch-kit: {path}: missing key 'paths'")
     for key in KEYS:
         if key not in paths:
             _die(f"arch-kit: {path}: missing key 'paths.{key}'")
-    base = path.resolve().parent
     return config, {key: (base / str(paths[key])).resolve() for key in KEYS}, path
 
 
@@ -64,6 +73,12 @@ CONFIG, _PATHS, PATH = _load()
 ROOT = _PATHS["root"]
 REPO = _PATHS["repo"]
 DECISIONS = _PATHS["decisions"]
+
+
+def require_portal(tool):
+    """Exit 2 when the declaration says `portal: none`: that project has no portal for `tool` to check."""
+    if CONFIG.get("portal") == "none":
+        _die(f"arch-kit: {PATH}: portal: none: {tool} has no portal to check")
 
 
 def need(dotted, tool):
