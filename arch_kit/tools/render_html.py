@@ -1586,19 +1586,23 @@ def assemble_composed(a: argparse.Namespace, date: str) -> tuple[str, list, int]
     # Where each "Consumed by" entry goes: on the page of each record it names, else in the group's front block.
     on_page: dict[str, dict[str, list[str]]] = {g.name: {} for g in c.groups}
     on_front: dict[str, list[str]] = {g.name: [] for g in c.groups}
+    by_name = c.states
     for use in c.uses:
         e = use.entry
         if not e.records:
-            on_front[e.portal].append(composed.consumed_by_li(use, groups))
+            on_front[e.portal].append(composed.consumed_by_li(use, groups,
+                                                              state=composed.states_html(by_name, e.portal, e.commit)))
             continue
         loose = []
         for r in e.records:
             if r in pages[e.portal]:
-                on_page[e.portal].setdefault(r, []).append(composed.consumed_by_li(use, groups))
+                on_page[e.portal].setdefault(r, []).append(composed.consumed_by_li(
+                    use, groups, state=composed.states_html(by_name, e.portal, e.commit, [r])))
             else:
                 loose.append(r)
         if loose:
-            on_front[e.portal].append(composed.consumed_by_li(use, groups, only=loose))
+            on_front[e.portal].append(composed.consumed_by_li(
+                use, groups, only=loose, state=composed.states_html(by_name, e.portal, e.commit, loose)))
     blocks, sections, replaced = [], [], 0
     for g in c.groups:
         f = g.fragment
@@ -1613,7 +1617,9 @@ def assemble_composed(a: argparse.Namespace, date: str) -> tuple[str, list, int]
         nav = composed.prefixed("".join(f["decisions_nav"]), g.name)
         al = composed.prefixed("".join(f["alignment_nav"]), g.name)
         al = f'<nav class="alignment"><h3>Alignment</h3><ul>{al}</ul></nav>' if al else ""
-        mine = [composed.consumes_li(u, pages) for u in c.own_uses.get(g.name, [])]
+        mine = [composed.consumes_li(u, pages, composed.states_html(by_name, u.entry.portal, u.entry.commit,
+                                                                    u.entry.records))
+                for u in c.own_uses.get(g.name, [])]
         blocks.append(f'<div class="component" data-component="{esc(g.name)}" id="{esc(composed.component_id(g.name))}">'
                       f'<h2>{esc(g.name)}</h2><nav class="decisions"><h3>Decision records</h3><ul>{nav}</ul></nav>{al}'
                       f'{composed.consumed_by_block(on_front[g.name])}{composed.consumes_block(mine)}</div>')

@@ -300,6 +300,20 @@ its DIR exits 2, naming `components[i]` or `consumers[i]`, never the project).
   or `--relabel N` / `--barred N`), the rule number and a count, never the value.
 - A public composing portal refuses a component whose own audience is not public, before any clone is made; the
   message names the position (`components[i]`), not the project.
+- Each "Consumed by" and "Consumes" entry on a group of this export shows a pin state,
+  `<span class="pin" data-pin="STATE">`, from the consumer's commit C against the consumed group's commit D (the
+  composition file's pin for a component, `HEAD` for the composing portal). Per named record, first match wins:
+  `pin-not-found` (C is not in the repository), `record-not-found` (no file of that id at C, by the consumed project's
+  grammar; a fifth state the design did not name, so a record that was never there is not shown as current),
+  `superseded` (the record's status at D is declared with `in_force: false`), `changed` (the record's file at D is
+  absent or differs from C's), `current`. An entry with no `records` shows one state: `pin-not-found`, else `changed`
+  if any file of the decisions directory differs between C and D, else `current`. The composed build never fails on a
+  state. With no `statuses` declared, `in_force` is unknown and `superseded` never shows.
+- `check_consumes` compares each entry with a `--checkout` against that clone's `HEAD`: a named record (or the decisions
+  directory, for an entry with no `records`) changed since the pin prints `warn: consumes[i]: changed since the pin:
+  IDS` with `drift: warn` (the default, exit unchanged) and `FAIL: ...` with `drift: fail` (exit 1). It cannot compute
+  "superseded since": that needs the consumed project's loader, and the check imports no other project's code. Its
+  summary line says so.
 - A component may declare `portal.composed_in: NAME`, which adds one sentence to its own standalone render naming the
   composing portal. Without the key its output is unchanged.
 

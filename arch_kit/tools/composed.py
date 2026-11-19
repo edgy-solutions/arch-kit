@@ -270,6 +270,7 @@ class Collected(NamedTuple):
     uses: list          # every Use that names the composing portal or a component, in order
     own_uses: dict      # group name to the Use list of that group's own consumes:
     notes: list
+    states: dict        # (consumed group, consumer's commit, record or None) to a pin state, read while the clones exist
 
 
 def collect(tool: str, items: list[str], date: str, relabels=(), slots=None) -> Collected:
@@ -321,7 +322,8 @@ def collect(tool: str, items: list[str], date: str, relabels=(), slots=None) -> 
                     note = f"{key}: capability references are not composed yet"
                     if note not in notes:
                         notes.append(note)
-    return Collected(own, groups, uses, own_uses, notes)
+        states = pin_states(groups, uses, own_uses)
+    return Collected(own, groups, uses, own_uses, notes, states)
 
 
 # --- blocks -------------------------------------------------------------------------------------------------------
@@ -495,3 +497,72 @@ def scan_barred_lists(strings: list, lists: list) -> list[str]:
             if hits:
                 fails.append(f"barred list {label} rule {n} carries {hits} barred value(s)")
     return fails
+
+
+# --- pin states ---------------------------------------------------------------------------------------------------
+
+STATES = {
+    "pin-not-found": "pin not found",
+    "record-not-found": "record not found at the pin",
+    "superseded": "superseded since",
+    "changed": "changed since",
+    "current": "current",
+}
+
+
+def pin_span(state: str) -> str:
+    return f'<span class="pin" data-pin="{state}">{STATES[state]}</span>'
+
+
+def record_state(group: Group, commit: str, record: str) -> str:
+    """The state of one named record: the consumer's commit C against the group's own commit D. First match wins."""
+    git, d = group.git_dir, group.commit
+    code, _ = check_consumes._git(git, "cat-file", "-e", commit + "^{commit}")
+    if code != 0:
+        return "pin-not-found"
+    fc, _, text = check_consumes._files_at(git, commit, group.decl)
+    fd, _, _ = check_consumes._files_at(git, d, group.decl, text)
+    pc = (fc or {}).get(record)
+    if pc is None:
+        return "record-not-found"
+    if group.fragment["records"].get(record, {}).get("in_force") is False:
+        return "superseded"
+    pd = (fd or {}).get(record)
+    if pd is None or check_consumes._blob(git, commit, pc) != check_consumes._blob(git, d, pd):
+        return "changed"
+    return "current"
+
+
+def portal_state(group: Group, commit: str) -> str:
+    """The state of a whole-portal entry: pin not found, else changed if any record file differs, else current."""
+    git = group.git_dir
+    code, _ = check_consumes._git(git, "cat-file", "-e", commit + "^{commit}")
+    if code != 0:
+        return "pin-not-found"
+    return "changed" if check_consumes.directory_changed(git, commit, group.commit, group.decl) else "current"
+
+
+def pin_states(groups: list, uses: list, own_uses: dict) -> dict:
+    """Every state the page will show, computed while the pinned clones still exist."""
+    by_name = {g.name: g for g in groups}
+    out: dict = {}
+    for use in [*uses, *(u for us in own_uses.values() for u in us)]:
+        e = use.entry
+        group = by_name.get(e.portal)
+        if group is None:
+            continue
+        if e.records is None:
+            out[(e.portal, e.commit, None)] = portal_state(group, e.commit)
+        for r in e.records or ():
+            if not r.startswith("capability:"):
+                out[(e.portal, e.commit, r)] = record_state(group, e.commit, r)
+    return out
+
+
+def states_html(states: dict, portal: str, commit: str, records=None) -> str:
+    """The pin span(s) for an entry on a group of this export; "" when the portal is no group or nothing is named.
+
+    One span per named record, in order (a `capability:` reference has none); one for a whole-portal entry."""
+    if records is None:
+        return " " + pin_span(states[(portal, commit, None)]) if (portal, commit, None) in states else ""
+    return "".join(" " + pin_span(states[(portal, commit, r)]) for r in records if (portal, commit, r) in states)
