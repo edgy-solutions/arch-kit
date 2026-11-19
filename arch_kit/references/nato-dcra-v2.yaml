@@ -1,0 +1,31 @@
+# A seed: the element list of one reference, for alignment records to compare against.
+# Ids, names and section citations only: no descriptions, no passages, no figures.
+title: Data Centric Reference Architecture for the Alliance
+edition: "Version 2, 2025"
+identifier: AC/322-D(2025)0056
+terms:
+  status: public
+  basis: "marked publicly disclosed, PDN(2025)0031, on every page"
+  cite: "names, section numbers and paraphrase; no passages, no figures"
+elements:
+  - {id: ap9-pep, name: Policy Enforcement Point, where: "Appendix 9, para 3", group: "Appendix 9: roles"}
+  - {id: ap9-pdp, name: Policy Decision Point, where: "Appendix 9, para 3", group: "Appendix 9: roles"}
+  - {id: ap9-pip, name: Policy Information Point, where: "Appendix 9, para 3", group: "Appendix 9: roles"}
+  - {id: ap9-pap, name: Policy Administration Point, where: "Appendix 9, para 3", group: "Appendix 9: roles"}
+  - {id: ap9-crypto, name: Cryptographic protection, where: "Appendix 9, para 4", group: "Appendix 9: services"}
+  - {id: ap9-authz, name: Authorization and Access Control Services, where: "Appendix 9, para 7", group: "Appendix 9: services"}
+  - {id: ap9-authn, name: Authentication Services, where: "Appendix 9, para 8", group: "Appendix 9: services"}
+  - {id: ap9-certs, name: Digital Certificate Services, where: "Appendix 9, para 9", group: "Appendix 9: services"}
+  - {id: ap9-identity, name: Digital Identity Services, where: "Appendix 9, para 10", group: "Appendix 9: services"}
+  - {id: ap4-self-describing, name: Self-describing and reusable, where: "Appendix 4, para 12.1", group: "Appendix 4: data-product characteristics"}
+  - {id: ap4-domain-centric, name: Domain-centric, where: "Appendix 4, para 12.2", group: "Appendix 4: data-product characteristics"}
+  - {id: ap4-metadata-driven, name: Metadata-driven, where: "Appendix 4, para 12.3", group: "Appendix 4: data-product characteristics"}
+  - {id: ap4-interoperability, name: Interoperability and sharing, where: "Appendix 4, para 12.4", group: "Appendix 4: data-product characteristics"}
+  - {id: ap4-machine-accessible, name: Machine-accessible, where: "Appendix 4, para 12.5", group: "Appendix 4: data-product characteristics"}
+  - {id: ap4-lifecycle, name: Lifecycle management, where: "Appendix 4, para 12.6", group: "Appendix 4: data-product characteristics"}
+  - {id: ap4-governance, name: Automated governance, where: "Appendix 4, para 12.7", group: "Appendix 4: data-product characteristics"}
+  - {id: ap4-consumer, name: Consumer oriented, where: "Appendix 4, para 12.8", group: "Appendix 4: data-product characteristics"}
+  - {id: ap14-infrastructure, name: Infrastructure, where: "Appendix 14, para 2", group: "Appendix 14: planes"}
+  - {id: ap14-operational, name: Operational Data, where: "Appendix 14, paras 5-7", group: "Appendix 14: planes"}
+  - {id: ap14-data-management, name: Data Management, where: "Appendix 14, para 8", group: "Appendix 14: planes"}
+  - {id: ap14-analytical, name: Analytical Data, where: "Appendix 14, para 10", group: "Appendix 14: planes"}

@@ -7,6 +7,7 @@ and its message names the path in the record.
 from __future__ import annotations
 
 import copy
+import os
 import re
 import shutil
 import sys
@@ -19,9 +20,13 @@ import yaml
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
+os.environ.setdefault("ARCH_KIT_CONFIG", str(HERE / "testdata" / "arch-kit.yaml"))
+
+import alignment  # noqa: E402
 from test_example_decisions import KIT, copy_example, render  # noqa: E402
 
 GOOD = yaml.safe_load((HERE / "testdata" / "alignment" / "good.yaml").read_text(encoding="utf-8"))
+SEEDED = yaml.safe_load((HERE / "testdata" / "alignment" / "seeded.yaml").read_text(encoding="utf-8"))
 
 LOADER_TAIL = '''
 
@@ -34,6 +39,10 @@ def load_alignment(root):
 
 def good() -> dict:
     return copy.deepcopy(GOOD)
+
+
+def seeded() -> dict:
+    return copy.deepcopy(SEEDED)
 
 
 class Project:
@@ -350,6 +359,127 @@ class Declaration(unittest.TestCase):
         p.put("a-first", bad)
         r = p.render()
         self.assertIn("alignment/a-first.yaml: title: is required", r.stderr)
+
+
+class Seeds(unittest.TestCase):
+    def files(self):
+        found = sorted((KIT / "arch_kit" / "references").glob("*.yaml"))
+        self.assertTrue(found)
+        return found
+
+    def test_every_seed_validates_as_a_seed(self):
+        for f in self.files():
+            with self.subTest(f.name):
+                alignment.validate_seed(f.name, yaml.safe_load(f.read_text(encoding="utf-8")))
+
+    def test_every_seed_is_public(self):
+        for f in self.files():
+            with self.subTest(f.name):
+                self.assertEqual(yaml.safe_load(f.read_text(encoding="utf-8"))["terms"]["status"], "public")
+
+    def test_every_seed_has_unique_ids_and_four_fields_per_element(self):
+        for f in self.files():
+            with self.subTest(f.name):
+                els = yaml.safe_load(f.read_text(encoding="utf-8"))["elements"]
+                self.assertEqual(len({e["id"] for e in els}), len(els))
+                for e in els:
+                    self.assertEqual(set(e), {"id", "name", "where", "group"})
+                    self.assertTrue(all(isinstance(v, str) and v.strip() for v in e.values()))
+
+    def test_the_first_seed_has_the_groups_in_the_ruled_order(self):
+        seed = alignment.load_seed("nato-dcra-v2")
+        self.assertEqual(alignment._group_order(seed["elements"]),
+                         ["Appendix 9: roles", "Appendix 9: services", "Appendix 4: data-product characteristics",
+                          "Appendix 14: planes"])
+        self.assertEqual(len(seed["elements"]), 21)
+
+    def test_a_seed_that_breaks_the_seed_schema_is_refused(self):
+        seed = yaml.safe_load((KIT / "arch_kit" / "references" / "nato-dcra-v2.yaml").read_text(encoding="utf-8"))
+        del seed["elements"][0]["where"]
+        with self.assertRaises(alignment.InputError):
+            alignment.validate_seed("x", seed)
+        seed["elements"][0]["where"] = "w"
+        seed["elements"][1]["id"] = seed["elements"][0]["id"]
+        with self.assertRaises(alignment.InputError):
+            alignment.validate_seed("x", seed)
+
+
+# (name, change to the seeded record, the path the message names, text it holds)
+SEED_REFUSED = [
+    ("an unknown seed", mut(lambda r: r["references"][0].update(seed="no-such-seed")), "references.0.seed",
+     "no-such-seed"),
+    ("a seed name that is not a name", mut(lambda r: r["references"][0].update(seed="../x")),
+     "references.0.seed", ""),
+    ("a group the seed does not have", mut(lambda r: r["references"][0].update(groups=["Appendix 99: nothing"])),
+     "references.0.groups.0", "not a group of seed nato-dcra-v2"),
+    ("a group listed twice", mut(lambda r: r["references"][0].update(
+        groups=["Appendix 9: roles", "Appendix 9: roles"])), "references.0.groups.1", "listed twice"),
+    ("an inline id that is a seed id", mut(lambda r: r["references"][0]["elements"][0].update(id="ap9-pep")),
+     "references.0.elements.0.id", "ap9-pep"),
+    ("an inline id that is an id of a group the seed filtered out",
+     mut(lambda r: r["references"][0]["elements"][0].update(id="ap4-lifecycle")),
+     "references.0.elements.0.id", "ap4-lifecycle"),
+    ("a row for an element groups filtered out", mut(lambda r: r["rows"].append(
+        {"ref": "dcra", "element": "ap4-lifecycle", "correspondence": "not_assessed"})), "rows.11.element",
+     "not a compared element"),
+    ("a missing row for a seed element", mut(lambda r: r["rows"].pop(4)), "rows",
+     "no row for ref dcra element ap9-crypto"),
+    ("a seed with title-only", mut(lambda r: r["references"][0].update(read="title-only")),
+     "references.0.seed", "title-only"),
+    ("groups without a seed", mut(lambda r: (drop(r["references"][0], "seed"), r["references"][0].update(
+        title="T", edition="E", terms={"status": "public", "basis": "b", "cite": "c"}))),
+     "references.0.groups", "needs a seed"),
+]
+
+
+class Seeded(unittest.TestCase):
+    def ctx(self):
+        return alignment.Context("render_html", ["ADR-0001", "ADR-0002", "ADR-0003"], KIT / "examples" / "decisions-only")
+
+    def test_the_fixture_over_the_seed_is_accepted_by_both_routes(self):
+        self.assertEqual(len(SEEDED["rows"]), 11)
+        for route in ("file", "loader"):
+            with self.subTest(route):
+                p = Project(self, route)
+                p.put("coverage", seeded())
+                r = p.render()
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_the_seed_supplies_title_edition_identifier_and_terms_and_the_record_wins(self):
+        rec = seeded()
+        ref = alignment.merge("x", rec)["references"][0]
+        self.assertEqual(ref["title"], "Data Centric Reference Architecture for the Alliance")
+        self.assertEqual(ref["identifier"], "AC/322-D(2025)0056")
+        self.assertEqual(ref["terms"]["status"], "public")
+        rec["references"][0]["title"] = "Our title"
+        rec["references"][0]["terms"] = {"status": "unconfirmed", "basis": "b", "cite": "c"}
+        ref = alignment.merge("x", rec)["references"][0]
+        self.assertEqual((ref["title"], ref["terms"]["status"], ref["edition"]),
+                         ("Our title", "unconfirmed", "Version 2, 2025"))
+
+    def test_the_compared_elements_are_the_seeds_in_order_then_the_inline_ones(self):
+        ref = alignment.validate("x", seeded(), self.ctx())["references"][0]
+        self.assertEqual([e["id"] for e in ref["compared"]],
+                         ["ap9-pep", "ap9-pdp", "ap9-pip", "ap9-pap", "ap9-crypto", "ap9-authz", "ap9-authn",
+                          "ap9-certs", "ap9-identity", "local-audit", "local-export"])
+        self.assertEqual(ref["left_out"], ["Appendix 4: data-product characteristics", "Appendix 14: planes"])
+
+    def test_a_seed_with_no_groups_compares_every_element_and_leaves_none_out(self):
+        rec = seeded()
+        del rec["references"][0]["groups"]
+        ref = alignment.merge("x", rec)["references"][0]
+        els, left = alignment._compared("x", 0, ref)
+        self.assertEqual((len(els), left), (23, []))
+
+    def test_every_refusal_names_the_path(self):
+        p = Project(self)
+        for name, change, path, text in SEED_REFUSED:
+            with self.subTest(name):
+                p.put("coverage", change(seeded()))
+                r = p.render()
+                self.assertEqual(r.returncode, 2, name + "\n" + r.stdout + r.stderr)
+                self.assertIn(f"alignment/coverage.yaml: {path}: ", r.stderr, name)
+                self.assertIn(text, r.stderr, name)
 
 
 if __name__ == "__main__":
