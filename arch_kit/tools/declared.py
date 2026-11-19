@@ -677,8 +677,7 @@ def consumes(tool: str) -> tuple:
                     _bad(key + ".drift", f"{drift!r} is not one of {', '.join(DRIFTS)}")
                 records = None
                 if "records" in item:
-                    prefix, digits = record_id(tool)
-                    shape = f"{re.escape(prefix)}-" + chr(92) + f"d{{{digits}}}"
+                    shape = r"[A-Z][A-Z0-9]*-[0-9]+"
                     rkey = key + ".records"
                     refs = item["records"]
                     if not isinstance(refs, list) or not refs:
@@ -691,7 +690,7 @@ def consumes(tool: str) -> tuple:
                             if not name or any(c.isspace() for c in name):
                                 _bad(f"{rkey}[{j}]", f"{ref!r}: capability:<name> needs a name with no whitespace")
                         elif not re.fullmatch(shape, ref):
-                            _bad(f"{rkey}[{j}]", f"{ref!r} is neither {record_form(tool)} nor capability:<name>")
+                            _bad(f"{rkey}[{j}]", f"{ref!r} is neither a record id (PREFIX-<digits>, such as ADR-0012) nor capability:<name>")
                         if refs.index(ref) != j:
                             _bad(f"{rkey}[{j}]", f"duplicate record {ref!r}")
                     records = tuple(refs)

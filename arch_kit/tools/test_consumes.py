@@ -149,16 +149,19 @@ class Refused(Base):
         self.refused(c, "consumes[1].portal")
 
     def test_records_shape(self):
-        for bad in ("ADR-0001", [], [3], ["ADR-001"], ["XYZ-0001"], ["capability:"], ["capability:a b"],
+        for bad in ("ADR-0001", [], [3], ["capability:"], ["capability:a b"],
                     ["ADR-0001", "ADR-0001"], ["capability:x", "capability:x"]):
             with self.subTest(bad=bad):
                 self.refused(self.consumer(records=bad), "consumes[0].records")
 
-    def test_the_stand_in_grammar_is_the_consumers_own(self):
-        c = self.consumer(records=["DR-001"])
-        c["decisions"] = {"records": {"prefix": "DR", "digits": 3}}
-        p = self.run_tool(c)
+    def test_any_prefix_and_digit_count_is_accepted(self):
+        p = self.run_tool(self.consumer(records=["DR-002", "ADR-0012", "X1-7"]))
         self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_a_malformed_record_id(self):
+        for bad in ("dr-2", "DR-", "DR 002", "DR-0a", "-002"):
+            with self.subTest(bad=bad):
+                self.refused(self.consumer(records=[bad]), "consumes[0].records[0]")
 
     def test_render_html_and_check_export_refuse_a_malformed_consumes(self):
         for tool in ("render_html", "check_export"):
@@ -218,12 +221,12 @@ class CheckConsumes(Base):
         git(cls.repo, "add", "docs/arch/arch-kit.yaml", "decisions/ADR-0001-first.md")
         git(cls.repo, "commit", "-q", "-m", "first")
         cls.c1 = git(cls.repo, "rev-parse", "HEAD")
-        # The second commit changes the record grammar: files lose the prefix. Only the consumed side knows that.
-        base["decisions"] = {"records": {"file_prefix": False}}
+        # The second commit moves the project to its own record grammar, DR with three digits. Only its declaration says so.
+        base["decisions"] = {"records": {"prefix": "DR", "digits": 3}}
         decl.write_text(yaml.safe_dump(base), encoding="utf-8", newline="\n")
-        git(cls.repo, "mv", "decisions/ADR-0001-first.md", "decisions/0001-first.md")
-        (cls.repo / "decisions" / "0002-second.md").write_text("# ADR-0002\n", encoding="utf-8", newline="\n")
-        git(cls.repo, "add", "docs/arch/arch-kit.yaml", "decisions/0002-second.md")
+        git(cls.repo, "mv", "decisions/ADR-0001-first.md", "decisions/DR-001-first.md")
+        (cls.repo / "decisions" / "DR-002-second.md").write_text("# DR-002\n", encoding="utf-8", newline="\n")
+        git(cls.repo, "add", "docs/arch/arch-kit.yaml", "decisions/DR-002-second.md")
         git(cls.repo, "commit", "-q", "-m", "second")
         cls.c2 = git(cls.repo, "rev-parse", "HEAD")
 
@@ -239,48 +242,53 @@ class CheckConsumes(Base):
         return self.run_tool(self.consumer(commit=commit, records=records), "check_consumes", *args)
 
     def test_pin_found_and_all_ids_present(self):
-        p = self.check(self.c2, ["ADR-0001", "ADR-0002"])
+        p = self.check(self.c2, ["DR-001", "DR-002"])
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn("check_consumes: 1 entries: 1 checked, 0 not checked, 0 failed", p.stdout)
 
-    def test_the_grammar_comes_from_the_consumed_side(self):
-        # At the first commit the files are ADR-0001-first.md; at the second they are 0001-first.md. The consumer's
-        # own grammar reads only the first form, so both passing shows the pinned declaration is the one in use.
-        for commit in (self.c1, self.c2):
-            with self.subTest(commit=commit[:7]):
-                self.assertEqual(self.check(commit, ["ADR-0001"]).returncode, 0)
+    def test_a_consumer_on_the_default_grammar_finds_a_dr_record(self):
+        # The consumer stays on ADR/4; the consumed declaration at the pin says DR/3.
+        self.assertEqual(self.check(self.c2, ["DR-002"]).returncode, 0)
+        p = self.check(self.c1, ["DR-002"])
+        self.assertEqual(p.returncode, 1, p.stdout)
+        self.assertIn(f"consumes[0]: example-platform: DR-002 not found at {self.c1[:7]}", p.stdout)
+
+    def test_an_id_in_the_consumers_own_grammar_is_not_found_in_the_dr_project(self):
+        p = self.check(self.c2, ["ADR-0012"])
+        self.assertEqual(p.returncode, 1, p.stdout)
+        self.assertIn(f"consumes[0]: example-platform: ADR-0012 not found at {self.c2[:7]}", p.stdout)
 
     def test_an_explicit_declaration_path(self):
-        p = self.check(self.c2, ["ADR-0002"], name="example-platform")
+        p = self.check(self.c2, ["DR-002"], name="example-platform")
         self.assertEqual(p.returncode, 0)
-        p = self.run_tool(self.consumer(commit=self.c2, records=["ADR-0002"]), "check_consumes", "--checkout",
+        p = self.run_tool(self.consumer(commit=self.c2, records=["DR-002"]), "check_consumes", "--checkout",
                           f"example-platform={self.repo}:docs/arch/arch-kit.yaml")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        p = self.run_tool(self.consumer(commit=self.c2, records=["ADR-0002"]), "check_consumes", "--checkout",
+        p = self.run_tool(self.consumer(commit=self.c2, records=["DR-002"]), "check_consumes", "--checkout",
                           f"example-platform={self.repo}:docs/arch/missing.yaml")
         self.assertEqual(p.returncode, 1)
         self.assertIn("declaration docs/arch/missing.yaml not found at " + self.c2[:7], p.stdout)
 
     def test_pin_not_found(self):
-        p = self.check("f" * 40, ["ADR-0001"])
+        p = self.check("f" * 40, ["DR-001"])
         self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
         self.assertIn("consumes[0]: example-platform: pin not found: fffffff", p.stdout)
         self.assertIn("0 checked, 0 not checked, 1 failed", p.stdout)
 
     def test_an_id_present_only_at_the_later_commit(self):
-        p = self.check(self.c1, ["ADR-0001", "ADR-0002"])
+        p = self.check(self.c1, ["ADR-0001", "DR-002"])
         self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
-        self.assertIn(f"consumes[0]: example-platform: ADR-0002 not found at {self.c1[:7]}", p.stdout)
+        self.assertIn(f"consumes[0]: example-platform: DR-002 not found at {self.c1[:7]}", p.stdout)
         self.assertNotIn("ADR-0001 not found", p.stdout)
 
     def test_no_checkout_is_not_a_pass(self):
-        p = self.check(self.c2, ["ADR-0001"], checkout=False)
+        p = self.check(self.c2, ["DR-001"], checkout=False)
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertIn("consumes[0]: example-platform: not checked: no checkout given", p.stdout)
         self.assertIn("1 entries: 0 checked, 1 not checked, 0 failed", p.stdout)
 
     def test_a_capability_is_left_to_the_composed_build(self):
-        p = self.check(self.c2, ["capability:LabelledRecords", "ADR-0001"])
+        p = self.check(self.c2, ["capability:LabelledRecords", "DR-001"])
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn("consumes[0]: example-platform: capability:LabelledRecords: checked when composed", p.stdout)
 
@@ -292,7 +300,7 @@ class CheckConsumes(Base):
         self.assertIn("1 checked", p.stdout)
 
     def test_a_checkout_for_an_unknown_name(self):
-        p = self.check(self.c2, ["ADR-0001"], name="example-other")
+        p = self.check(self.c2, ["DR-001"], name="example-other")
         self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
         self.assertIn("--checkout example-other", p.stderr)
 

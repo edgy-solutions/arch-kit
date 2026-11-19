@@ -83,8 +83,9 @@ consumes:
 ```
 
 A branch, a tag, a short id or uppercase hex in `commit` exits 2. `records` is a non-empty list of strings, each a
-decision id or `capability:<name>`; no duplicates. A decision id is checked here only for the shape of this
-project's own `decisions.records` grammar. Two entries with the same `portal`, an unknown key, or a missing required
+decision id or `capability:<name>`; no duplicates. A decision id has the kit-wide record id shape,
+`[A-Z][A-Z0-9]*-[0-9]+`, in any prefix and any digit count; it need not match this project's own grammar. Whether it
+is a record of the consumed project is checked only by `check_consumes` with a checkout. Two entries with the same `portal`, an unknown key, or a missing required
 key exit 2. `drift` is validated and not yet acted on. `render_html` and `check_export` validate `consumes:` and
 render nothing from it: their output is the same with or without it.
 

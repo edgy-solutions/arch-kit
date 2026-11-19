@@ -257,5 +257,26 @@ class IndexCheck(Composition):
         self.assertIn("      Known repos: loam, ferro, gild. An unqualified ADR-NNNN means", p.stderr.splitlines())
 
 
+class EveryRender(unittest.TestCase):
+    def test_a_malformed_composition_file_fails_render_html_and_check_export(self):
+        sys.path.insert(0, str(HERE))
+        import test_example_decisions as ed
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        proj = ed.copy_example(tmp)
+        decl = proj / "arch-kit.yaml"
+        c = yaml.safe_load(decl.read_text(encoding="utf-8"))
+        c["files"] = {"composition": "composition.yaml"}
+        decl.write_text(yaml.safe_dump(c), encoding="utf-8", newline="\n")
+        (proj / "composition.yaml").write_text("composition: 2\n", encoding="utf-8", newline="\n")
+        out = tmp / "export.html"
+        p = ed.render(proj, out)
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertIn("files.composition: composition: must be 1", p.stderr)
+        self.assertFalse(out.exists())
+        p = ed.check(proj, out)
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

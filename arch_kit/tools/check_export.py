@@ -250,6 +250,7 @@ def check_declarations(raw: str, tree: check_views.Tree) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     project.require_portal("check_export")
     declared.consumes("check_export")
+    declared.composition("check_export")
     ap = argparse.ArgumentParser(description="Check the HTML export of the architecture views.")
     ap.add_argument("--export", required=True)
     ap.add_argument("--root", default=str(rp.ROOT))

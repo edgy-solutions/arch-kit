@@ -1571,6 +1571,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     project.require_portal("render_html")
     declared.consumes("render_html")
+    declared.composition("render_html")
     ap = argparse.ArgumentParser(description="Render the architecture views as one HTML file.")
     ap.add_argument("--out", required=True, help="the file to write")
     ap.add_argument("--chart")
