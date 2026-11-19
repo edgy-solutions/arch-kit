@@ -188,6 +188,37 @@ record, in the same shape. The function is optional: it is not one of the names 
 `files.alignment` and defining `load_alignment` together exits 2 naming both. The records are validated the same way
 whichever route they come by (`arch_kit/schema/alignment.schema.json`), and the first error exits 2. A record name from a loader must match `[a-z0-9][a-z0-9-]*`, the same pattern a file stem must match.
 
+### The flow record: `files.flows` and `load_flows`
+
+A project may declare its flows (see [the flow record](design/flows.md)): each says that one part sends one kind of
+record to another, over one channel, and which decision records decided it. `files.flows` names one YAML file under
+`paths.root`, with no default; its only key is `flows:`, a non-empty list. Each flow has exactly seven keys:
+
+```yaml
+flows:
+  - id: FL-001            # FL- and at least three digits
+    from: intake          # a part of the project, in its own words, or capability:<name>
+    to: depot
+    carries: parcel.v1    # the schema key, no whitespace
+    via: "broker/parcels" # a topic, a queue or an API path, on one line
+    decided_by: [ADR-0001]  # local decision ids, or <prefix>:<id> for a declared foreign prefix; may be empty
+    built: false
+```
+
+A loader may instead define `load_flows(root)`, returning the same list. It is optional, as `load_alignment` is.
+Declaring `files.flows` and defining `load_flows` together exits 2 naming both. A project that declares neither has no
+flows and renders and checks as before.
+
+The first error exits 2, as `<file or load_flows>: <path>: <why>`. A schema error names its dotted path
+(`flows.0.id`); the later checks name `flows[i].<key>`: a duplicate id, `from` equal to `to`, two flows with the same
+`from`, `to`, `carries` and `via`, a repeated id in one `decided_by`, a `decided_by` entry that is not a decision
+record, and a `capability:` name that is not in the capability record. A decisions-only portal has no capability
+record, so it refuses the `capability:` form. The kit keeps no list of a project's parts, so a part's name is checked
+against nothing.
+
+Flows between projects are not decided: a part's name means something only inside its own project, and a flow from
+one project's part to another's waits for a ruling on naming parts across a composition.
+
 ### The decision index
 
 ```yaml

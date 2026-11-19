@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Flow record",
+  "description": "One list of flows: one part of a project sends one kind of record to another, over one channel. See docs/design/flows.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["flows"],
+  "properties": {
+    "flows": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/flow"}}
+  },
+  "$defs": {
+    "part": {
+      "type": "string",
+      "pattern": "^(capability:\\S+|[A-Za-z0-9][A-Za-z0-9._-]*)$",
+      "not": {"pattern": "[\\r\\n]"}
+    },
+    "flow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "from", "to", "carries", "via", "decided_by", "built"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^FL-[0-9]{3,}$", "not": {"pattern": "[\\r\\n]"}},
+        "from": {"$ref": "#/$defs/part"},
+        "to": {"$ref": "#/$defs/part"},
+        "carries": {"type": "string", "pattern": "^\\S+$", "not": {"pattern": "[\\r\\n]"}},
+        "via": {"type": "string", "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
+        "decided_by": {"type": "array", "items": {"type": "string"}},
+        "built": {"type": "boolean"}
+      }
+    }
+  }
+}
