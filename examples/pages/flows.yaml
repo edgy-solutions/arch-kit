@@ -1,0 +1,16 @@
+# The flows of the example project. Every name in it is invented.
+flows:
+  - id: FL-001
+    from: intake
+    to: depot
+    carries: parcel.v1
+    via: "broker/parcels"
+    decided_by: [ADR-0001]
+    built: true
+  - id: FL-002
+    from: depot
+    to: ledger
+    carries: receipt.v1
+    via: "/api/receipts"
+    decided_by: [ADR-0002, ADR-0003]
+    built: false

@@ -1,0 +1,33 @@
+<section id="page-overview" class="page prose" data-page="overview" data-kind="overview"><h1>What Woad is</h1><p><a href="#front">Front page</a></p><div class="body"><p>Woad runs parcel lockers that keep working when the depot is out of reach.</p>
+<p>The idea is settled in <a class="cite" href="#adr-0001" data-cite="ADR-0001">ADR-0001</a>, and the depot's half in <code class="cite" data-cite="other:ADR-0007">other:ADR-0007</code>.
+The locker side is <a class="cite" href="#component-CO-001" data-cite="CO-001">CO-001</a> <span class="badge prose-built">Built</span>; the depot side is <a class="cite" href="#component-CO-002" data-cite="CO-002">CO-002</a>, which has been <a class="cite" href="#component-CO-002" data-cite="CO-002">CO-002</a> <span class="badge prose-accepted">Accepted</span>.</p>
+<div class="scroll"><table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Where it lives</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>locker agent</td>
+<td><a class="cite" href="#component-CO-001" data-cite="CO-001">CO-001</a></td>
+</tr>
+<tr>
+<td>depot router</td>
+<td><a class="cite" href="#component-CO-002" data-cite="CO-002">CO-002</a> <span class="badge prose-accepted">Accepted</span></td>
+</tr>
+</tbody>
+</table></div>
+<p>How Woad compares with the references its owner named is in <a class="cite" href="#alignment-coverage" data-cite="alignment:coverage">alignment:coverage</a>.</p>
+<p>Write a citation as <code>[[ADR-0001]]</code> and the kit checks it. The same holds in a block:</p>
+<pre><code>[[ADR-0099]] is not checked here
+</code></pre>
+</div></section>
+<section id="page-b-return" class="page prose" data-page="b-return" data-kind="walkthrough"><h1>A parcel comes back</h1><p><a href="#front">Front page</a></p><div class="body"><p>A returned parcel travels on the flow <a class="cite" href="#flows" data-cite="FL-001">FL-001</a> <span class="badge prose-built">Built</span>. The receipt leg, <a class="cite" href="#flows" data-cite="FL-002">FL-002</a>, is not built yet, and the whole
+return is the proposed step <a class="cite" href="#roadmap-RM-003" data-cite="RM-003">RM-003</a> <span class="badge prose-proposed">Proposed</span>.</p>
+</div></section>
+<section id="page-a-offline" class="page prose" data-page="a-offline" data-kind="walkthrough"><h1>A parcel arrives offline</h1><p><a href="#front">Front page</a></p><div class="body"><p>A courier puts a parcel in a locker with no depot link. The first step, <a class="cite" href="#roadmap-RM-001" data-cite="RM-001">RM-001</a> <span class="badge prose-built">Built</span>, is the one that proves it.
+Step <a class="cite" href="#roadmap-RM-002" data-cite="RM-002">RM-002</a> then sorts it by size once the depot is back.</p>
+</div></section>
+<nav class="prose"><h2>Overview and walkthroughs</h2><ul><li><a href="#page-overview">What Woad is</a></li><li><a href="#page-b-return">A parcel comes back</a></li><li><a href="#page-a-offline">A parcel arrives offline</a></li></ul></nav>

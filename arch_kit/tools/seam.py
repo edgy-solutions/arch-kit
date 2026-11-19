@@ -16,6 +16,8 @@ Another is `load_components(root)`, for a project that keeps its component recor
 `files.components`; it returns a list of components and is optional in the same way.
 Another is `load_roadmap(root)`, for a project that keeps its roadmap increments somewhere other than
 `files.roadmap`; it returns a list of increments and is optional in the same way.
+Another is `load_pages(root)`, for a project that keeps its prose pages somewhere other than `files.pages`; it returns
+a list of pages and is optional in the same way.
 """
 from __future__ import annotations
 
@@ -78,9 +80,12 @@ class Loader(Protocol):
     def load_roadmap(self, root: Path) -> list[dict]:
         """Optional. The roadmap increments, in the kit's shape; root is paths.root."""
 
+    def load_pages(self, root: Path) -> list[dict]:
+        """Optional. The prose pages, in the kit's shape; root is paths.root."""
+
 
 # Names a loader may leave out.
-OPTIONAL_NAMES = ("load_alignment", "load_components", "load_roadmap")
+OPTIONAL_NAMES = ("load_alignment", "load_components", "load_roadmap", "load_pages")
 
 # Every name a loader must provide: KEY_NAMES and each function above, less the optional ones.
 NAMES = ("KEY_NAMES", *(n for n, v in vars(Loader).items()

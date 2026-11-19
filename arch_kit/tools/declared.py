@@ -274,7 +274,8 @@ COMPOSITION_KEY = "composition"  # a `files` key with no default: the compositio
 FLOWS_KEY = "flows"  # a `files` key with no default: one YAML file of flow records, absent unless declared
 COMPONENTS_KEY = "components"  # a `files` key with no default: one YAML file of component records, absent unless declared
 ROADMAP_KEY = "roadmap"  # a `files` key with no default: one YAML file of roadmap increments, absent unless declared
-OPTIONAL_FILE_KEYS = (ALIGNMENT_KEY, COMPOSITION_KEY, FLOWS_KEY, COMPONENTS_KEY, ROADMAP_KEY)
+PAGES_KEY = "pages"  # a `files` key with no default: a directory of prose pages, absent unless declared
+OPTIONAL_FILE_KEYS = (ALIGNMENT_KEY, COMPOSITION_KEY, FLOWS_KEY, COMPONENTS_KEY, ROADMAP_KEY, PAGES_KEY)
 
 
 def _relative(value, key):
@@ -311,6 +312,12 @@ def alignment_dir(tool: str) -> str | None:
     """The declared directory of alignment records under paths.root (`files.alignment`), or None. It has no default."""
     content_file("profiles", tool)  # reads and checks the whole `files` map
     return _CACHE["files"].get(ALIGNMENT_KEY)
+
+
+def pages_dir(tool: str) -> str | None:
+    """The declared directory of prose pages under paths.root (`files.pages`), or None. It has no default."""
+    content_file("profiles", tool)  # reads and checks the whole `files` map
+    return _CACHE["files"].get(PAGES_KEY)
 
 
 def flows_file(tool: str) -> str | None:
