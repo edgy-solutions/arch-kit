@@ -273,7 +273,8 @@ ALIGNMENT_KEY = "alignment"  # a `files` key with no default: a directory of ali
 COMPOSITION_KEY = "composition"  # a `files` key with no default: the composition file, relative to the declaration
 FLOWS_KEY = "flows"  # a `files` key with no default: one YAML file of flow records, absent unless declared
 COMPONENTS_KEY = "components"  # a `files` key with no default: one YAML file of component records, absent unless declared
-OPTIONAL_FILE_KEYS = (ALIGNMENT_KEY, COMPOSITION_KEY, FLOWS_KEY, COMPONENTS_KEY)
+ROADMAP_KEY = "roadmap"  # a `files` key with no default: one YAML file of roadmap increments, absent unless declared
+OPTIONAL_FILE_KEYS = (ALIGNMENT_KEY, COMPOSITION_KEY, FLOWS_KEY, COMPONENTS_KEY, ROADMAP_KEY)
 
 
 def _relative(value, key):
@@ -322,6 +323,12 @@ def components_file(tool: str) -> str | None:
     """The declared file of component records under paths.root (`files.components`), or None. It has no default."""
     content_file("profiles", tool)  # reads and checks the whole `files` map
     return _CACHE["files"].get(COMPONENTS_KEY)
+
+
+def roadmap_file(tool: str) -> str | None:
+    """The declared file of roadmap increments under paths.root (`files.roadmap`), or None. It has no default."""
+    content_file("profiles", tool)  # reads and checks the whole `files` map
+    return _CACHE["files"].get(ROADMAP_KEY)
 
 
 def components_declaration(tool: str) -> tuple[tuple[str, ...], tuple[str, ...]]:

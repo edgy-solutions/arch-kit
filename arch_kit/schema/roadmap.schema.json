@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Roadmap record",
+  "description": "One ordered list of increments: what each isolates, where its decision lives, what it depends on, and how far along it is. There is no date key.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["roadmap"],
+  "properties": {
+    "roadmap": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/increment"}}
+  },
+  "$defs": {
+    "line": {
+      "type": "string",
+      "pattern": "\\S",
+      "not": {"pattern": "[\\r\\n]"}
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^RM-[A-Z0-9]+(-[A-Z0-9]+)*$",
+      "not": {"pattern": "[\\r\\n]"}
+    },
+    "increment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "increment", "isolates", "depends_on", "status"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "increment": {"$ref": "#/$defs/line"},
+        "isolates": {"$ref": "#/$defs/line"},
+        "home": {"$ref": "#/$defs/line"},
+        "depends_on": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+        "status": {"enum": ["measured", "built", "accepted", "proposed"]}
+      }
+    }
+  }
+}

@@ -285,6 +285,42 @@ nothing more.
 `<tool>: <file or load_components>: components[i].evidence: measured, but no evidence is under components.results`,
 one line per component in file order, and the load goes on.
 
+### The roadmap record: `files.roadmap` and `load_roadmap`
+
+A project may declare its roadmap as a record: an ordered list of increments, each with what it isolates, where its
+decision lives, which earlier increments it depends on, and how far along it is. `files.roadmap` names one YAML file
+under `paths.root`, with no default; its only key is `roadmap:`, a non-empty list. Each increment has these keys, and
+no others (there is no date key):
+
+```yaml
+roadmap:
+  - id: RM-001                  # RM- then capitals, digits and hyphens; unique
+    increment: Offline pickup   # one non-empty line; unique, because capability records name increments
+    isolates: whether a locker accepts a parcel with no depot link   # one non-empty line
+    home: ADR-0001              # a decision record, local or <prefix>:<id> for a declared foreign prefix
+    depends_on: []              # ids of EARLIER increments; may be empty; no repeats
+    status: measured            # measured, built, accepted or proposed
+```
+
+`home` is optional only when the status is `proposed`; when present it must resolve to a decision record. An unquoted
+YAML date (`2026-11-19`) in any field exits 2, and `increment` and `isolates` must not hold a date such as `2026-11`
+or `2026-11-19`. `depends_on` names only increments that come earlier in the list, so there are no cycles.
+
+A loader may instead define `load_roadmap(root)`, where `root` is `paths.root`, returning the same list. It is
+optional, as `load_components` is, and is not one of the names every loader provides. Declaring `files.roadmap` and
+defining `load_roadmap` together exits 2 naming both.
+
+The record and the roadmap note are one roadmap, not two. When either route is declared and `registers.roadmap` names a
+file that exists under the decisions directory, the load exits 2 with
+`files.roadmap: is declared, and the roadmap note decisions/<name> exists; use one`. A `registers.roadmap` that names
+no file is not an error, and a project that declares neither route is unchanged.
+
+The first error exits 2, as `<file or load_roadmap>: <path>: <why>`. A schema error names its dotted path
+(`roadmap.0.id`); the later checks name `roadmap[i].<key>`, each over every increment before the next starts, in this
+order: a repeated id, a repeated increment, a date in `increment` or `isolates`, a repeated `depends_on` item, a
+`depends_on` item that is the increment itself, comes later or is no increment id, and a `home` that is missing (and
+the status is not `proposed`) or does not resolve.
+
 ### The decision index
 
 ```yaml
