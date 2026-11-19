@@ -18,6 +18,9 @@ PATH = "parcels/lockers/north-wing/bay-07/intake/manifests/slots.yml"
 assert len(PATH) == 60
 URL = "https://example.test/parcels/lockers/north-wing/bay-07/intake?owner=north-wing&slot=12&token=abc"
 assert len(URL) >= 80
+PATH47 = PATH[:47]
+PATH48 = PATH[:48]
+assert len(PATH47) == 47 and len(PATH48) == 48
 HEX = "0123456789abcdef0123456789abcdef01234567"
 HEAD = "| a | b | c | d |\n|---|---|---|---|\n"
 
@@ -74,18 +77,33 @@ class LongTokens(unittest.TestCase):
         out = render(row("a", "b", "c", PATH) + "|---|---|---|---|\n" + row("w", "x", "y", "z"))
         self.assertIn("<th>parcels/<wbr>lockers/", out)
 
-    def test_the_same_path_in_columns_one_to_three_gets_none(self):
+    def test_a_47_character_path_in_columns_one_to_three_gets_none(self):
         for col in range(3):
             cells = ["w", "x", "y", "z"]
-            cells[col] = PATH
+            cells[col] = PATH47
             out = render(HEAD + row(*cells))
             self.assertNotIn("<wbr>", out)
-            self.assertIn(f"<td>{PATH}</td>", out)
+            self.assertIn(f"<td>{PATH47}</td>", out)
+
+    def test_a_60_character_path_in_column_two_gets_breaks_and_keeps_its_text(self):
+        out = render(HEAD + row("w", PATH, "y", "z"))
+        self.assertIn("<td>parcels/<wbr>lockers/", out)
+        self.assertIn(f"<td>{PATH}</td>", out.replace("<wbr>", ""))
+        self.assertIn(PATH, text_of(out))
+
+    def test_a_48_character_path_in_column_one_gets_breaks(self):
+        out = render(HEAD + row(PATH48, "x", "y", "z"))
+        self.assertIn("<td>parcels/<wbr>lockers/", out)
+        self.assertIn(f"<td>{PATH48}</td>", out.replace("<wbr>", ""))
+
+    def test_a_24_character_run_in_column_four_still_gets_breaks(self):
+        self.assertIn("<wbr>", cell("a" * 24))
+        self.assertNotIn("<wbr>", render(HEAD + row("a" * 24, "x", "y", "z")))
 
     def test_a_header_cell_in_column_two_gets_none(self):
-        out = render(row("a", PATH, "c", "d") + "|---|---|---|---|\n" + row("w", "x", "y", "z"))
+        out = render(row("a", PATH47, "c", "d") + "|---|---|---|---|\n" + row("w", "x", "y", "z"))
         self.assertNotIn("<wbr>", out)
-        self.assertIn(f"<th>{PATH}</th>", out)
+        self.assertIn(f"<th>{PATH47}</th>", out)
 
     def test_a_printed_link_target_breaks_in_column_four_but_not_its_href(self):
         out = cell(f"[short]({URL})")
@@ -94,15 +112,20 @@ class LongTokens(unittest.TestCase):
         self.assertNotRegex(out, r'href="[^"]*<wbr>')
         self.assertIn(f"short ({URL})", html.unescape(text_of(out)))
 
-    def test_a_link_in_column_two_gets_no_breaks(self):
+    def test_a_link_in_column_two_prints_its_long_target_with_breaks(self):
         out = render(HEAD + row("w", f"[short]({URL})", "y", "z"))
-        self.assertNotIn("<wbr>", out)
+        self.assertIn("<wbr>", out)
+        self.assertNotIn("href=", out)
         self.assertIn(f"short ({URL})", html.unescape(text_of(out)))
 
+    def test_a_link_in_column_two_with_a_short_target_gets_none(self):
+        out = render(HEAD + row("w", "[short](https://example.test/parcels/lockers)", "y", "z"))
+        self.assertNotIn("<wbr>", out)
+
     def test_the_column_count_resets_per_row(self):
-        out = render(HEAD + row("w", "x", "y", "z") + row(PATH, "x", "y", PATH))
+        out = render(HEAD + row("w", "x", "y", "z") + row(PATH47, "x", "y", PATH))
         second = out.split("<tr>")[-1]
-        self.assertIn(f"<td>{PATH}</td>", second)
+        self.assertIn(f"<td>{PATH47}</td>", second)
         self.assertIn("<td>parcels/<wbr>lockers/", second)
 
 

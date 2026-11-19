@@ -446,6 +446,7 @@ class Decisions:
 
 BREAK_AFTER = re.compile(r"[^/#?&=_\-.:]*[/#?&=_\-.:]|[^/#?&=_\-.:]+")
 LONG_RUN = re.compile(r"\S{24,}")
+ID_MAX = 47  # the longest token treated as an id; a longer token in columns 1 to 3 gets breaks
 
 
 def _break_run(run: str, escape) -> str:
@@ -457,10 +458,11 @@ def _break_run(run: str, escape) -> str:
     return "<wbr>".join(escape(p) for p in pieces)
 
 
-def escape_breaks(text: str, escape=esc) -> str:
-    """`text` escaped, with break opportunities in each run of 24 or more characters without whitespace."""
+def escape_breaks(text: str, escape=esc, minimum: int = 24) -> str:
+    """`text` escaped, with break opportunities in each run of `minimum` or more characters without whitespace."""
     out, at = [], 0
-    for m in LONG_RUN.finditer(text):
+    pattern = LONG_RUN if minimum == 24 else re.compile(r"\S{%d,}" % minimum)
+    for m in pattern.finditer(text):
         out.append(escape(text[at:m.start()]))
         out.append(_break_run(m.group(0), escape))
         at = m.end()
@@ -594,18 +596,22 @@ class Page:
         return self.md.renderer.renderToken(tokens, idx, options, env)
 
     def breaking(self) -> bool:
-        """True in a table cell of column 4 or later; columns 1 to 3 never wrap, so they get no breaks."""
-        return self.breaks and self.in_cell and self.col >= 4
+        """True in a table cell. Columns 1 to 3 never wrap, so only a token longer than ID_MAX gets breaks there."""
+        return self.breaks and self.in_cell
+
+    def minimum(self) -> int:
+        """The shortest run that gets breaks in the current cell."""
+        return 24 if self.col >= 4 else ID_MAX + 1
 
     def esc_text(self, text: str) -> str:
         """Escaped text; in a table cell, with break opportunities in long tokens."""
-        return escape_breaks(text) if self.breaking() else esc(text)
+        return escape_breaks(text, minimum=self.minimum()) if self.breaking() else esc(text)
 
     def code_inline(self, tokens, idx, options, env) -> str:
         if not self.breaking():
             return self.md.renderer.code_inline(tokens, idx, options, env)
         tok = tokens[idx]
-        return f"<code{self.md.renderer.renderAttrs(tok)}>{escape_breaks(tok.content, escapeHtml)}</code>"
+        return f"<code{self.md.renderer.renderAttrs(tok)}>{escape_breaks(tok.content, escapeHtml, self.minimum())}</code>"
 
     def text(self, tokens, idx, options, env) -> str:
         parts = rp.SLOT_RE.split(tokens[idx].content)
@@ -711,7 +717,7 @@ class Page:
             return "</span>"
         if markup == "autolink":
             return ""
-        return f" ({escape_breaks(value) if self.breaking() else esc(value)})"
+        return f" ({escape_breaks(value, minimum=self.minimum()) if self.breaking() else esc(value)})"
 
     @staticmethod
     def image(tokens, idx, options, env) -> str:

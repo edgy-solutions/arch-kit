@@ -192,6 +192,8 @@ class BrowserFacts(unittest.TestCase):
         self.assertEqual(f["search"], {"phrase": "which gadget feeds which", "finds": "Aa-One"})
         self.assertEqual(f["capability_link"], "Cc-Cap")
         self.assertEqual((f["min_pages"], f["min_tables"], f["min_tokens"]), (3, 2, 10))
+        import render_html
+        self.assertEqual(f["id_max"], render_html.ID_MAX)
 
     def test_without_the_data_exchange_home_the_width_is_the_sources_widest_table(self):
         self.assertEqual(browser_facts(self, dx_home="Bb-Two")["wide_table_columns"], 5)

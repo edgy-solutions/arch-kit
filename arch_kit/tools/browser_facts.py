@@ -130,6 +130,7 @@ def facts(root: Path) -> dict:
         "min_pages": browser["min_pages"],
         "min_tables": browser["min_tables"],
         "min_tokens": browser["min_tokens"],
+        "id_max": render_html.ID_MAX,
         "expect_wide_table": expect_wide_table(),
     }
 
@@ -155,6 +156,7 @@ def facts_no_model(root: Path, tree: check_views.Tree) -> dict:
         "min_pages": browser["min_pages"],
         "min_tables": browser["min_tables"],
         "min_tokens": browser["min_tokens"],
+        "id_max": render_html.ID_MAX,
         "expect_wide_table": expect_wide_table(),
     }
 
