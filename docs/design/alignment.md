@@ -1,8 +1,9 @@
 # Design record: the alignment record
 
-**Status: proposed, with proposed answers to its questions, pending the project owner's ruling. Nothing is built.**
+**Status: proposed, with proposed answers to its questions, pending the project owner's ruling.**
 
-AL-1 to AL-4 are built on branch feat/alignment-type, pending the ruling. Question 4's exemption is not built.
+AL-1 to AL-4 are built and released in 0.2.0, ahead of the ruling. If the ruling changes an answer, the build changes
+with it. Question 4's exemption is not built.
 
 Proposes a decision: the kit gets one general record type for comparing a project with external references, such as
 a reference architecture, a standard or a framework. The comparison is made element by element, and each comparison
