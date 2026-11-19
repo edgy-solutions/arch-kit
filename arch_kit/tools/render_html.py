@@ -540,8 +540,10 @@ class Page:
         self.exceptions = 0
         self.in_h1 = False
         self.in_cell = False
+        self.col = 0
         md = MarkdownIt("commonmark", {"html": False}).enable("table")
         md.renderer.rules["fence"] = self.fence
+        md.renderer.rules["tr_open"] = self.row_open
         for tag in ("td_open", "th_open"):
             md.renderer.rules[tag] = self.cell_open
         for tag in ("td_close", "th_close"):
@@ -578,20 +580,29 @@ class Page:
         self.in_h1 = False
         return self.md.renderer.renderToken(tokens, idx, options, env)
 
+    def row_open(self, tokens, idx, options, env) -> str:
+        self.col = 0
+        return self.md.renderer.renderToken(tokens, idx, options, env)
+
     def cell_open(self, tokens, idx, options, env) -> str:
         self.in_cell = True
+        self.col += 1
         return self.md.renderer.renderToken(tokens, idx, options, env)
 
     def cell_close(self, tokens, idx, options, env) -> str:
         self.in_cell = False
         return self.md.renderer.renderToken(tokens, idx, options, env)
 
+    def breaking(self) -> bool:
+        """True in a table cell of column 4 or later; columns 1 to 3 never wrap, so they get no breaks."""
+        return self.breaks and self.in_cell and self.col >= 4
+
     def esc_text(self, text: str) -> str:
         """Escaped text; in a table cell, with break opportunities in long tokens."""
-        return escape_breaks(text) if self.breaks and self.in_cell else esc(text)
+        return escape_breaks(text) if self.breaking() else esc(text)
 
     def code_inline(self, tokens, idx, options, env) -> str:
-        if not (self.breaks and self.in_cell):
+        if not self.breaking():
             return self.md.renderer.code_inline(tokens, idx, options, env)
         tok = tokens[idx]
         return f"<code{self.md.renderer.renderAttrs(tok)}>{escape_breaks(tok.content, escapeHtml)}</code>"
@@ -698,7 +709,9 @@ class Page:
             return "</a>"
         if kind == "ref":
             return "</span>"
-        return "" if markup == "autolink" else f" ({esc(value)})"
+        if markup == "autolink":
+            return ""
+        return f" ({escape_breaks(value) if self.breaking() else esc(value)})"
 
     @staticmethod
     def image(tokens, idx, options, env) -> str:

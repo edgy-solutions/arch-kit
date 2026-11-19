@@ -1,6 +1,7 @@
 """Tests the break opportunities (<wbr>) that Page adds to long tokens inside table cells. All values are made up."""
 from __future__ import annotations
 
+import html
 import os
 import re
 import sys
@@ -15,15 +16,23 @@ import render_html  # noqa: E402
 
 PATH = "parcels/lockers/north-wing/bay-07/intake/manifests/slots.yml"
 assert len(PATH) == 60
+URL = "https://example.test/parcels/lockers/north-wing/bay-07/intake?owner=north-wing&slot=12&token=abc"
+assert len(URL) >= 80
 HEX = "0123456789abcdef0123456789abcdef01234567"
+HEAD = "| a | b | c | d |\n|---|---|---|---|\n"
 
 
 def render(md: str) -> str:
     return render_html.Page("t", {}, lambda source, svg_id: "").render(md)
 
 
+def row(*cells: str) -> str:
+    return "| " + " | ".join(cells) + " |\n"
+
+
 def cell(body: str) -> str:
-    return render(f"| a | b |\n|---|---|\n| x | {body} |\n")
+    """A four-column table with `body` in column 4."""
+    return render(HEAD + row("w", "x", "y", body))
 
 
 def text_of(html_text: str) -> str:
@@ -62,8 +71,39 @@ class LongTokens(unittest.TestCase):
         self.assertNotRegex(out, r"&[a-z#0-9]*<wbr>")
 
     def test_a_header_cell_gets_breaks(self):
-        out = render(f"| {PATH} | b |\n|---|---|\n| x | y |\n")
+        out = render(row("a", "b", "c", PATH) + "|---|---|---|---|\n" + row("w", "x", "y", "z"))
         self.assertIn("<th>parcels/<wbr>lockers/", out)
+
+    def test_the_same_path_in_columns_one_to_three_gets_none(self):
+        for col in range(3):
+            cells = ["w", "x", "y", "z"]
+            cells[col] = PATH
+            out = render(HEAD + row(*cells))
+            self.assertNotIn("<wbr>", out)
+            self.assertIn(f"<td>{PATH}</td>", out)
+
+    def test_a_header_cell_in_column_two_gets_none(self):
+        out = render(row("a", PATH, "c", "d") + "|---|---|---|---|\n" + row("w", "x", "y", "z"))
+        self.assertNotIn("<wbr>", out)
+        self.assertIn(f"<th>{PATH}</th>", out)
+
+    def test_a_printed_link_target_breaks_in_column_four_but_not_its_href(self):
+        out = cell(f"[short]({URL})")
+        self.assertIn("<wbr>", out)
+        self.assertNotIn("href=", out)  # an external link prints its target; it has no href attribute
+        self.assertNotRegex(out, r'href="[^"]*<wbr>')
+        self.assertIn(f"short ({URL})", html.unescape(text_of(out)))
+
+    def test_a_link_in_column_two_gets_no_breaks(self):
+        out = render(HEAD + row("w", f"[short]({URL})", "y", "z"))
+        self.assertNotIn("<wbr>", out)
+        self.assertIn(f"short ({URL})", html.unescape(text_of(out)))
+
+    def test_the_column_count_resets_per_row(self):
+        out = render(HEAD + row("w", "x", "y", "z") + row(PATH, "x", "y", PATH))
+        second = out.split("<tr>")[-1]
+        self.assertIn(f"<td>{PATH}</td>", second)
+        self.assertIn("<td>parcels/<wbr>lockers/", second)
 
 
 if __name__ == "__main__":
