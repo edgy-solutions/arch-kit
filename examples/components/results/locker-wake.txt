@@ -1,0 +1,1 @@
+wake to first parcel accepted: 1.8 s (20 runs, median)

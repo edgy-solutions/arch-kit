@@ -233,6 +233,58 @@ block, so two members may both have an `FL-001`. A group without flows gets neit
 the portal and each member, that a group with flows has exactly one `NAME--flows` page and one front-page link to
 it, and that a group without flows has neither; a member's `files.flows` is read from its declaration at the pin.
 
+### The component record: `files.components`, `components:` and `load_components`
+
+A project may declare its components: each is one part of a system, with what it is for, how it is wired, how it signs
+in, where its data goes, the plane it sits on, what it serves, how far along it is, and the evidence. `files.components`
+names one YAML file under `paths.root`, with no default; its only key is `components:`, a non-empty list. Each
+component has exactly ten keys, all required:
+
+```yaml
+components:
+  - id: CO-001                  # CO- then capitals, digits and hyphens; unique
+    name: depot-sync            # a part name: a letter or digit, then letters, digits, dots, underscores or hyphens; unique
+    purpose: pushes parcels to the depot     # purpose, wiring, sign_in and data_path: one non-empty line each
+    plane: hub                  # a part name, and one of components.planes
+    wiring: reads the parcel topic, writes the depot API
+    sign_in: depot service token
+    data_path: locker to depot
+    serves: [pickup]            # one-line strings; may be empty; no repeats
+    status: built               # measured, built, accepted or proposed
+    evidence: [src/depot_sync.py:2]   # at least one; no repeats
+```
+
+The top-level `components:` map of the declaration holds the two lists the checks read:
+
+```yaml
+components:
+  planes: [edge, hub]           # required: a non-empty list of unique part names
+  results: [results]            # optional: repository paths (files or directories) that hold measured results
+```
+
+Any other key under `components:` exits 2. The map is read only when components are loaded, that is when
+`files.components` or `load_components` is declared; it is then required. A project that declares neither has no
+components, needs no `components:` map, and renders and checks as before. A `results` path follows the rules of
+`files` values: relative, no `..`, no drive letter.
+
+A loader may instead define `load_components(root)`, where `root` is `paths.root`, returning the same list. It is
+optional, as `load_flows` and `load_alignment` are, and is not one of the names every loader provides. Declaring
+`files.components` and defining `load_components` together exits 2 naming both.
+
+The first error exits 2, as `<file or load_components>: <path>: <why>`. A schema error names its dotted path
+(`components.0.id`); the later checks name `components[i].<key>`, in this order: a repeated id, a repeated name, a
+plane that is not in `components.planes`, a repeated `serves` or `evidence` item, an evidence item that does not
+resolve, and a status whose evidence is not enough. An evidence item resolves when it is a decision record (a local id,
+or `<prefix>:<id>` for a declared foreign prefix), or a path that exists under the repository (relative, no `..`, no
+drive letter), or `path:N`, a file under the repository with at least N lines (N from 1; a directory does not take a
+line). `built` needs at least one `path:N` item; `accepted` needs at least one decision record; `proposed` needs
+nothing more.
+
+`measured` is the one check that does not refuse. A `measured` component with no evidence item whose path (without any
+`:N`) is, or sits under, a `components.results` path is reported on stderr as
+`<tool>: <file or load_components>: components[i].evidence: measured, but no evidence is under components.results`,
+one line per component in file order, and the load goes on.
+
 ### The decision index
 
 ```yaml
