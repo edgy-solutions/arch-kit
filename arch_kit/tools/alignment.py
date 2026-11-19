@@ -110,6 +110,13 @@ def _group_order(elements: list[dict]) -> list[str]:
     return out
 
 
+CENSUS_KEY = re.compile(
+    r"^(?:(?P<member>[a-z0-9]+(?:-[a-z0-9]+)*)(?::| ))?"
+    r"(?:(?P<path>[^\s\u00a7:]*[./][^\s\u00a7:]*) )?"
+    r"\u00a7(?P<section>[0-9][0-9a-z]*(?:-[0-9a-z]+)*)(?: \((?P<variant>[A-Za-z][A-Za-z0-9-]*)\))?"
+    r"(?:\.(?P<bullet>[1-9][0-9]*))?$")
+
+
 # --- the checks ----------------------------------------------------------------------------------------------------
 
 class Context:
@@ -136,6 +143,24 @@ class Context:
         if sep and re.fullmatch(declared.record_patterns(self.tool)[0], rest):
             return prefix in self.foreign()
         return False
+
+    def census_problem(self, value: str) -> str | None:
+        """None when `value` lacks the census form (see CENSUS_KEY) or has it and is acceptable; otherwise why not.
+        A member-qualified key is not checked here: the mesh loader resolves it. A path in a key is accepted by form:
+        the census document and the directory of resolvable records differ, so the loader resolves the key.
+        The declared census may be a file or a directory."""
+        m = CENSUS_KEY.match(value)
+        if m is None or m["member"]:
+            return None
+        census = declared.census_file(self.tool)
+        if census is None:
+            return f"{value} is a census key, and the project declares no census (census:)"
+        if not (self.repo / census).exists():
+            return f"{value} cites the census {census}, which does not exist"
+        return None
+
+    def census_key(self, value: str) -> bool:
+        return CENSUS_KEY.match(value) is not None and self.census_problem(value) is None
 
     def path_exists(self, value: str) -> bool:
         if value.startswith(("/", "\\")) or re.match(r"^[A-Za-z]:", value) or ".." in re.split(r"[/\\]", value):
@@ -246,7 +271,12 @@ def check(where: str, record: dict, ctx: Context) -> dict:
     # 5. evidence, 6. owed
     for j, row in enumerate(record["rows"]):
         for k, value in enumerate(row.get("evidence", [])):
-            if not (ctx.decision_id(value) or ctx.path_exists(value)):
+            if ctx.decision_id(value) or ctx.path_exists(value):
+                continue
+            problem = ctx.census_problem(value)
+            if problem is not None:
+                _fail(where, f"rows.{j}.evidence.{k}", problem)
+            if not ctx.census_key(value):
                 _fail(where, f"rows.{j}.evidence.{k}", f"{value} does not resolve")
     for j, row in enumerate(record["rows"]):
         if "owed" in row and not ctx.decision_id(row["owed"]):

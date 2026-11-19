@@ -22,6 +22,8 @@ import yaml
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
+os.environ.setdefault("ARCH_KIT_CONFIG", str(HERE / "testdata" / "arch-kit.yaml"))
+
 from test_example_decisions import copy_example  # noqa: E402
 
 FIXTURES = HERE / "testdata" / "components"
@@ -530,6 +532,76 @@ class Declaration(unittest.TestCase):
         r = p.render()
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
         self.assertIn("components", r.stderr)
+
+
+class CensusEvidence(unittest.TestCase):
+    """A census key as the fourth evidence form."""
+
+    S = "\u00a7"
+
+    def render(self, status, evidence, census="GUIDE.md"):
+        p = Project(self)
+        if census is not None:
+            p.decl["census"] = census
+            p.write_decl()
+            (p.root / census).write_text("# Guide\n", encoding="utf-8")
+        comps = good()
+        comps[0].update(status=status, evidence=evidence)
+        p.put(comps)
+        return p.render()
+
+    def test_a_census_key_is_accepted(self):
+        r = self.render("proposed", [f"{self.S}4p.3"])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_accepted_is_satisfied_by_a_census_key_alone(self):
+        r = self.render("accepted", [f"{self.S}4p.3"])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_built_with_only_a_census_key_is_reported_not_refused(self):
+        r = self.render("built", [f"{self.S}4p.3"])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("components_test: components.yaml: components[0].evidence: built, but the only evidence is a "
+                      "census key (no path:N)", r.stderr)
+
+    def test_built_with_neither_form_still_refuses(self):
+        r = self.render("built", ["ADR-0001"])
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("built needs a file and line", r.stderr)
+
+    def test_built_with_a_line_and_a_census_key_is_neither_refused_nor_reported(self):
+        r = self.render("built", ["src/depot_sync.py:2", f"{self.S}4p.3"])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("built, but", r.stderr)
+
+    def test_census_only_built_returns_the_ids(self):
+        import alignment
+        import components
+        from unittest import mock
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        shutil.copytree(FIXTURES, tmp, dirs_exist_ok=True)
+        comps = [
+            {"id": "CO-001", "status": "built", "evidence": [f"{self.S}4.1"]},
+            {"id": "CO-002", "status": "built", "evidence": ["src/depot_sync.py:2", f"{self.S}4.1"]},
+            {"id": "CO-003", "status": "built", "evidence": ["ADR-0001"]},
+            {"id": "CO-004", "status": "accepted", "evidence": [f"{self.S}4.1"]},
+            {"id": "CO-005", "status": "built", "evidence": ["ADR-0001", f"other-member {self.S}2"]},
+        ]
+        with mock.patch.object(alignment.declared, "census_file", return_value="GUIDE.md"):
+            (tmp / "GUIDE.md").write_text("# Guide\n", encoding="utf-8")
+            ctx = alignment.Context("components_test", ["ADR-0001"], tmp)
+            self.assertEqual(components.census_only_built(comps, ctx), ("CO-001", "CO-005"))
+
+    def test_a_path_other_than_the_census_is_accepted(self):
+        r = self.render("proposed", [f"OTHER.md {self.S}4.1"])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_no_census_is_refused_at_the_evidence(self):
+        r = self.render("proposed", [f"{self.S}4.1"], census=None)
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("components[0].evidence[0]: ", r.stderr)
+        self.assertIn("declares no census (census:)", r.stderr)
 
 
 if __name__ == "__main__":

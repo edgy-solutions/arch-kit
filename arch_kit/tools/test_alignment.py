@@ -14,6 +14,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import yaml
 
@@ -519,6 +520,195 @@ class Audience(unittest.TestCase):
         rec["references"][1]["terms"]["status"] = "restricted"
         self.finish(rec, "private")
         self.finish(self.with_status("ref-a", "unconfirmed"), "private")
+
+
+CENSUS_FORM = alignment.CENSUS_KEY
+
+
+class CensusKey(unittest.TestCase):
+    """A census key (`\u00a74p.3`, `GUIDE.md \u00a74p.3`, `other-member \u00a74p.3`, `other-member GUIDE.md \u00a74p.3`): the form and its problems."""
+
+    S = "\u00a7"
+
+    def ctx(self, census="GUIDE.md", write=True):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        if write:
+            (tmp / "GUIDE.md").write_text("# Guide\n", encoding="utf-8")
+        patch = mock.patch.object(alignment.declared, "census_file", return_value=census)
+        patch.start()
+        self.addCleanup(patch.stop)
+        return alignment.Context("render_html", ["ADR-0001"], tmp)
+
+    def test_the_four_shapes(self):
+        c, s = self.ctx(), self.S
+        for value in (f"{s}4p.3", f"GUIDE.md {s}4p.3", f"other-member {s}4p.3", f"other-member GUIDE.md {s}4p.3"):
+            with self.subTest(value):
+                self.assertTrue(c.census_key(value))
+
+    def test_the_sections(self):
+        c, s = self.ctx(), self.S
+        for sec in ("4", "4p", "4g2", "4p-2", "7.1"):
+            with self.subTest(sec):
+                self.assertTrue(c.census_key(f"{s}{sec}"))
+
+    def test_the_non_forms(self):
+        c, s = self.ctx(), self.S
+        for value in (s, f"{s}4.", f"{s}4.0", "4p.3", f"contract{s}4"):
+            with self.subTest(value):
+                self.assertFalse(c.census_key(value))
+                self.assertIsNone(c.census_problem(value))
+
+    def test_a_member_qualified_key_has_the_form(self):
+        self.assertTrue(self.ctx().census_key(f"contract {self.S}4.2"))
+
+    def test_a_member_key_is_not_checked_without_a_census(self):
+        c = self.ctx(census=None)
+        self.assertIsNone(c.census_problem(f"other-member {self.S}4p.3"))
+        self.assertTrue(c.census_key(f"other-member {self.S}4p.3"))
+
+    def test_no_census_declared(self):
+        c, s = self.ctx(census=None), self.S
+        self.assertEqual(c.census_problem(f"{s}4.1"),
+                         f"{s}4.1 is a census key, and the project declares no census (census:)")
+        self.assertFalse(c.census_key(f"{s}4.1"))
+
+    def test_the_census_does_not_exist(self):
+        c, s = self.ctx(write=False), self.S
+        self.assertEqual(c.census_problem(f"{s}4.1"), f"{s}4.1 cites the census GUIDE.md, which does not exist")
+
+    def test_a_path_other_than_the_census_is_accepted(self):
+        c, s = self.ctx(), self.S
+        self.assertIsNone(c.census_problem(f"OTHER.md {s}4.1"))
+        self.assertTrue(c.census_key(f"OTHER.md {s}4.1"))
+
+    def test_a_colon_member_key_is_accepted_without_a_census(self):
+        c, s = self.ctx(census=None), self.S
+        self.assertTrue(CENSUS_FORM.match(f"other-member:{s}4p.3"))
+        self.assertIsNone(c.census_problem(f"other-member:{s}4p.3"))
+        self.assertTrue(c.census_key(f"other-member:{s}4p.3"))
+
+    def test_a_census_directory_is_accepted(self):
+        c, s = self.ctx(census="decisions", write=False), self.S
+        (c.repo / "decisions").mkdir()
+        self.assertIsNone(c.census_problem(f"{s}4p.3"))
+        self.assertTrue(c.census_key(f"{s}4p.3"))
+
+    def test_a_section_must_start_with_a_digit_and_be_lower_case(self):
+        c, s = self.ctx(), self.S
+        for value in (f"{s}Part", f"{s}Workflow", f"{s}4P"):
+            with self.subTest(value):
+                self.assertIsNone(CENSUS_FORM.match(value))
+                self.assertFalse(c.census_key(value))
+
+    def test_a_path_after_a_member_colon_is_member_qualified(self):
+        c, s = self.ctx(census=None), self.S
+        m = CENSUS_FORM.match(f"other-member:GUIDE.md {s}4")
+        self.assertEqual((m["member"], m["path"], m["section"]), ("other-member", "GUIDE.md", "4"))
+        self.assertTrue(c.census_key(f"other-member:GUIDE.md {s}4"))
+        self.assertIsNone(CENSUS_FORM.match(f"a:b:GUIDE.md {s}4"))
+
+    def test_more_sections_have_the_form(self):
+        c, s = self.ctx(), self.S
+        for value in (f"{s}4o-1.3", f"{s}4a"):
+            with self.subTest(value):
+                self.assertTrue(CENSUS_FORM.match(value))
+                self.assertTrue(c.census_key(value))
+
+    def test_a_variant_tells_apart_two_sections_sharing_a_number(self):
+        s = self.S
+        for value in (f"{s}4a (OTel).1", f"{s}4a (inventory)", f"other-member:{s}4a (OTel).2"):
+            with self.subTest(value):
+                self.assertTrue(CENSUS_FORM.match(value))
+
+    def test_a_malformed_variant_is_not_a_form(self):
+        s = self.S
+        for value in (f"{s}4a ()", f"{s}4a (OTel)x", f"{s}4a(OTel).1", f"{s}4a (1x).1"):
+            with self.subTest(value):
+                self.assertIsNone(CENSUS_FORM.match(value))
+
+    def test_the_declared_path_matches(self):
+        c, s = self.ctx(), self.S
+        self.assertIsNone(c.census_problem(f"GUIDE.md {s}4.1"))
+
+    def test_a_backslash_path_matches_after_normalising(self):
+        c, s = self.ctx(census="docs/GUIDE.md", write=False), self.S
+        (c.repo / "docs").mkdir()
+        (c.repo / "docs" / "GUIDE.md").write_text("# Guide\n", encoding="utf-8")
+        self.assertIsNone(c.census_problem(f"docs\\GUIDE.md {s}4.1"))
+
+
+class CensusEvidence(unittest.TestCase):
+    """Row evidence and the `census:` declaration, through a render."""
+
+    S = "\u00a7"
+
+    def render(self, evidence, census="GUIDE.md", write=True):
+        p = Project(self)
+        if census is not None:
+            p.decl["census"] = census
+            p.write_decl()
+        if write:
+            (p.root / "GUIDE.md").write_text("# Guide\n", encoding="utf-8")
+        rec = good()
+        rec["rows"][0]["evidence"] = evidence
+        p.put("coverage", rec)
+        return p.render()
+
+    def test_a_census_key_resolves_with_a_census_declared(self):
+        r = self.render([f"{self.S}4.1"])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_a_census_key_is_refused_without_a_census(self):
+        r = self.render([f"{self.S}4.1"], census=None)
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("alignment/coverage.yaml: rows.0.evidence.0: "
+                      f"{self.S}4.1 is a census key, and the project declares no census (census:)", r.stderr)
+
+    def test_a_member_key_resolves_without_a_census(self):
+        r = self.render([f"other-member {self.S}4p.3"], census=None)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_owed_stays_decision_only(self):
+        p = Project(self)
+        p.decl["census"] = "GUIDE.md"
+        p.write_decl()
+        (p.root / "GUIDE.md").write_text("# Guide\n", encoding="utf-8")
+        rec = good()
+        rec["rows"][1]["owed"] = f"{self.S}4.1"
+        p.put("coverage", rec)
+        r = p.render()
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("rows.1.owed", r.stderr)
+
+    def test_a_census_that_is_not_a_string_is_refused(self):
+        r = self.render([f"{self.S}4.1"], census=["GUIDE.md"])
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("census: must be a repository path", r.stderr)
+
+    def test_an_absolute_census_is_refused(self):
+        for value in ("/GUIDE.md", "C:/GUIDE.md", "\\GUIDE.md"):
+            with self.subTest(value):
+                r = self.render([f"{self.S}4.1"], census=value)
+                self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+                self.assertIn("census: must be a relative path inside the repository", r.stderr)
+
+    def test_a_census_with_dotdot_is_refused(self):
+        r = self.render([f"{self.S}4.1"], census="../GUIDE.md")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("census: must be a relative path inside the repository", r.stderr)
+
+    def test_a_backslash_census_is_normalised(self):
+        p = Project(self)
+        p.decl["census"] = "docs\\GUIDE.md"
+        p.write_decl()
+        (p.root / "docs").mkdir()
+        (p.root / "docs" / "GUIDE.md").write_text("# Guide\n", encoding="utf-8")
+        rec = good()
+        rec["rows"][0]["evidence"] = [f"docs/GUIDE.md {self.S}4.1"]
+        p.put("coverage", rec)
+        r = p.render()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
 if __name__ == "__main__":

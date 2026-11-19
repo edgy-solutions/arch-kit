@@ -285,6 +285,50 @@ nothing more.
 `<tool>: <file or load_components>: components[i].evidence: measured, but no evidence is under components.results`,
 one line per component in file order, and the load goes on.
 
+### The census: `census:` and census keys
+
+A member may keep a census: a guide file, or a directory of files, whose numbered sections hold its decisions. `census:` is an
+optional top-level key naming that file or directory, a repository path (relative to the repository root, the way evidence paths are, not under `paths.root`):
+
+```yaml
+census: AGENTS.md
+```
+
+It must be a string, not absolute, with no drive letter and no `..`; a backslash reads as `/`. A value that is not a
+string exits 2 with `census: must be a repository path`; an unsafe one exits 2 with
+`census: must be a relative path inside the repository`. Whether the file or directory exists is checked where a census key is
+used, not when the key is read.
+
+A **census key** is a fourth evidence form, beside a decision record, a path and `path:N`. It is accepted as an item of
+`rows.{j}.evidence` in an alignment record, as an item of `components[i].evidence`, and as a roadmap `home`. Its
+grammar, written `[member] [path] §section[ (variant)][.bullet]`:
+
+- `member`: a mesh member name (lower case letters and digits, hyphen-separated), optional, followed by a colon or a space
+  (`member:§KEY` or `member §KEY`).
+- `path`: a path, optional, and it contains a `.` or a `/`. It is accepted as written, and contains no `:`.
+- `section`: starts with a digit; its letters are lower case, with hyphens between parts (`4`, `4p`, `4g2`, `4p-2`).
+- `variant`: an optional ` (<name>)` after the section, telling apart two sections that share a number
+  (`§4a (OTel).1`, `§4a (inventory)`); the name starts with a letter, then letters, digits and hyphens, after one space.
+- `bullet`: a decimal number from 1, after a dot, optional (`§7.1`).
+
+So `§4p.3`, `AGENTS.md §4p.3`, `other-member §4p.3`, `other-member:§4p.3` and `other-member AGENTS.md §4p.3` are all census keys. A value without the
+`§` section (`4p.3`, `§4.`, `§4.0`, `contract§4`, `§Part`, `§4P`) is not one, and the other forms apply to it as before.
+
+The kit checks the form only. With a `member`, it accepts the key: the other members are not known to it. Without one, the
+key must be able to name this project's census: `census:` is declared (otherwise `<key> is a census key, and the
+project declares no census (census:)`), the file or directory exists (`<key> cites the census <census>, which does not exist`). A `path` in a key is accepted as
+written; the mesh loader resolves the key against the declared census. The refusal is at the
+same location as any other unresolved evidence. Resolving the section at the pinned revision is the mesh loader's
+job; it reports a key that does not resolve as a finding.
+
+A census key counts as a decision record for a `components` status of `accepted` and for a roadmap `home`. It does not
+count as the file and line `built` asks for: a `built` component with a census key but no `path:N` is
+reported on stderr, not refused, as `<tool>: <file or load_components>: components[i].evidence: built, but the only
+evidence is a census key (no path:N)`. `built` asks for evidence that the thing exists at a pinned commit, which a
+census key alone is not; the kit reports these claims rather than refusing them, so they can be counted. One with neither still
+exits 2 (`built needs a file and line (path:N) in evidence`). `components.census_only_built(components, ctx)` returns
+the ids of the reported components, in record order. `owed` in an alignment row stays decision-only.
+
 ### The roadmap record: `files.roadmap` and `load_roadmap`
 
 A project may declare its roadmap as a record: an ordered list of increments, each with what it isolates, where its
