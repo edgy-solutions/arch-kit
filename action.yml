@@ -133,9 +133,9 @@ runs:
         # portal.mode decisions: no views, record or diagrams, so no check_views and no browser check.
         mode="$(ak portal --mode)" || exit 2
         if [ "$mode" != decisions ]; then
-          missing=""; noun=input
+          missing=""; noun="input is"
           [ -z "$IN_CHART" ] && missing="chart"
-          [ -z "$IN_RELEASE" ] && { [ -n "$missing" ] && { missing="chart and release"; noun=inputs; } || missing="release"; }
+          [ -z "$IN_RELEASE" ] && { [ -n "$missing" ] && { missing="chart and release"; noun="inputs are"; } || missing="release"; }
           if [ -n "$missing" ]; then
             echo "::error::arch-kit: portal.mode is full: the $missing $noun required"
             exit 2

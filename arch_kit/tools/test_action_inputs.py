@@ -56,21 +56,21 @@ class ActionInputs(unittest.TestCase):
     def test_full_without_chart(self):
         p, calls = self.run_step("full", "", "r1")
         self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
-        self.assertIn("the chart input", p.stdout)
+        self.assertIn("the chart input is required", p.stdout)
         self.assertNotIn("release", p.stdout)
         self.assertEqual(calls, [])
 
     def test_full_without_release(self):
         p, calls = self.run_step("full", "c", "")
         self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
-        self.assertIn("the release input", p.stdout)
+        self.assertIn("the release input is required", p.stdout)
         self.assertNotIn("chart", p.stdout)
         self.assertEqual(calls, [])
 
     def test_full_without_either(self):
         p, calls = self.run_step("full", "", "")
         self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
-        self.assertIn("the chart and release inputs", p.stdout)
+        self.assertIn("the chart and release inputs are required", p.stdout)
         self.assertEqual(calls, [])
 
     def test_decisions_needs_neither(self):
