@@ -9,6 +9,8 @@ flowchart LR
 
 ## Sources
 
+The Decision column is explained under [the Decision column](../pages/reading.md#the-decision-column).
+
 | Claim | Source | Decision | Evidence |
 |---|---|---|---|
 | A1: a locker takes in a parcel | [ADR-0001 §1](../decisions/ADR-0001-lockers-accept-parcels-offline.md#1-decision) | Accepted | Built |
