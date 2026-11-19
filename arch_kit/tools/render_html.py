@@ -67,6 +67,7 @@ import check_views  # noqa: E402
 import composed  # noqa: E402
 import declared  # noqa: E402
 import export_text  # noqa: E402
+import flows  # noqa: E402
 import project  # noqa: E402
 import relabel  # noqa: E402
 import render_profile as rp  # noqa: E402
@@ -1286,10 +1287,12 @@ def decision_pages(views: dict, dec: Decisions, prov: str) -> tuple[list[str], l
 ALIGNMENT_VALUES = ("corresponds", "partial", "none", "not-applicable", "not_assessed")
 
 
-def _alignment_table(head: list[str], rows: list[list[str]]) -> str:
-    """A table in the markup the decision pages' tables have; the cells are html already."""
+def _alignment_table(head: list[str], rows: list[list[str]], attrs: list[str] | None = None) -> str:
+    """A table in the markup the decision pages' tables have; the cells are html already. `attrs`, when given, is
+    one attribute string for each row's <tr>."""
     th = "".join(f"<th>{esc(h)}</th>" for h in head)
-    body = "".join("<tr>" + "".join(f"<td>{c}</td>" for c in r) + "</tr>" for r in rows)
+    body = "".join((f"<tr {attrs[i]}>" if attrs else "<tr>") + "".join(f"<td>{c}</td>" for c in r) + "</tr>"
+                   for i, r in enumerate(rows))
     return f'<div class="scroll"><table><thead><tr>{th}</tr></thead><tbody>{body}</tbody></table></div>'
 
 
@@ -1386,6 +1389,104 @@ def alignment_records(dec: Decisions) -> dict[str, dict]:
                           audience=declared.portal_audience("render_html"))
 
 
+# --- flows ---------------------------------------------------------------------------------------------------------
+
+FLOW_HEAD = ["Id", "From", "To", "Carries", "Via", "Decided by", "Built"]
+PROVENANCE_OPEN = '<div class="provenance" data-provenance>'
+FLOWS_CSS = """
+.flow-count{color:var(--muted)}
+.flows-decided,.flows-capability{margin:1rem 0;font-size:14px}
+.flows-decided h2,.flows-capability h2{font-size:1rem;margin:.5rem 0}
+nav.flows ul{padding-left:1.2em}
+""".strip()
+
+
+def flows_records(dec: Decisions) -> tuple[dict, ...]:
+    """The project's flows, validated, in file order; empty when it declares none."""
+    return flows.load("render_html", [k for k in dec.keys() if k != ROADMAP_KEY])
+
+
+def flow_counts(fl) -> tuple[int, int, int, int]:
+    """(flows, built, not built, with no decision record)."""
+    built = sum(1 for f in fl if f["built"])
+    return len(fl), built, len(fl) - built, sum(1 for f in fl if not f["decided_by"])
+
+
+def _flow_part(value: str) -> str:
+    """A `capability:` part links to its page when the portal has capability pages; a part name is plain text."""
+    if value.startswith(flows.CAPABILITY) and declared.portal_mode("render_html") == "full":
+        return f'<a href="#cap-{esc(value[len(flows.CAPABILITY):])}">{esc(value)}</a>'
+    return esc(value)
+
+
+def _flow_decided(f: dict, dec: Decisions) -> str:
+    """A local decision id links to its page; a foreign id is plain text."""
+    cells = [f'<a href="#{esc(dec.page_id(v))}">{esc(v)}</a>' if v in dec.files and v != ROADMAP_KEY else esc(v)
+             for v in f["decided_by"]]
+    return ", ".join(cells) or "none"
+
+
+def flows_pages(fl, dec: Decisions, prov: str, pre: str) -> tuple[list[str], list[str]]:
+    """The Flows page, and the front page's nav items; both empty when there are no flows."""
+    if not fl:
+        return [], []
+    n, built, unbuilt, gaps = flow_counts(fl)
+    count = (f'<p class="flow-count" data-flow-count>{n} flows: {built} built, {unbuilt} not built; '
+             f'{gaps} with no decision record.</p>')
+    rows = [[esc(f["id"]), _flow_part(f["from"]), _flow_part(f["to"]), esc(f["carries"]), esc(f["via"]),
+             _flow_decided(f, dec), "Built" if f["built"] else "Not built"] for f in fl]
+    table = _alignment_table(FLOW_HEAD, rows, [f'data-flow="{esc(f["id"])}"' for f in fl])
+    gap = ""
+    if gaps:
+        gap = ("<h2>Flows no decision record covers</h2><ul>"
+               + "".join(f'<li>{esc(f["id"])}: {esc(f["from"])} → {esc(f["to"])}</li>'
+                         for f in fl if not f["decided_by"]) + "</ul>")
+    page = (f'<section id="flows" class="page flows" data-flows><h1>{esc(pre)}Flows</h1>'
+            f'<p><a href="#front">Front page</a></p>{count}{table}{gap}{prov}</section>')
+    return [style_tables(page, view=False)], [f'<li><a href="#flows">Flows ({n})</a></li>']
+
+
+def flows_nav(nav: list[str]) -> str:
+    return f'<nav class="flows"><h2>Flows</h2><ul>{"".join(nav)}</ul></nav>' if nav else ""
+
+
+def _flow_block(cls: str, heading: str, mine: list[dict]) -> str:
+    items = "".join(f'<li><a href="#flows">{esc(f["id"])}: {esc(f["from"])} → {esc(f["to"])} '
+                    f'({esc(f["carries"])})</a></li>' for f in mine)
+    return f'<div class="{cls}" data-{cls}><h2>{esc(heading)}</h2><ul>{items}</ul></div>'
+
+
+def _before_provenance(section: str, block: str) -> str:
+    i = section.rindex(PROVENANCE_OPEN)
+    return section[:i] + block + section[i:]
+
+
+def flows_on_decisions(sections: list[str], dec: Decisions, fl) -> list[str]:
+    """Each decision page whose record some flow's `decided_by` names gains a list of those flows."""
+    out = []
+    for key, sec in zip(dec.keys(), sections):
+        mine = [f for f in fl if key in f["decided_by"]] if key != ROADMAP_KEY else []
+        out.append(_before_provenance(sec, _flow_block("flows-decided", "Flows this record decides", mine))
+                   if mine else sec)
+    return out
+
+
+def flows_on_capabilities(sections: list[str], fl) -> list[str]:
+    """Each capability page gains a list of the flows from or to that capability."""
+    out = []
+    want = flows.CAPABILITY
+    for sec in sections:
+        m = re.match(r'<section id="cap-([^"]*)"', sec)
+        mine = [f for f in fl if m and any(f[k].startswith(want) and esc(f[k][len(want):]) == m.group(1)
+                                           for k in ("from", "to"))]
+        out.append(_before_provenance(sec, _flow_block("flows-capability", "Flows", mine)) if mine else sec)
+    return out
+
+
+def with_flows_css(style: str, fl_nav) -> str:
+    return style + "\n" + FLOWS_CSS if fl_nav else style
+
+
 COUNT_MARK = "RELABEL-COUNT-PLACEHOLDER"  # the front page sentence, until the HTML pass has counted
 
 
@@ -1408,6 +1509,7 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
     rules = relabel.load(getattr(a, "relabel", None) or [])
     dec = Decisions(project.DECISIONS, rules)
     records = alignment_records(dec)
+    fl = flows_records(dec)
 
     if uaf.exchange:
         dx_text, dx_cells = dx_variants({p: r.dx_content() for p, r in renderers.items()})
@@ -1465,7 +1567,11 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
     cap_sections, cap_nav = capability_pages(a, uaf, views, names, dec, prov)
     dec_sections, dec_nav = decision_pages(views, dec, prov)
     al_sections, al_nav = alignment_pages(records, dec, prov)
-    sections += cap_sections + dec_sections + al_sections
+    if fl:
+        dec_sections = flows_on_decisions(dec_sections, dec, fl)
+        cap_sections = flows_on_capabilities(cap_sections, fl)
+    fl_sections, fl_nav = flows_pages(fl, dec, prov, pre)
+    sections += cap_sections + dec_sections + al_sections + fl_sections
 
     shown = COUNT_MARK if rules else "Decision records are shown verbatim."
     grids = [grid_uaf(rows, views, names, uaf.uaf_label),
@@ -1480,13 +1586,13 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
              f'{"".join(grids)}<p class="relabel" data-relabel>{esc(shown)}</p><nav class="views"><h2>Views</h2><ul>{"".join(nav)}</ul></nav>'
              f'<nav class="capabilities"><h2>Capabilities</h2><ul>{"".join(cap_nav)}</ul></nav>'
              f'<nav class="decisions"><h2>Decision records</h2><ul>{"".join(dec_nav)}</ul></nav>'
-             f'{alignment_nav(al_nav)}'
+             f'{alignment_nav(al_nav)}{flows_nav(fl_nav)}'
              f'<nav class="declarations"><h2>For a deployment</h2><ul><li><a href="#declarations">'
              f'{esc(DECLARATIONS_TITLE)}</a></li></ul></nav>{prov}</section>')
     doc = (f'<!doctype html>\n<html lang="en" data-profile="uaf" {title_attrs}>\n<head>\n<meta charset="utf-8">\n'
             f'<meta name="viewport" content="width=device-width, initial-scale=1">\n'
             f'<meta http-equiv="Content-Security-Policy" content="{CSP}">\n'
-            f'<title>{esc(titles["uaf"])}</title>\n<style>\n{css()}\n</style>\n</head>\n<body>\n'
+            f'<title>{esc(titles["uaf"])}</title>\n<style>\n{with_flows_css(css(), fl_nav)}\n</style>\n</head>\n<body>\n'
             f'<header class="bar"><span class="sys">{esc(system or "Architecture")}</span>'
             f'<a href="#front">Front page</a><span class="profiles" role="group" aria-label="Profile">{buttons}</span>'
             f'<input id="q" type="search" placeholder="Search" aria-label="Search the views" autocomplete="off"></header>\n'
@@ -1497,14 +1603,20 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
 
 def decisions_parts(a: argparse.Namespace, date: str):
     """The pieces of a decisions-mode export: (relabel rules, Decisions, decision sections, decision nav items,
-    alignment sections, alignment nav items, provenance block)."""
+    alignment sections (then the Flows page, when there are flows), alignment nav items, provenance block, flows nav
+    items)."""
     prov = provenance(a, date)
     rules = relabel.load(getattr(a, "relabel", None) or [])
     dec = Decisions(project.DECISIONS, rules)
     records = alignment_records(dec)
+    fl = flows_records(dec)
     dec_sections, dec_nav = decision_pages({}, dec, prov)
+    if fl:
+        dec_sections = flows_on_decisions(dec_sections, dec, fl)
     al_sections, al_nav = alignment_pages(records, dec, prov)
-    return rules, dec, dec_sections, dec_nav, al_sections, al_nav, prov
+    name = project.CONFIG.get("name")
+    fl_sections, fl_nav = flows_pages(fl, dec, prov, f"{name}: " if isinstance(name, str) and name else "")
+    return rules, dec, dec_sections, dec_nav, al_sections + fl_sections, al_nav, prov, fl_nav
 
 
 def shell(system: str, title: str, front: str, sections: list[str], style: str) -> str:
@@ -1527,7 +1639,7 @@ def assemble_decisions(a: argparse.Namespace, date: str) -> tuple[str, list, int
     name = project.CONFIG.get("name")
     system = name if isinstance(name, str) else ""
     pre = f"{system}: " if system else ""
-    rules, dec, dec_sections, dec_nav, al_sections, al_nav, prov = decisions_parts(a, date)
+    rules, dec, dec_sections, dec_nav, al_sections, al_nav, prov, fl_nav = decisions_parts(a, date)
     shown = COUNT_MARK if rules else "Decision records are shown verbatim."
     title = f"{pre}decision records"
     parent = declared.composed_in("render_html")
@@ -1535,8 +1647,9 @@ def assemble_decisions(a: argparse.Namespace, date: str) -> tuple[str, list, int
                 f'{esc("Its consumers are listed where it is composed: " + parent + ".")}</p>') if parent else ""
     front = (f'<section id="front" class="page" data-front><h1>{esc(title)}</h1>'
              f'<p class="relabel" data-relabel>{esc(shown)}</p>{sentence}'
-             f'<nav class="decisions"><h2>Decision records</h2><ul>{"".join(dec_nav)}</ul></nav>{alignment_nav(al_nav)}{prov}</section>')
-    return shell(system, title, front, dec_sections + al_sections, css(True)), rules, dec.replaced
+             f'<nav class="decisions"><h2>Decision records</h2><ul>{"".join(dec_nav)}</ul></nav>{alignment_nav(al_nav)}{flows_nav(fl_nav)}{prov}</section>')
+    return (shell(system, title, front, dec_sections + al_sections, with_flows_css(css(True), fl_nav)), rules,
+            dec.replaced)
 
 
 def write_fragment(a: argparse.Namespace, date: str) -> None:
@@ -1545,7 +1658,7 @@ def write_fragment(a: argparse.Namespace, date: str) -> None:
         raise InputError("--fragment needs portal.mode: decisions")
     if MarkdownIt is None:
         raise InputError("markdown-it-py is not installed: pip install markdown-it-py==4.0.0")
-    rules, dec, dec_sections, dec_nav, al_sections, al_nav, _prov = decisions_parts(a, date)
+    rules, dec, dec_sections, dec_nav, al_sections, al_nav, _prov, _fl_nav = decisions_parts(a, date)
     loader = project.loader("render_html") if "loader" in project.CONFIG else None
     stated = "statuses" in project.CONFIG
     records = {}

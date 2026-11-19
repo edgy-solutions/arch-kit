@@ -219,6 +219,15 @@ against nothing.
 Flows between projects are not decided: a part's name means something only inside its own project, and a flow from
 one project's part to another's waits for a ruling on naming parts across a composition.
 
+What the export shows. A project with flows gets one Flows page (`#flows`, linked from the front page's Flows nav): a
+count line (`N flows: B built, U not built; G with no decision record.`), a table of the flows in file order, and, when
+G is above zero, a list of the flows no decision record covers. Each decision page that some flow's `decided_by` names
+gains a "Flows this record decides" list that links to the page. In a full-mode portal each capability page gains the
+flows from or to it, and a `capability:` part links to its page. A foreign decision id is plain text. A project with no
+flows renders byte for byte as before. `check_export` adds one check when the project declares flows: exactly one
+`data-flows` page, its `data-flow` row ids equal the declared ids in order, and its count line agrees with the records.
+The ok line then ends its shape with `N flows; `. The golden example is `examples/flows`.
+
 ### The decision index
 
 ```yaml
