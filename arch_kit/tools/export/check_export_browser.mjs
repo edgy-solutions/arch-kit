@@ -459,13 +459,18 @@ try {
   if (capWide) await page.setViewport({ width: 1280, height: 900 });
   if (!NO_MODEL) check(cap !== null && cap[0] === 7 && capFit, `tables: the seven-column capability table does not scroll at ${capWide ? 1600 : 1280} (ch ${cap && cap[3].toFixed(2)} px)`, String(cap));
   await go(`#view-${TABLE}`);
-  const nine = await page.evaluate((view, cols) => {
-    const t = [...document.querySelectorAll(`#view-${view} table`)].find((x) => x.rows[0] && x.rows[0].cells.length === cols);
-    if (!t) return null;
-    const s = t.closest(".scroll");
-    return [s.scrollWidth, s.clientWidth, document.documentElement.scrollWidth, document.documentElement.clientWidth];
-  }, TABLE, facts.wide_table_columns);
-  check(nine !== null && nine[0] > nine[1] && nine[2] <= nine[3], "tables: the nine-column table scrolls inside .scroll while the page does not (known sideways scroll at 1280)", String(nine));
+  const wide = await page.evaluate(() => {
+    const tables = [...document.querySelectorAll("table")].filter((t) => t.offsetParent !== null && t.parentElement);
+    const over = tables.filter((t) => t.scrollWidth > t.parentElement.clientWidth + 1);
+    const stuck = over.filter((t) => {
+      const s = t.closest(".scroll");
+      return !s || getComputedStyle(s).overflowX !== "auto" || s.scrollWidth <= s.clientWidth;
+    });
+    return { wider: over.length, stuck: stuck.length, scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth };
+  });
+  check(wide.scrollWidth <= wide.clientWidth, "tables: the page does not scroll sideways at 1280", `${wide.scrollWidth},${wide.clientWidth}`);
+  check(wide.stuck === 0, "tables: every table wider than its container scrolls inside its .scroll at 1280", `${wide.wider} wider, ${wide.stuck} not scrolling`);
+  if (facts.expect_wide_table) check(wide.wider >= 1, "tables: the example has a table wider than its container at 1280", `${wide.wider} wider`);
 
   await go(PHASES_VIEW);
   const badges = await inPage(`

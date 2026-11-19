@@ -81,6 +81,7 @@ export:
     min_pages: 5
     min_tables: 5
     min_tokens: 100
+    expect_wide_table: true
 decisions:
   index:
     register: FOLLOW-UPS.md
