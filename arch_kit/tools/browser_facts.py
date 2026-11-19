@@ -63,6 +63,8 @@ def source_tables(markdown: str) -> list:
 
 def facts(root: Path) -> dict:
     tree = check_views.Tree(root)
+    if declared.model_none(TOOL):
+        return facts_no_model(root, tree)
     try:
         record = capability_phases.load_record(root / declared.content_file("record", "browser_facts"))
     except capability_phases.InputError as e:
@@ -103,7 +105,8 @@ def facts(root: Path) -> dict:
     return {
         "views": len(tree.views),
         "exchange": declared.exchange_reader(TOOL) is not None,
-        "base_pages": 1 + len(tree.views) + 1,
+        "base_pages": 1 + len(tree.views) + (0 if declared.chart_none(TOOL) else 1),
+        "extra_pages": len(declared.pages(TOOL)),
         "capability_pages": len(capabilities),
         "decision_pages": len(render_html.Decisions(project.DECISIONS).keys()),
         "phase_badges": badges,
@@ -117,6 +120,30 @@ def facts(root: Path) -> dict:
         "roles": roles,
         "search": search,
         "capability_link": declared.views(TOOL)["capability_links"][0],
+        "min_pages": browser["min_pages"],
+        "min_tables": browser["min_tables"],
+        "min_tokens": browser["min_tokens"],
+    }
+
+
+def facts_no_model(root: Path, tree: check_views.Tree) -> dict:
+    """The facts of a project with model: none: no capability pages and none of the phase facts."""
+    browser = {key: project.need("export.browser." + key, TOOL)
+               for key in ("views", "search", "min_pages", "min_tables", "min_tokens")}
+    roles = {r: str(project.need("export.browser.views." + r, TOOL)) for r in ROLES}
+    search = {k: str(project.need("export.browser.search." + k, TOOL)) for k in ("phrase", "finds")}
+    wide = max([max(len(r) for r in grid) for _, _, grid in source_tables(tree.view_text.get(roles["table"], ""))] or [0])
+    return {
+        "views": len(tree.views),
+        "exchange": False,
+        "model": False,
+        "base_pages": 1 + len(tree.views) + (0 if declared.chart_none(TOOL) else 1),
+        "extra_pages": len(declared.pages(TOOL)),
+        "capability_pages": 0,
+        "decision_pages": len(render_html.Decisions(project.DECISIONS).keys()),
+        "wide_table_columns": wide,
+        "roles": roles,
+        "search": search,
         "min_pages": browser["min_pages"],
         "min_tables": browser["min_tables"],
         "min_tokens": browser["min_tokens"],

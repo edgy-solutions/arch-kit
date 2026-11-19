@@ -174,6 +174,8 @@ def load_yaml(path: Path):
 
 
 def load_slots_registry(root: Path) -> set[str]:
+    if declared.chart_none("render_profile"):
+        return set()
     reg = load_yaml(root / declared.content_file("slots", "render_profile")) or {}
     return set((reg.get("slots") or {}).keys())
 
@@ -330,16 +332,22 @@ class Renderer:
         self.views = self.prof.get("views") or {}
         self.dx = self.prof.get("data_exchange") or {}
         # No declared exchange reader: no generated section, no home, no chart render for it.
-        self.exchange = declared.exchange_reader("render_profile") is not None
+        self.exchange = declared.exchange_reader("render_profile") is not None and not declared.chart_none("render_profile")
         self.home = declared.exchange_home(self.prof, "render_profile")
         self.dx_id = self.dx[self.profile]["id"] if self.exchange else None
-        sysml_path = project.model_file("render_profile")
-        try:
-            self.sysml = sysml_path.read_text(encoding="utf-8")
-        except OSError as e:
-            raise InputError(f"cannot read {sysml_path}: {e}")
+        self.no_model = declared.model_none("render_profile")
+        self.no_chart = declared.chart_none("render_profile")
+        if self.no_model:
+            self.sysml = ""
+        else:
+            sysml_path = project.model_file("render_profile")
+            try:
+                self.sysml = sysml_path.read_text(encoding="utf-8")
+            except OSError as e:
+                raise InputError(f"cannot read {sysml_path}: {e}")
         self.masked = mask_sysml(self.sysml)
-        self.slot_values = load_slot_values(a.slots, load_slots_registry(ROOT))
+        # chart: none reads no slots.
+        self.slot_values = {} if self.no_chart else load_slot_values(a.slots, load_slots_registry(ROOT))
         layers, version = [], None
         if a.chart:
             cdir = Path(a.chart)
@@ -351,6 +359,10 @@ class Renderer:
                 v = (load_yaml(cdir / "Chart.yaml") or {}).get("version")
                 version = str(v) if v is not None else None
         self.name, self.attribution = presentation(layers, version)
+        if self.no_chart:
+            declared_name = project.CONFIG.get("name")
+            self.name = declared_name if isinstance(declared_name, str) and declared_name else None
+            self.attribution = None
         given = self.slot_values.get("system-name")
         if self.name:
             if given is not None and given.strip() != self.name:
@@ -362,7 +374,7 @@ class Renderer:
         self.doc: str | None = None
         if a.chart and self.exchange:
             self.doc = generate_document(a, self.profile)
-        self.phases = self.phases_content()
+        self.phases = "" if self.no_model else self.phases_content()
         self.derived = {mk: derived.build(mk, ROOT, Path(a.record), self.sysml, self.masked) for mk in derived.homes()}
 
     def phases_content(self) -> str:
@@ -404,12 +416,14 @@ class Renderer:
             raise InputError(f"view {vid}: the data-exchange marker is there, but the declaration has no exchange.reader")
         if GEN_MARKER in body and vid != self.home:
             raise InputError(f"view {vid}: the data-exchange marker belongs only in {self.home}")
+        if PHASES_MARKER in body and self.no_model:
+            raise InputError(f"view {vid}: the capability-phases marker is there, but model: none is declared")
         if PHASES_MARKER in body and vid != declared.home("capability-phases", "render_profile"):
             raise InputError(f"view {vid}: the capability-phases marker belongs only in {declared.home('capability-phases', 'render_profile')}")
         for mk, home in derived.homes().items():
             if mk in body and vid != home:
                 raise InputError(f"view {vid}: the marker {mk} belongs only in {home}")
-        if vid == declared.home("capability-phases", "render_profile"):
+        if not self.no_model and vid == declared.home("capability-phases", "render_profile"):
             body = capability_phases.name_record(body, self.a.record, ROOT / declared.content_file("record", "render_profile"))
         body = marks.fill(body, (ROOT / entry["file"]).parent, project.DECISIONS, vid)
         body = inline_model(body, self.sysml, self.masked)

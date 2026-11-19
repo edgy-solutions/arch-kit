@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en" data-profile="uaf" data-title-uaf="Marigold: architecture views (UAF 1.2)" data-title-dodaf202="Marigold: architecture views (DoDAF 2.02)" data-title-naf4="Marigold: architecture views (NAF v4)">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; font-src data:">
+<title>Marigold: architecture views (UAF 1.2)</title>
+<style>
+:root{--fg:#1d2430;--muted:#6b7480;--line:#d5dae1;--bg:#fff;--soft:#f3f5f8;--accent:#0b5cad;
+--head:#1f3a5f;--zebra:#f3f5f8;--filled:#d9e8fb;
+--m-bg:#d6f0e0;--m-fg:#0f5132;--b-bg:#d9e8fb;--b-fg:#0b4080;--a-bg:#fdecc8;--a-fg:#7a4d00;
+--p-bg:#f0e1f7;--p-fg:#5b2a78;--r-bg:#e6e8eb;--r-fg:#3a424d}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--fg);background:var(--bg)}
+a{color:var(--accent)}
+.bar{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:8px 16px;background:var(--soft);border-bottom:1px solid var(--line)}
+.bar .sys{font-weight:600}
+.bar .profiles{display:flex;gap:4px}
+.bar button{font:inherit;padding:4px 10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:4px;cursor:pointer}
+.bar button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.bar input{font:inherit;padding:4px 8px;border:1px solid var(--line);border-radius:4px;min-width:0;flex:1 1 160px}
+#results{padding:8px 16px;background:var(--soft);border-bottom:1px solid var(--line)}
+#results[hidden]{display:none}
+#results li{margin:6px 0}
+#results .snip{color:var(--muted);display:block;font-size:14px}
+main{padding:0 16px 48px}
+main p,main ul,main ol,main h1,main h2,main h3,main nav{max-width:1100px}
+.page{display:none}
+.page:target,.page:has(:target){display:block}
+body:not(:has(.page:target,.page :target)) #front{display:block}
+h1{font-size:1.5rem;line-height:1.25;overflow-wrap:anywhere}
+h2{font-size:1.25rem;margin-top:2rem}
+h3{font-size:1.1rem}
+p,li,summary{overflow-wrap:anywhere}
+.scroll{overflow-x:auto;max-width:100%;margin:1em 0}
+.scroll table{width:100%}
+.nb,th.pname{white-space:nowrap}
+table{border-collapse:collapse;font-size:14px}
+th,td{border:1px solid var(--line);padding:4px 8px;vertical-align:top;text-align:left}
+thead th{background:var(--head);color:#fff}
+tbody th{background:var(--soft)}
+tbody tr:nth-child(even)>*{background:var(--zebra)}
+tr.team-start>*{border-top:2px solid var(--head)}
+.pending{display:inline-block;margin-left:8px;padding:0 8px;border:1px dashed currentColor;border-radius:10px;font-size:13px;font-weight:600}
+.badge{display:inline-block;white-space:nowrap;padding:0 8px;border-radius:10px;font-size:13px;font-weight:600}
+
+pre{margin:0;padding:12px;background:var(--soft);font-size:13px;line-height:1.4}
+code{font-family:ui-monospace,Consolas,monospace;font-size:.92em}
+figure.diagram{margin:1em 0;padding:8px;border:1px solid var(--line);overflow-x:auto;background:#fff}
+figure.diagram svg{max-width:100%;height:auto}
+details.exceptions{margin:1em 0}
+details.exceptions summary{cursor:pointer;font-weight:600}
+.slot,.empty{color:var(--muted)}
+.slot{font-family:ui-monospace,Consolas,monospace;font-size:.92em}
+.ref{border-bottom:1px dotted var(--muted)}
+.grid{display:none}
+html[data-profile="uaf"] #grid-uaf,html[data-profile="dodaf202"] #grid-dodaf202,html[data-profile="naf4"] #grid-naf4{display:block}
+.gridtable td{min-width:3.5em}
+.gridtable tbody tr>*{border-top:2px solid var(--head)}
+.gridtable td:has(.filled){background:var(--filled)}
+.gridtable td span{white-space:nowrap;margin-right:6px}
+.gridtable small{color:var(--muted);margin-left:2px}
+.legend{color:var(--muted);font-size:14px}
+.profile-only{display:none;color:var(--muted)}
+html[data-profile="dodaf202"] .profile-only[data-for="dodaf202"],html[data-profile="naf4"] .profile-only[data-for="naf4"]{display:block}
+.attribution{color:var(--muted);margin-top:0}
+.provenance{margin-top:2.5rem;padding-top:8px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.provenance p{margin:2px 0}
+.provenance .note{display:block}
+nav.views ul,nav.capabilities ul,nav.decisions ul{columns:2 280px;padding-left:1.2em}
+.stamp,.derived,.cap-group,.cap-increment,.relabel{color:var(--muted);margin:4px 0}
+.stamp{font-size:13px}
+@page{size:landscape}
+@media (max-width:600px){h1{font-size:1.3rem}.bar{gap:6px 8px}}
+@media print{
+  .bar,#results{display:none!important}
+  body{font-size:11pt}
+  main{max-width:none;padding:0}
+  .page,.page:target,.page:has(:target),body:not(:has(.page:target,.page :target)) #front{display:block}
+  .page{break-before:page}
+  .page:first-of-type{break-before:auto}
+  .scroll{overflow:visible}
+  table{font-size:8pt;width:100%}
+  thead th{background:none;color:inherit;border-bottom:2px solid var(--head)}
+  tbody tr:nth-child(even)>*,tbody th,.gridtable td:has(.filled){background:none}
+  .badge,{background:none;color:inherit;padding:0;border-radius:0;font-weight:600}
+  th:nth-child(n+4){min-width:0!important}
+  .decision th{min-width:0!important}
+  .decision td:nth-child(-n+3),.decision th:nth-child(-n+3){overflow-wrap:normal}
+  .decision td:nth-child(n+4),.decision th:nth-child(n+4){overflow-wrap:anywhere}
+  .decision td:nth-child(n+4) .nb{white-space:normal}
+  table:has(thead th:nth-child(8)) td:nth-child(n+4),table:has(thead th:nth-child(8)) th:nth-child(n+4){overflow-wrap:anywhere}
+  table:has(thead th:nth-child(8)) td:nth-child(n+4) .nb,table:has(thead th:nth-child(8)) th:nth-child(n+4) .nb{white-space:normal}
+  pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:8.5pt}
+  figure.diagram{overflow:visible;break-inside:avoid}
+  svg{max-width:100%;height:auto}
+  a{color:inherit;text-decoration:none}
+}
+</style>
+</head>
+<body>
+<header class="bar"><span class="sys">Marigold</span><a href="#front">Front page</a><span class="profiles" role="group" aria-label="Profile"><button type="button" data-profile-btn="uaf" aria-pressed="true">UAF 1.2</button><button type="button" data-profile-btn="dodaf202" aria-pressed="false">DoDAF 2.02</button><button type="button" data-profile-btn="naf4" aria-pressed="false">NAF v4</button></span><input id="q" type="search" placeholder="Search" aria-label="Search the views" autocomplete="off"></header>
+<div id="results" hidden></div>
+<main>
+<section id="front" class="page" data-front><h1>Marigold: architecture views</h1><div class="grid" id="grid-uaf" data-grid="uaf"><p class="legend">7 of 10 UAF 1.2 views written. A linked id has a page; a muted id is named by Appendix A and not written.</p><div class="scroll"><table class="gridtable"><thead><tr><th></th><th scope="col">Mv</th><th scope="col">Tx</th><th scope="col">Sr</th><th scope="col">Cn</th><th scope="col">Pr</th><th scope="col">St</th><th scope="col">Sq</th><th scope="col">If</th><th scope="col">Pm</th><th scope="col">Ct</th><th scope="col">Rm</th><th scope="col">Tr</th><th scope="col">Ov</th></tr></thead><tbody><tr><th scope="row">Am</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td><span class="filled"><a href="#view-Am-If" title="Information-Dictionary">Am-If</a></span></td><td></td><td></td><td></td><td><span class="filled"><a href="#view-Am-Tr" title="Architecture-Traceability">Am-Tr</a></span></td><td></td></tr><tr><th scope="row">St</th><td></td><td><span class="filled"><a href="#view-St-Tx" title="Strategic-Taxonomy">St-Tx</a></span></td><td></td><td><span class="filled"><a href="#view-St-Cn" title="Strategic-Connectivity">St-Cn</a></span></td><td></td><td></td><td></td><td></td><td></td><td></td><td><span class="empty">St-Rm-P</span></td><td></td><td></td></tr><tr><th scope="row">Op</th><td></td><td></td><td></td><td></td><td><span class="filled"><a href="#view-Op-Pr" title="Operational-Processes">Op-Pr</a></span></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">Sv</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">Ps</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">Rs</th><td></td><td><span class="filled"><a href="#view-Rs-Tx" title="Resources-Taxonomy">Rs-Tx</a></span></td><td></td><td><span class="filled"><a href="#view-Rs-Cn" title="Resources-Connectivity">Rs-Cn</a></span></td><td><span class="empty">Rs-Pr</span></td><td></td><td></td><td></td><td></td><td></td><td></td><td><span class="empty">Rs-Tr</span></td><td></td></tr><tr><th scope="row">Sc</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">Pj</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">Sd</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">Ar</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">En</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">Me</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">Rk</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">Rq</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">Sm</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></tbody></table></div></div><div class="grid" id="grid-dodaf202" data-grid="dodaf202"><p class="legend">9 of 14 DoDAF 2.02 views written. A linked id is exported from the UAF view it links to; a muted id is named by Appendix A and not written.</p><div class="scroll"><table class="gridtable"><tbody><tr><th scope="row">AV</th><td><span class="filled"><a href="#view-Am-If" title="Information-Dictionary">AV-2</a></span></td></tr><tr><th scope="row">CV</th><td><span class="filled"><a href="#view-St-Tx" title="Strategic-Taxonomy">CV-2</a></span> <span class="empty">CV-3</span> <span class="filled"><a href="#view-St-Cn" title="Strategic-Connectivity">CV-4</a></span></td></tr><tr><th scope="row">OV</th><td><span class="filled"><a href="#view-Op-Pr" title="Operational-Processes">OV-5a</a></span> <span class="filled"><a href="#view-Op-Pr" title="Operational-Processes">OV-5b</a></span></td></tr><tr><th scope="row">PV</th><td><span class="empty">PV-1</span></td></tr><tr><th scope="row">SV</th><td><span class="filled"><a href="#view-Rs-Tx" title="Resources-Taxonomy">SV-1</a></span> <span class="filled"><a href="#view-Rs-Tx" title="Resources-Taxonomy">SV-2</a></span> <span class="filled"><a href="#view-Rs-Cn" title="Resources-Connectivity">SV-3</a></span> <span class="empty">SV-4</span> <span class="empty">SV-5a</span> <span class="empty">SV-5b</span> <span class="filled"><a href="#view-Rs-Cn" title="Resources-Connectivity">SV-6</a></span></td></tr></tbody></table></div><h2>Not exported in DoDAF 2.02</h2><div class="scroll"><table><thead><tr><th style="min-width:25ch">View</th><th style="min-width:20ch">Reason</th></tr></thead><tbody><tr><td><span class="nb">Architecture-Traceability</span> <span class="nb">(Am-Tr)</span></td><td>Table 2:1 gives Architecture Traceability no DoDAF 2.02 view.</td></tr></tbody></table></div></div><div class="grid" id="grid-naf4" data-grid="naf4"><p class="legend">6 of 9 NAF v4 views written. A linked id is exported from the UAF view it links to; a muted id is named by Appendix A and not written.</p><div class="scroll"><table class="gridtable"><thead><tr><th></th><th scope="col">1</th><th scope="col">2</th><th scope="col">3</th><th scope="col">4</th><th scope="col">5</th><th scope="col">6</th><th scope="col">7</th><th scope="col">8</th><th scope="col">r</th></tr></thead><tbody><tr><th scope="row">A</th><td><span class="filled"><a href="#view-Am-If" title="Information-Dictionary">A1</a></span></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">C</th><td><span class="filled"><a href="#view-St-Tx" title="Strategic-Taxonomy">C1</a></span></td><td></td><td><span class="filled"><a href="#view-St-Cn" title="Strategic-Connectivity">C3</a></span></td><td></td><td></td><td></td><td></td><td></td><td><span class="empty">Cr</span></td></tr><tr><th scope="row">L</th><td></td><td></td><td></td><td><span class="filled"><a href="#view-Op-Pr" title="Operational-Processes">L4</a></span> <span class="empty">L4-P4</span></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">P</th><td><span class="filled"><a href="#view-Rs-Tx" title="Resources-Taxonomy">P1</a></span></td><td></td><td><span class="filled"><a href="#view-Rs-Cn" title="Resources-Connectivity">P3</a></span></td><td><span class="empty">P4</span></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">S</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></tbody></table></div><h2>Not exported in NAF v4</h2><div class="scroll"><table><thead><tr><th style="min-width:25ch">View</th><th style="min-width:20ch">Reason</th></tr></thead><tbody><tr><td><span class="nb">Architecture-Traceability</span> <span class="nb">(Am-Tr)</span></td><td>Table 2:3 gives Architecture Traceability no NAF 4.0 view.</td></tr></tbody></table></div></div><p class="relabel" data-relabel>Names are replaced by neutral labels at export: 0 in this page (1 rules). The sources in the repository are unchanged.</p><nav class="views"><h2>Views</h2><ul><li><a class="pname" href="#view-Am-If" data-uaf="Marigold: Information-Dictionary (Am-If)" data-dodaf202="Marigold: AV-2 Integrated Dictionary (DoDAF 2.02)" data-naf4="Marigold: A1 Meta-Data Definitions (NAF v4)">Marigold: Information-Dictionary (Am-If)</a></li><li><a class="pname" href="#view-Am-Tr" data-uaf="Marigold: Architecture-Traceability (Am-Tr)" data-dodaf202="Marigold: Not exported in DoDAF 2.02: Architecture-Traceability (Am-Tr)" data-naf4="Marigold: Not exported in NAF v4: Architecture-Traceability (Am-Tr)">Marigold: Architecture-Traceability (Am-Tr)</a></li><li><a class="pname" href="#view-St-Tx" data-uaf="Marigold: Strategic-Taxonomy (St-Tx)" data-dodaf202="Marigold: CV-2 Capability Taxonomy (DoDAF 2.02)" data-naf4="Marigold: C1 Capability Taxonomy (NAF v4)">Marigold: Strategic-Taxonomy (St-Tx)</a></li><li><a class="pname" href="#view-St-Cn" data-uaf="Marigold: Strategic-Connectivity (St-Cn)" data-dodaf202="Marigold: CV-4 Capability Dependencies (DoDAF 2.02)" data-naf4="Marigold: C3 Capability Dependencies (NAF v4)">Marigold: Strategic-Connectivity (St-Cn)</a></li><li><a class="pname" href="#view-Op-Pr" data-uaf="Marigold: Operational-Processes (Op-Pr)" data-dodaf202="Marigold: OV-5a Operational Activity Decomposition Tree; OV-5b Operational Activity Model (DoDAF 2.02)" data-naf4="Marigold: L4 Logical Activities (NAF v4)">Marigold: Operational-Processes (Op-Pr)</a></li><li><a class="pname" href="#view-Rs-Tx" data-uaf="Marigold: Resources-Taxonomy (Rs-Tx)" data-dodaf202="Marigold: SV-1 Systems Interface Description; SV-2 Systems Resource Flow Description (DoDAF 2.02)" data-naf4="Marigold: P1 Resource Types (NAF v4)">Marigold: Resources-Taxonomy (Rs-Tx)</a></li><li><a class="pname" href="#view-Rs-Cn" data-uaf="Marigold: Resources-Connectivity (Rs-Cn)" data-dodaf202="Marigold: SV-3 Systems-Systems Matrix; SV-6 Systems Resource Flow Matrix (DoDAF 2.02)" data-naf4="Marigold: P3 Resource Connectivity (NAF v4)">Marigold: Resources-Connectivity (Rs-Cn)</a></li></ul></nav><nav class="pages"><h2>More</h2><ul><li><a href="#page-about">About this export</a></li><li><a href="#page-reading">How to read a Sources table</a></li></ul></nav><nav class="decisions"><h2>Decision records</h2><ul><li><a href="#adr-0001">ADR-0001 Lockers accept parcels offline</a></li><li><a href="#adr-0002">ADR-0002 The depot routes parcels by size</a></li><li><a href="#adr-0003">ADR-0003 Lockers wait for the depot</a></li><li><a href="#decision-roadmap">Roadmap note</a></li></ul></nav><div class="provenance" data-provenance><p data-prov="source">Source: arch-views aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p><p data-prov="kit">Kit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="view-Am-If" class="page view" data-view="Am-If"><h1 class="pname" data-uaf="Marigold: Information-Dictionary (Am-If)" data-dodaf202="Marigold: AV-2 Integrated Dictionary (DoDAF 2.02)" data-naf4="Marigold: A1 Meta-Data Definitions (NAF v4)">Marigold: Information-Dictionary (Am-If)</h1><p><a href="#front">Front page</a></p><div class="body"><p>The terms the lexicon declares, generated from <span class="ref" title="lexicon/"><code>lexicon/</code></span> when the view is rendered.</p>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:17ch">File</th><th style="min-width:5ch">Term</th><th style="min-width:7ch">Kind</th><th style="min-width:7ch">Entries</th><th style="min-width:16ch">Fields</th></tr>
+</thead>
+<tbody>
+<tr><td>parcel_sizes.yaml</td><td>sizes</td><td>records</td><td>2</td><td>max_litres, name</td></tr>
+</tbody>
+</table></div>
+<h2>Sources</h2>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:9ch">Claim</th><th style="min-width:17ch">Source</th><th style="min-width:9ch">Decision</th><th style="min-width:9ch">Evidence</th></tr>
+</thead>
+<tbody>
+<tr><td>The table</td><td><span class="ref" title="lexicon/parcel_sizes.yaml">parcel_sizes.yaml</span></td><td>Generated</td><td>Generated</td></tr>
+</tbody>
+</table></div>
+</div><div class="provenance" data-provenance><p data-prov="source">Source: arch-views aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p><p data-prov="kit">Kit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="view-Am-Tr" class="page view" data-view="Am-Tr"><h1 class="pname" data-uaf="Marigold: Architecture-Traceability (Am-Tr)" data-dodaf202="Marigold: Not exported in DoDAF 2.02: Architecture-Traceability (Am-Tr)" data-naf4="Marigold: Not exported in NAF v4: Architecture-Traceability (Am-Tr)">Marigold: Architecture-Traceability (Am-Tr)</h1><p class="profile-only" data-profile-only data-for="dodaf202">Table 2:1 gives Architecture Traceability no DoDAF 2.02 view.</p><p class="profile-only" data-profile-only data-for="naf4">Table 2:3 gives Architecture Traceability no NAF 4.0 view.</p><p><a href="#front">Front page</a></p><div class="body"><p>Each decision record against the view that cites it.</p>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:8ch">Record</th><th style="min-width:12ch">Cited by</th></tr>
+</thead>
+<tbody>
+<tr><td><span class="nb">ADR-0001</span></td><td><span class="nb">St-Tx,</span> <span class="nb">Op-Pr</span></td></tr>
+<tr><td><span class="nb">ADR-0002</span></td><td><span class="nb">St-Tx,</span> <span class="nb">Op-Pr</span></td></tr>
+</tbody>
+</table></div>
+<h2>Sources</h2>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:20ch">Claim</th><th style="min-width:10ch">Source</th><th style="min-width:8ch">Decision</th><th style="min-width:8ch">Evidence</th></tr>
+</thead>
+<tbody>
+<tr><td>The two records the views cite</td><td><span class="ref" title="decisions/"><code><span class="nb">decisions/</span></code></span></td><td>Accepted</td><td>Built</td></tr>
+</tbody>
+</table></div>
+</div><div class="provenance" data-provenance><p data-prov="source">Source: arch-views aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p><p data-prov="kit">Kit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="view-St-Tx" class="page view" data-view="St-Tx"><h1 class="pname" data-uaf="Marigold: Strategic-Taxonomy (St-Tx)" data-dodaf202="Marigold: CV-2 Capability Taxonomy (DoDAF 2.02)" data-naf4="Marigold: C1 Capability Taxonomy (NAF v4)">Marigold: Strategic-Taxonomy (St-Tx)</h1><p><a href="#front">Front page</a></p><div class="body"><p>The capabilities of the parcel network. Each is written from a decision record.</p>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:13ch">Capability</th><th style="min-width:20ch">What it does</th></tr>
+</thead>
+<tbody>
+<tr><td>ParcelIntake</td><td>A locker takes in a parcel and issues a receipt.</td></tr>
+<tr><td>ParcelRouting</td><td>The depot routes a parcel by its size class.</td></tr>
+</tbody>
+</table></div>
+<h2>Sources</h2>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:20ch">Claim</th><th style="min-width:11ch">Source</th><th style="min-width:8ch">Decision</th><th style="min-width:8ch">Evidence</th></tr>
+</thead>
+<tbody>
+<tr><td>ParcelIntake: a locker takes in a parcel and issues a receipt</td><td><a href="#adr-0001-1-decision"><span class="nb">ADR-0001</span> <span class="nb">§1</span></a></td><td>Accepted</td><td>Built</td></tr>
+<tr><td>ParcelRouting: the depot routes a parcel by its size class</td><td><a href="#adr-0002-1-decision"><span class="nb">ADR-0002</span> <span class="nb">§1</span></a></td><td>Proposed</td><td>Pending</td></tr>
+</tbody>
+</table></div>
+</div><div class="provenance" data-provenance><p data-prov="source">Source: arch-views aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p><p data-prov="kit">Kit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="view-St-Cn" class="page view" data-view="St-Cn"><h1 class="pname" data-uaf="Marigold: Strategic-Connectivity (St-Cn)" data-dodaf202="Marigold: CV-4 Capability Dependencies (DoDAF 2.02)" data-naf4="Marigold: C3 Capability Dependencies (NAF v4)">Marigold: Strategic-Connectivity (St-Cn)</h1><p><a href="#front">Front page</a></p><div class="body"><p>Which capability depends on which: routing at the depot waits on intake at the locker.</p>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:13ch">Capability</th><th style="min-width:12ch">Depends on</th></tr>
+</thead>
+<tbody>
+<tr><td>ParcelIntake</td><td>None</td></tr>
+<tr><td>ParcelRouting</td><td>ParcelIntake</td></tr>
+</tbody>
+</table></div>
+<h2>Sources</h2>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:20ch">Claim</th><th style="min-width:12ch">Source</th><th style="min-width:16ch">Decision</th><th style="min-width:8ch">Evidence</th></tr>
+</thead>
+<tbody>
+<tr><td>Routing depends on intake</td><td><a href="#decision-roadmap">Roadmap note</a></td><td>Decision pending</td><td>Declared</td></tr>
+</tbody>
+</table></div>
+</div><div class="provenance" data-provenance><p data-prov="source">Source: arch-views aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p><p data-prov="kit">Kit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="view-Op-Pr" class="page view" data-view="Op-Pr"><h1 class="pname" data-uaf="Marigold: Operational-Processes (Op-Pr)" data-dodaf202="Marigold: OV-5a Operational Activity Decomposition Tree; OV-5b Operational Activity Model (DoDAF 2.02)" data-naf4="Marigold: L4 Logical Activities (NAF v4)">Marigold: Operational-Processes (Op-Pr)</h1><p><a href="#front">Front page</a></p><div class="body"><p>What happens to a parcel, as activities.</p>
+<figure class="diagram" data-diagram="1"><svg/></figure>
+<h2>Sources</h2>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:20ch">Claim</th><th style="min-width:11ch">Source</th><th style="min-width:8ch">Decision</th><th style="min-width:8ch">Evidence</th></tr>
+</thead>
+<tbody>
+<tr><td>A1: a locker takes in a parcel</td><td><a href="#adr-0001-1-decision"><span class="nb">ADR-0001</span> <span class="nb">§1</span></a></td><td>Accepted</td><td>Built</td></tr>
+<tr><td>A2: the depot sends a parcel on</td><td><a href="#adr-0002-1-decision"><span class="nb">ADR-0002</span> <span class="nb">§1</span></a></td><td>Proposed</td><td>Pending</td></tr>
+</tbody>
+</table></div>
+</div><div class="provenance" data-provenance><p data-prov="source">Source: arch-views aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p><p data-prov="kit">Kit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="view-Rs-Tx" class="page view" data-view="Rs-Tx"><h1 class="pname" data-uaf="Marigold: Resources-Taxonomy (Rs-Tx)" data-dodaf202="Marigold: SV-1 Systems Interface Description; SV-2 Systems Resource Flow Description (DoDAF 2.02)" data-naf4="Marigold: P1 Resource Types (NAF v4)">Marigold: Resources-Taxonomy (Rs-Tx)</h1><p><a href="#front">Front page</a></p><div class="body"><p>The resource types, and where each is a part.</p>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:8ch">Resource</th><th style="min-width:9ch">Part of</th></tr>
+</thead>
+<tbody>
+<tr><td>Locker</td><td>Kerb site</td></tr>
+<tr><td>Depot</td><td>Hub</td></tr>
+<tr><td>Van</td><td>Hub</td></tr>
+</tbody>
+</table></div>
+<h2>Sources</h2>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:20ch">Claim</th><th style="min-width:11ch">Source</th><th style="min-width:8ch">Decision</th><th style="min-width:8ch">Evidence</th></tr>
+</thead>
+<tbody>
+<tr><td>Lockers sit at the kerb</td><td><a href="#adr-0001-1-decision"><span class="nb">ADR-0001</span> <span class="nb">§1</span></a></td><td>Accepted</td><td>Built</td></tr>
+</tbody>
+</table></div>
+</div><div class="provenance" data-provenance><p data-prov="source">Source: arch-views aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p><p data-prov="kit">Kit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="view-Rs-Cn" class="page view" data-view="Rs-Cn"><h1 class="pname" data-uaf="Marigold: Resources-Connectivity (Rs-Cn)" data-dodaf202="Marigold: SV-3 Systems-Systems Matrix; SV-6 Systems Resource Flow Matrix (DoDAF 2.02)" data-naf4="Marigold: P3 Resource Connectivity (NAF v4)">Marigold: Resources-Connectivity (Rs-Cn)</h1><p><a href="#front">Front page</a></p><div class="body"><p>Which resource talks to which. A locker takes a parcel at the kerb and holds it. The depot sends it on by size class.</p>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:13ch">From_resource</th><th style="min-width:11ch">To_resource</th><th style="min-width:18ch">What_moves_between</th><th style="min-width:19ch">Link_state_required</th><th style="min-width:16ch">Pick_method_used</th><th style="min-width:16ch">Batch_size_limit</th><th style="min-width:19ch">Send_interval_hours</th><th style="min-width:19ch">Sender_role_on_site</th><th style="min-width:22ch">Fallback_when_link_cut</th></tr>
+</thead>
+<tbody>
+<tr><td>Locker</td><td>Depot</td><td>Parcels</td><td>Link_up</td><td>Kerb_scan</td><td>Batch_of_ten</td><td>Every_hour</td><td>Locker_clerk</td><td>Held_in_the_locker</td></tr>
+<tr><td>Depot</td><td>Van</td><td>Parcels</td><td>Always</td><td>Size_class</td><td>One_van_load</td><td>On_departure</td><td>Depot_clerk</td><td>Held_at_the_depot_bay</td></tr>
+<tr><td>Van</td><td>Locker</td><td>Empty_crates</td><td>Always</td><td>Crate_tag</td><td>One_crate</td><td>Daily_round</td><td>Driver</td><td>Left_at_the_next_site</td></tr>
+<tr><td>Locker</td><td>Clerk</td><td>Fault_notes</td><td>Link_up</td><td>Door_sensor</td><td>One_note</td><td>On_fault</td><td>Locker_clerk</td><td>Kept_on_the_locker</td></tr>
+<tr><td>Clerk</td><td>Depot</td><td>Repair_orders</td><td>Link_up</td><td>Fault_note</td><td>One_order</td><td>On_request</td><td>Depot_clerk</td><td>Queued_at_the_depot</td></tr>
+</tbody>
+</table></div>
+<h2>Exceptions</h2>
+<details class="exceptions"><summary>Exceptions: 1 row</summary>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:13ch">Exception</th><th style="min-width:10ch">Where</th><th style="min-width:20ch">Why</th></tr>
+</thead>
+<tbody>
+<tr><td>None declared</td><td>Whole view</td><td>The views are written from the decision records, so nothing is held back</td></tr>
+</tbody>
+</table></div>
+</details>
+<h2>Sources</h2>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:20ch">Claim</th><th style="min-width:12ch">Source</th><th style="min-width:16ch">Decision</th><th style="min-width:8ch">Evidence</th></tr>
+</thead>
+<tbody>
+<tr><td>The locker and depot flows</td><td><a href="#decision-roadmap">Roadmap note</a></td><td>Decision pending</td><td>Declared</td></tr>
+</tbody>
+</table></div>
+</div><div class="provenance" data-provenance><p data-prov="source">Source: arch-views aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p><p data-prov="kit">Kit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="adr-0001" class="page decision" data-decision="ADR-0001"><h1>ADR-0001 Lockers accept parcels offline</h1><p class="stamp" data-stamp>Commit SHA, DATE: decisions/ADR-0001-lockers-accept-parcels-offline.md</p><p><a href="#front">Front page</a></p><div class="body"><h2 id="adr-0001-status">Status</h2>
+<p>Accepted.</p>
+<h2 id="adr-0001-1-decision">1. Decision</h2>
+<p>A locker takes in a parcel and gives the sender a receipt without a link to the depot. The locker keeps the parcel&#x27;s
+record until the link returns, then sends it on.</p>
+<h2 id="adr-0001-2-offline-behaviour">2. Offline behaviour</h2>
+<p>With the link down, the locker still accepts parcels until its bays are full. It refuses the next one and says why.</p>
+<h2 id="adr-0001-3-consequences">3. Consequences</h2>
+<p>The depot learns of a parcel later than the sender does. A receipt is not proof that the depot has the record.</p>
+<p>The first locker built to this decision was Pylon-12, and its receipts were the model for the rest.</p>
+</div><div class="provenance" data-provenance><p data-prov="source">Source: arch-views aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p><p data-prov="kit">Kit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="adr-0002" class="page decision" data-decision="ADR-0002"><h1>ADR-0002 The depot routes parcels by size</h1><p class="stamp" data-stamp>Commit SHA, DATE: decisions/ADR-0002-depot-routes-parcels-by-size.md</p><p><a href="#front">Front page</a></p><div class="body"><h2 id="adr-0002-status">Status</h2>
+<p>Proposed.</p>
+<h2 id="adr-0002-1-decision">1. Decision</h2>
+<p>The depot sends a parcel to a van by its size class. Large parcels go to the cargo van and small ones to the
+courier bike.</p>
+<h2 id="adr-0002-2-open-question">2. Open question</h2>
+<p>How the depot routes a parcel whose size class is missing is not decided.</p>
+<p><code>Status: open</code>
+<strong>OF-1 — A parcel with no size class</strong></p>
+<p>Until it is decided, the depot holds such a parcel at the bay.</p>
+</div><div class="provenance" data-provenance><p data-prov="source">Source: arch-views aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p><p data-prov="kit">Kit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="adr-0003" class="page decision" data-decision="ADR-0003"><h1>ADR-0003 Lockers wait for the depot</h1><p class="stamp" data-stamp>Commit SHA, DATE: decisions/ADR-0003-lockers-wait-for-the-depot.md</p><p><a href="#front">Front page</a></p><div class="body"><h2 id="adr-0003-status">Status</h2>
+<p>Superseded by ADR-0001.</p>
+<h2 id="adr-0003-1-decision">1. Decision</h2>
+<p>A locker refuses every parcel while its link to the depot is down. ADR-0001 replaces this.</p>
+</div><div class="provenance" data-provenance><p data-prov="source">Source: arch-views aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p><p data-prov="kit">Kit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="decision-roadmap" class="page decision" data-decision="roadmap"><h1>Roadmap note</h1><p class="stamp" data-stamp>Commit SHA, DATE: decisions/ROADMAP.md</p><p><a href="#front">Front page</a></p><div class="body"><p>Status: A note, not a decision.</p>
+<p>The order the work runs in, with no dates. Each increment is decided in its own record.</p>
+<h2 id="decision-roadmap-order">Order</h2>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:1ch">#</th><th style="min-width:20ch">increment</th><th style="min-width:20ch">what isolates</th><th style="min-width:8ch">home</th><th style="min-width:20ch">depends on</th></tr>
+</thead>
+<tbody>
+<tr><td>1</td><td>Intake at the locker</td><td>a locker takes in parcels on its own</td><td><span class="nb">ADR-0001</span></td><td>—</td></tr>
+<tr><td>2</td><td>Routing at the depot</td><td>the depot sends parcels on without the lockers</td><td><span class="nb">ADR-0002</span></td><td>1: the locker&#x27;s intake</td></tr>
+</tbody>
+</table></div>
+<h2 id="decision-roadmap-where-later-slices-fold-in">Where later slices fold in</h2>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:3ch">row</th><th style="min-width:5ch">slice</th><th style="min-width:10ch">folds into</th><th style="min-width:20ch">why it costs the increment nothing</th></tr>
+</thead>
+</table></div>
+</div><div class="provenance" data-provenance><p data-prov="source">Source: arch-views aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p><p data-prov="kit">Kit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="page-about" class="page" data-page="about"><h1>About this export</h1><p><a href="#front">Front page</a></p><div class="body"><p>This export has no chart behind it and no model file. Its views are written from records: the decision records in
+<code>decisions/</code> and the lexicon in <code>lexicon/</code>. Every name in it is invented.</p>
+<p>The footer of each page names the sources the views were written from, each with its commit, and the kit&#x27;s own commit.</p>
+</div><div class="provenance" data-provenance><p data-prov="source">Source: arch-views aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p><p data-prov="kit">Kit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="page-reading" class="page" data-page="reading"><h1>How to read a Sources table</h1><p><a href="#front">Front page</a></p><div class="body"><p>Each view ends with a Sources table that says where its claims come from.</p>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:16ch">Decision</th><th style="min-width:20ch">Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td>Accepted</td><td>The record says accepted.</td></tr>
+<tr><td>Proposed</td><td>The record says proposed.</td></tr>
+<tr><td>Decision pending</td><td>No decision record decides it yet.</td></tr>
+<tr><td>Generated</td><td>Computed when the view is rendered, not written in it.</td></tr>
+</tbody>
+</table></div>
+<div class="scroll"><table>
+<thead>
+<tr><th style="min-width:8ch">Evidence</th><th style="min-width:20ch">Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td>Built</td><td>The record says done.</td></tr>
+<tr><td>Declared</td><td>Written down. Nothing was observed running.</td></tr>
+<tr><td>Pending</td><td>The record says the work is pending.</td></tr>
+</tbody>
+</table></div>
+</div><div class="provenance" data-provenance><p data-prov="source">Source: arch-views aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p><p data-prov="kit">Kit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+</main>
+<script>
+(function () {
+  var root = document.documentElement;
+  var KEY = {uaf: "uaf", dodaf202: "dodaf202", naf4: "naf4"};
+  function setProfile(p) {
+    if (!KEY[p]) return;
+    root.setAttribute("data-profile", p);
+    document.querySelectorAll(".pname").forEach(function (e) {
+      var v = e.getAttribute("data-" + p);
+      if (v !== null) e.textContent = v;
+    });
+    document.title = root.getAttribute("data-title-" + p) || document.title;
+    document.querySelectorAll("[data-profile-btn]").forEach(function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-profile-btn") === p ? "true" : "false");
+    });
+  }
+  document.querySelectorAll("[data-profile-btn]").forEach(function (b) {
+    b.addEventListener("click", function () { setProfile(b.getAttribute("data-profile-btn")); });
+  });
+
+  var input = document.getElementById("q");
+  var panel = document.getElementById("results");
+  function pageText(page) {
+    var c = page.cloneNode(true);
+    var p = root.getAttribute("data-profile");
+    c.querySelectorAll("style,script,.profile-only").forEach(function (e) { e.remove(); });
+    c.querySelectorAll(".grid").forEach(function (g) { if (g.getAttribute("data-grid") !== p) g.remove(); });
+    return c.textContent.replace(/\s+/g, " ");
+  }
+  function pageName(page) {
+    var h = page.querySelector("h1");
+    return h ? h.textContent : page.id;
+  }
+  function clearSearch() {
+    input.value = "";
+    panel.hidden = true;
+    panel.textContent = "";
+  }
+  function search() {
+    var q = input.value.trim().toLowerCase();
+    panel.textContent = "";
+    if (q.length < 2) { panel.hidden = true; return; }
+    var list = document.createElement("ul");
+    var total = 0;
+    document.querySelectorAll(".page").forEach(function (page) {
+      var text = pageText(page), low = text.toLowerCase();
+      var at = low.indexOf(q), n = 0;
+      if (at < 0) return;
+      var first = at;
+      while (at >= 0) { n++; at = low.indexOf(q, at + q.length); }
+      total++;
+      var li = document.createElement("li");
+      var a = document.createElement("a");
+      a.href = "#" + page.id;
+      a.textContent = pageName(page);
+      var count = document.createElement("span");
+      count.textContent = " (" + n + (n === 1 ? " match)" : " matches)");
+      var snip = document.createElement("span");
+      snip.className = "snip";
+      snip.textContent = (first > 40 ? "\u2026" : "") + text.slice(Math.max(0, first - 40), first + q.length + 80);
+      li.appendChild(a); li.appendChild(count); li.appendChild(snip);
+      list.appendChild(li);
+    });
+    var head = document.createElement("p");
+    head.textContent = total + (total === 1 ? " page matches" : " pages match");
+    panel.appendChild(head);
+    panel.appendChild(list);
+    panel.hidden = false;
+  }
+  input.addEventListener("input", search);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") clearSearch(); });
+  panel.addEventListener("click", function (e) { if (e.target.tagName === "A") clearSearch(); });
+
+  var saved = [];
+  window.addEventListener("beforeprint", function () {
+    saved = [];
+    document.querySelectorAll("details").forEach(function (d) { saved.push([d, d.open]); d.open = true; });
+  });
+  window.addEventListener("afterprint", function () {
+    saved.forEach(function (s) { s[0].open = s[1]; });
+    saved = [];
+  });
+})();
+</script>
+</body>
+</html>

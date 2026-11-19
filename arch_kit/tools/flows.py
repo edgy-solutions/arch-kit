@@ -74,6 +74,8 @@ def _first_error(instance) -> tuple[str, str] | None:
 
 def _capabilities(tool: str) -> set[str]:
     """The capability names of a full-mode project's capability record (what the model declares)."""
+    if declared.model_none(tool):
+        return set()
     path = project.model_file(tool)
     try:
         text = path.read_text(encoding="utf-8")

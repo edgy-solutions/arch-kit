@@ -63,6 +63,9 @@ PARTS = {
     "date": re.compile(r"^Generated: \d{4}-\d{2}-\d{2}$"),
     "declared": re.compile(r"^Declared, not measured: "),
 }
+# With chart: none the chart and digest parts are replaced by the source parts (one or more) and one kit part.
+SOURCE_RE = re.compile(r"^Source: [A-Za-z0-9._-]+ [0-9a-f]{40}$")
+KIT_RE = re.compile(r"^Kit: [0-9a-f]{40}$")
 PAGE_RE = re.compile(r'<section id="([^"]+)" class="page[^"]*"[^>]*>(.*?)</section>', re.S)
 PART_RE = re.compile(r'<p data-prov="(\w+)">(.*?)</p>', re.S)
 ATTR_RE = re.compile(r"""(?<![\w.-])(href|src)\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.I)
@@ -132,7 +135,50 @@ def check_relabel_composed(raw: str, lists) -> list[str]:
     return fails
 
 
+def check_provenance_sources(raw: str) -> list[str]:
+    """chart: none: every page carries at least one source part and exactly one kit part, the same on every page."""
+    pages = PAGE_RE.findall(raw)
+    fails: list[str] = []
+    if not any(pid == "front" for pid, _ in pages):
+        fails.append("provenance: there is no front page")
+    seen: dict[str, set] = {k: set() for k in ("source", "kit", "date", "declared")}
+    for pid, body in pages:
+        if 'data-provenance' not in body:
+            fails.append(f"provenance: page {pid} has no provenance block")
+            continue
+        block = body[body.index("data-provenance"):]
+        parts = [(k, plain(v)) for k, v in PART_RE.findall(block)]
+        sources = tuple(v for k, v in parts if k == "source")
+        kits = [v for k, v in parts if k == "kit"]
+        if not sources:
+            fails.append(f"provenance: page {pid} lacks the source part")
+        elif not all(SOURCE_RE.match(v) for v in sources):
+            fails.append(f"provenance: page {pid} has a malformed source part")
+        else:
+            seen["source"].add(sources)
+        if len(kits) != 1:
+            fails.append(f"provenance: page {pid} has {len(kits)} kit parts, expected one")
+        elif not KIT_RE.match(kits[0]):
+            fails.append(f"provenance: page {pid} has a malformed kit part")
+        else:
+            seen["kit"].add(kits[0])
+        for k in ("date", "declared"):
+            found = [v for kk, v in parts if kk == k]
+            if len(found) != 1:
+                fails.append(f"provenance: page {pid} lacks the {k} part")
+            elif not PARTS[k].match(found[0]):
+                fails.append(f"provenance: page {pid} has a malformed {k} part")
+            else:
+                seen[k].add(found[0])
+    for k, vals in seen.items():
+        if len(vals) > 1:
+            fails.append(f"provenance: pages disagree on the {k} part ({len(vals)} different values)")
+    return fails
+
+
 def check_provenance(raw: str) -> list[str]:
+    if declared.chart_none("check_export") and declared.portal_mode("check_export") != "decisions":
+        return check_provenance_sources(raw)
     pages = PAGE_RE.findall(raw)
     fails: list[str] = []
     if not any(pid == "front" for pid, _ in pages):
@@ -214,7 +260,7 @@ def check_capabilities(raw: str, tree: check_views.Tree) -> list[str]:
     """One page per capability in the model, each with a description and the line that says where it comes from."""
     fails: list[str] = []
     pages = {pid: body for pid, body in PAGE_RE.findall(raw) if pid.startswith("cap-")}
-    want = list(capability_phases.model_capabilities(tree.sysml))
+    want = [] if declared.model_none("check_export") else list(capability_phases.model_capabilities(tree.sysml))
     got = [pid[4:] for pid in pages]
     if got != want:
         fails.append(f"capabilities: the export has {len(got)} capability pages, the model {len(want)}"
@@ -354,6 +400,9 @@ def check_exceptions(raw: str) -> list[str]:
 
 
 def check_declarations(raw: str, tree: check_views.Tree) -> list[str]:
+    if declared.chart_none("check_export"):
+        n = len([1 for pid, _ in PAGE_RE.findall(raw) if pid == "declarations"])
+        return [] if n == 0 else [f"declarations: the export has {n} declarations pages, chart: none declares none"]
     pages = [body for pid, body in PAGE_RE.findall(raw) if pid == "declarations"]
     if len(pages) != 1:
         return [f"declarations: the export has {len(pages)} declarations pages, expected one"]

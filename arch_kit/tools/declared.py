@@ -18,6 +18,7 @@ A bad declaration exits 2 through project.die with one line naming the declarati
 """
 from __future__ import annotations
 
+import re
 from typing import NamedTuple
 
 import project
@@ -145,15 +146,24 @@ def views(tool: str) -> dict:
         node = project.need("views", tool)
         if not isinstance(node, dict):
             _bad("views", "must be a map")
+        no_model = model_none(tool)
         for k in VIEW_KEYS:
+            if k == "capability_links" and no_model and k not in node:
+                continue
             project.need("views." + k, tool)
         for k in ("required", "required_dodaf", "capability_links"):
+            if k not in node:
+                continue
             value = node[k]
             if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
                 _bad("views." + k, "must be a list of view ids")
         homes = node["homes"]
         if not isinstance(homes, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in homes.items()):
             _bad("views.homes", "must map a generated-section name to a view id")
+        if no_model and node.get("capability_links"):
+            _bad("views.capability_links", "model: none is declared; there are no capability pages to link")
+        if no_model:
+            node = {**node, "capability_links": []}
         _CACHE["views"] = node
     return _CACHE["views"]
 
@@ -166,6 +176,65 @@ def home(name: str, tool: str) -> str:
 HOSTINGS = ("ci-artifact", "static-site", "none")
 AUDIENCES = ("public", "private")
 MODES = ("full", "decisions")
+
+
+def _none_pairing(tool: str) -> None:
+    """`chart: none` and `model: none` are declared together. Either alone exits 2 and says so."""
+    if "none_pairing" in _CACHE:
+        return
+    chart_value, model_value = project.CONFIG.get("chart"), project.CONFIG.get("model")
+    if chart_value is not None and chart_value != "none":
+        _bad("chart", f"{chart_value!r} is not allowed; the only value is none")
+    if model_value is not None and model_value != "none" and not isinstance(model_value, dict):
+        _bad("model", "must be a map, or none")
+    if chart_value == "none" and model_value != "none":
+        _bad("chart", "chart: none is declared without model: none; the two go together in this version")
+    if model_value == "none" and chart_value != "none":
+        _bad("model", "model: none is declared without chart: none; the two go together in this version")
+    _CACHE["none_pairing"] = True
+
+
+def chart_none(tool: str) -> bool:
+    """True when `chart: none` is declared: a full-mode project with no chart, values or release."""
+    _none_pairing(tool)
+    return project.CONFIG.get("chart") == "none"
+
+
+def model_none(tool: str) -> bool:
+    """True when `model: none` is declared: a full-mode project with no SysML model."""
+    _none_pairing(tool)
+    return project.CONFIG.get("model") == "none"
+
+
+PAGE_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
+
+
+def pages(tool: str) -> list[dict]:
+    """The extra pages (`pages:`): a list of {id, title, file}, in order. Empty when absent. Exits 2 naming the key."""
+    if "pages" not in _CACHE:
+        node = project.CONFIG.get("pages")
+        out: list[dict] = []
+        if node is not None:
+            if not isinstance(node, list) or not node:
+                _bad("pages", "must be a non-empty list")
+            seen: set = set()
+            for i, item in enumerate(node):
+                key = f"pages[{i}]"
+                if not isinstance(item, dict) or set(item) != {"id", "title", "file"}:
+                    _bad(key, "must be a map of id, title and file")
+                pid, title = item["id"], item["title"]
+                if not isinstance(pid, str) or not PAGE_ID.fullmatch(pid):
+                    _bad(key + ".id", "must be a slug of lowercase letters, digits and hyphens")
+                if pid in seen:
+                    _bad(key + ".id", f"{pid} is used twice")
+                if pid in ("front", "declarations") or pid.startswith(("view-", "cap-", "decision-")):
+                    _bad(key + ".id", f"{pid} collides with a page the kit writes")
+                seen.add(pid)
+                if not isinstance(title, str) or not title.strip() or title != title.strip() or "\n" in title:
+                    _bad(key + ".title", "must be one line of text")
+                out.append({"id": pid, "title": title, "file": _relative(item["file"], key + ".file")})
+        _CACHE["pages"] = out
+    return _CACHE["pages"]
 
 
 def portal_none(tool: str) -> bool:
