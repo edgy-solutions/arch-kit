@@ -17,8 +17,9 @@ directory route and `load_pages: pages[i].<key>: <why>` on the loader route. A c
 loader route.
 
 A citation is `[[ident]]` or `[[ident|status]]`. The ident is a component (CO-), an increment (RM-), a flow (FL-),
-`alignment:<name>`, or else a decision id (local or foreign). A status is one of measured, built, accepted, proposed,
-and is checked against the record.
+`alignment:<name>`, an outside system (an `XE-` id, defined in the member's README and checked by form only, since the
+kit cannot read a README's table), or else a decision id (local or foreign). A status is one of measured, built,
+accepted, proposed, and is checked against the record.
 
 render() makes one page per file and the front page's nav items, and nav() wraps the items; lane 02's render_html
 wires them in. CSS goes to the page style. This module must not import render_html.
@@ -56,6 +57,7 @@ CODE_SPAN = re.compile(r"(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)")
 COMPONENT_ID = re.compile(r"CO-[A-Z0-9]+(-[A-Z0-9]+)*")
 INCREMENT_ID = re.compile(r"RM-[A-Z0-9]+(-[A-Z0-9]+)*")
 FLOW_ID = re.compile(r"FL-[A-Z0-9]+(-[A-Z0-9]+)*")
+ELEMENT_ID = re.compile(r"XE-[A-Z0-9]+(-[A-Z0-9]+)*")
 ALIGNMENT = "alignment:"
 PLACEHOLDER = re.compile("\ue000([0-9]+)\ue001")
 
@@ -159,6 +161,8 @@ class _Records:
         if FLOW_ID.fullmatch(ident):
             found = self._get("flow", lambda: {f["id"]: f for f in flows.load(t, ids)})
             return "flow", found.get(ident), None if found else "flows"
+        if ELEMENT_ID.fullmatch(ident):
+            return "element", {}, None
         if ident.startswith(ALIGNMENT):
             found = self._get("alignment", lambda: alignment.load(t, ids, audience=declared.portal_audience(t)))
             return "alignment", found.get(ident[len(ALIGNMENT):]), None if found else "alignment records"
@@ -181,7 +185,7 @@ def _citation_problem(records: _Records, ident: str, status: str | None) -> str 
         if not record["built"]:
             return f"{cite} says built; {ident} is not built"
         return None
-    if kind in ("decision", "alignment"):
+    if kind in ("decision", "alignment", "element"):
         return f"{cite}: only components, increments and flows carry a status"
     if record["status"] != status:
         return f"{cite} says {status}; {ident} is {record['status']}"
@@ -343,6 +347,8 @@ def _kind_of(ident: str) -> str:
         return "increment"
     if FLOW_ID.fullmatch(ident):
         return "flow"
+    if ELEMENT_ID.fullmatch(ident):
+        return "element"
     return "alignment" if ident.startswith(ALIGNMENT) else "decision"
 
 
@@ -382,9 +388,10 @@ def _ordered(pages) -> list[dict]:
 
 def render(pages, href, prov: str = "", pre: str = "") -> tuple[list[str], list[str]]:
     """One section per page and the front page's nav items, in page order; both empty when there are no pages.
-    `href(kind, ident)` returns the href of a cited record, or None; kind is decision, component, increment, flow or
-    alignment, and ident is the cited id (the record name, without `alignment:`, for an alignment record). render_html
-    wires it in. Render does not re-check resolution: load() did."""
+    `href(kind, ident)` returns the href of a cited record, or None; kind is decision, component, increment, flow,
+    alignment or element (an outside system, an `XE-` id, checked by form only), and ident is the cited id (the record
+    name, without `alignment:`, for an alignment record). render_html wires it in. Render does not re-check
+    resolution: load() did."""
     if not pages:
         return [], []
     md = _markdown()
