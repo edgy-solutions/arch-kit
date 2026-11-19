@@ -18,7 +18,7 @@ assume.
 
 ## Status
 
-**`0.1.0`, tagged `v0.1.0`.** The kit was extracted from the first project that used it. That project's export
+**`0.2.0`, tagged `v0.2.0`.** See [the changelog](CHANGELOG.md). The kit was extracted from the first project that used it. That project's export
 is the acceptance test: after every step it must come out byte-identical, or each difference is listed and explained.
 
 | Step | | State |
@@ -135,7 +135,7 @@ check, `check_decision_indexes`):
 - uses: actions/checkout@<sha>
   with:
     fetch-depth: 0        # the render stamps each decision from git
-- uses: edgy-solutions/arch-kit@v0.1.0
+- uses: edgy-solutions/arch-kit@v0.2.0
   with:
     config: docs/arch/arch-kit.yaml
     chart: path/to/chart
