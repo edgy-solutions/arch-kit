@@ -1,0 +1,31 @@
+# Declares the component record example project to the export kit. Paths are relative to this file. Every name in it is invented.
+kit: 1
+paths:
+  root: .
+  repo: .
+  decisions: decisions
+name: Sorrel
+registers:
+  follow_ups: FOLLOW-UPS.md
+  debt: DEBT.md
+  roadmap: ROADMAP.md      # there is no such file: a decisions-only portal has no roadmap page without one
+portal:
+  mode: decisions          # the decision records and their index; no capability record, views or model
+  hosting: none
+  audience: private
+loader: kit_loader.py
+decisions:
+  records:
+    file_prefix: false     # a record file is 0001-<slug>.md; its id is still ADR-0001
+  index:
+    register: FOLLOW-UPS.md
+    readme: README.md
+    register_homes: ["[0-9]*.md"]
+    indexed: ["[0-9]*.md", FOLLOW-UPS.md]
+    local_prefix: sorrel
+    foreign: [{prefix: other}]
+files:
+  components: components.yaml   # the component record: one YAML file whose only key is `components`
+components:
+  planes: [edge, hub]
+  results: [results]            # a measured component has evidence under here, so no report is printed

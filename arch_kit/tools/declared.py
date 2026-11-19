@@ -272,7 +272,8 @@ FILE_DEFAULTS = {
 ALIGNMENT_KEY = "alignment"  # a `files` key with no default: a directory of alignment records, absent unless declared
 COMPOSITION_KEY = "composition"  # a `files` key with no default: the composition file, relative to the declaration
 FLOWS_KEY = "flows"  # a `files` key with no default: one YAML file of flow records, absent unless declared
-OPTIONAL_FILE_KEYS = (ALIGNMENT_KEY, COMPOSITION_KEY, FLOWS_KEY)
+COMPONENTS_KEY = "components"  # a `files` key with no default: one YAML file of component records, absent unless declared
+OPTIONAL_FILE_KEYS = (ALIGNMENT_KEY, COMPOSITION_KEY, FLOWS_KEY, COMPONENTS_KEY)
 
 
 def _relative(value, key):
@@ -315,6 +316,46 @@ def flows_file(tool: str) -> str | None:
     """The declared file of flow records under paths.root (`files.flows`), or None. It has no default."""
     content_file("profiles", tool)  # reads and checks the whole `files` map
     return _CACHE["files"].get(FLOWS_KEY)
+
+
+def components_file(tool: str) -> str | None:
+    """The declared file of component records under paths.root (`files.components`), or None. It has no default."""
+    content_file("profiles", tool)  # reads and checks the whole `files` map
+    return _CACHE["files"].get(COMPONENTS_KEY)
+
+
+def components_declaration(tool: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """(planes, results) from the top-level `components:` map: the plane names a component may sit on, and the
+    repository paths (files or directories) whose contents count as measured results. `planes` is required;
+    `results` is optional and absent means (). Call it only when components are loaded."""
+    import re
+    if "components" not in _CACHE:
+        node = project.CONFIG.get("components")
+        if node is None:
+            _bad("components.planes", "is required when components are declared")
+        if not isinstance(node, dict):
+            _bad("components", "must be a map")
+        for k in node:
+            if k not in ("planes", "results"):
+                _bad("components", f"unknown key {k!r}")
+        if "planes" not in node:
+            _bad("components.planes", "is required when components are declared")
+        planes = _list(node["planes"], "components.planes")
+        for i, v in enumerate(planes):
+            if not isinstance(v, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", v):
+                _bad(f"components.planes[{i}]", "must be a part name: a letter or digit, then letters, digits, dots, "
+                                                 "underscores or hyphens")
+            if planes.index(v) != i:
+                _bad(f"components.planes[{i}]", f"{v} is listed twice")
+        results = node.get("results", [])
+        if not isinstance(results, list):
+            _bad("components.results", "must be a list")
+        for i, v in enumerate(results):
+            _relative(v, f"components.results[{i}]")
+            if results.index(v) != i:
+                _bad(f"components.results[{i}]", f"{v} is listed twice")
+        _CACHE["components"] = (tuple(planes), tuple(results))
+    return _CACHE["components"]
 
 
 def decisions_readme(tool: str) -> str:

@@ -1,0 +1,51 @@
+components:
+  - id: CO-001
+    name: locker-agent
+    purpose: holds parcels for pickup
+    plane: edge
+    wiring: talks to the depot over the parcel topic
+    sign_in: locker token
+    data_path: locker to depot
+    serves: [pickup, drop-off]
+    status: built
+    evidence: [src/locker_agent.py:6]
+  - id: CO-002
+    name: depot-router
+    purpose: sorts parcels by size & weight
+    plane: hub
+    wiring: reads the parcel topic and writes the route topic
+    sign_in: depot service account
+    data_path: parcel topic to route topic
+    serves: [routing]
+    status: accepted
+    evidence: [ADR-0002, other:ADR-0007]
+  - id: CO-003
+    name: wake-probe
+    purpose: times how fast a locker wakes
+    plane: edge
+    wiring: reads the locker agent's start log
+    sign_in: none needed
+    data_path: log to results file
+    serves: [pickup]
+    status: measured
+    evidence: [results/locker-wake.txt]
+  - id: CO-004
+    name: ledger
+    purpose: keeps the record of every handover
+    plane: hub
+    wiring: subscribes to the handover topic
+    sign_in: depot service account
+    data_path: handover topic to ledger table
+    serves: []
+    status: proposed
+    evidence: [ADR-0003]
+  - id: CO-005
+    name: shelf-monitor
+    purpose: reports shelf fill level
+    plane: edge
+    wiring: reads the shelf sensors
+    sign_in: locker token
+    data_path: sensors to locker agent
+    serves: [drop-off]
+    status: proposed
+    evidence: [ADR-0001, src/locker_agent.py]
