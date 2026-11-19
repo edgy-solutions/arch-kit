@@ -127,7 +127,12 @@ REFUSED = [
     # the schema
     ("empty list", mut(lambda f: f.clear()), "flows: must list at least one flow"),
     ("unknown key", mut(lambda f: f[1].update(extra=1)), "flows.1.extra: unknown key"),
-    ("bad id", mut(lambda f: f[0].update(id="FL-1")), "flows.0.id: must be FL- and at least three digits"),
+    ("bad id", mut(lambda f: f[0].update(id="FL-trace")), "flows.0.id: must be FL- then capitals, digits and hyphens"),
+    ("id without a body", mut(lambda f: f[0].update(id="FL-")), "flows.0.id: must be FL- then capitals, digits and hyphens"),
+    ("lower case id", mut(lambda f: f[0].update(id="fl-001")), "flows.0.id: must be FL- then capitals, digits and hyphens"),
+    ("double hyphen in id", mut(lambda f: f[0].update(id="FL--A")), "flows.0.id: must be FL- then capitals, digits and hyphens"),
+    ("trailing hyphen in id", mut(lambda f: f[0].update(id="FL-A-")), "flows.0.id: must be FL- then capitals, digits and hyphens"),
+    ("underscore in id", mut(lambda f: f[0].update(id="FL-A_B")), "flows.0.id: must be FL- then capitals, digits and hyphens"),
     ("bad from", mut(lambda f: f[0].update(**{"from": "a b"})), "flows.0.from: must be a part name"),
     ("bad to", mut(lambda f: f[0].update(to="-x")), "flows.0.to: must be a part name"),
     ("space in carries", mut(lambda f: f[0].update(carries="a b")), "flows.0.carries: must be a non-empty string"),
@@ -151,6 +156,16 @@ class Routes(unittest.TestCase):
         p.put(good())
         r = p.render()
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_wider_ids_are_accepted(self):
+        for fid in ("FL-001", "FL-1", "FL-TRACE", "FL-PT-PUBLISH"):
+            with self.subTest(id=fid):
+                p = Project(self)
+                flows = good()
+                flows[0]["id"] = fid
+                p.put(flows)
+                r = p.render()
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_both_declared_is_refused(self):
         p = Project(self)

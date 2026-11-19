@@ -114,7 +114,7 @@ class Example(unittest.TestCase):
             block = re.findall(r'<div class="flows-decided" data-flows-decided>(.*?)</div>', page(text, pid), re.S)
             self.assertEqual(len(block), 1, pid)
             self.assertIn("<h2>Flows this record decides</h2>", block[0])
-            self.assertEqual(re.findall(r'<a href="#flows">(FL-\d+):', block[0]), ids, pid)
+            self.assertEqual(re.findall(r'<a href="#flows">(FL-[A-Z0-9-]+):', block[0]), ids, pid)
             body = page(text, pid)
             self.assertLess(body.index("data-flows-decided"), body.index('<div class="provenance"'))
         self.assertIn('<a href="#flows">FL-002: depot → ledger (receipt.v1)</a>', page(text, "adr-0003"))

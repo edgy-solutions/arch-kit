@@ -31,7 +31,8 @@ flows:
 ```
 
 - **All seven keys are required.** No other key is accepted.
-- **`id`** is `FL-` and at least three digits, and unique in the project.
+- **`id`** is `FL-` then capitals, digits and hyphens (for example `FL-001` or `FL-TRACE`) and is unique in the
+  project. An id carries no project-name prefix, because a composed build renders each member's flows under that member.
 - **`from` and `to`** name a part of the project, in the project's own words, or `capability:<name>`. They must
   differ.
   - The kit keeps no list of a project's parts, so a part's name is not checked against anything.

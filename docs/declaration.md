@@ -196,7 +196,7 @@ record to another, over one channel, and which decision records decided it. `fil
 
 ```yaml
 flows:
-  - id: FL-001            # FL- and at least three digits
+  - id: FL-001            # FL- then capitals, digits and hyphens
     from: intake          # a part of the project, in its own words, or capability:<name>
     to: depot
     carries: parcel.v1    # the schema key, no whitespace

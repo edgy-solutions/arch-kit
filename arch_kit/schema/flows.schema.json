@@ -19,7 +19,7 @@
       "additionalProperties": false,
       "required": ["id", "from", "to", "carries", "via", "decided_by", "built"],
       "properties": {
-        "id": {"type": "string", "pattern": "^FL-[0-9]{3,}$", "not": {"pattern": "[\\r\\n]"}},
+        "id": {"type": "string", "pattern": "^FL-[A-Z0-9]+(-[A-Z0-9]+)*$", "not": {"pattern": "[\\r\\n]"}},
         "from": {"$ref": "#/$defs/part"},
         "to": {"$ref": "#/$defs/part"},
         "carries": {"type": "string", "pattern": "^\\S+$", "not": {"pattern": "[\\r\\n]"}},

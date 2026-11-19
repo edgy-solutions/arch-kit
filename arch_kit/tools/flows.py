@@ -26,7 +26,7 @@ SCHEMA = Path(__file__).resolve().parents[1] / "schema" / "flows.schema.json"
 CAPABILITY = "capability:"
 KEYS = ("id", "from", "to", "carries", "via", "decided_by", "built")
 PATTERN_WHY = {
-    "id": "must be FL- and at least three digits",
+    "id": "must be FL- then capitals, digits and hyphens",
     "from": "must be a part name or capability:<name>",
     "to": "must be a part name or capability:<name>",
     "carries": "must be a non-empty string with no whitespace",
