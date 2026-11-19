@@ -224,7 +224,7 @@ class Foreign(NamedTuple):
 
 
 class DecisionIndex(NamedTuple):
-    register: str
+    register: str | None     # None when `decisions.index.register` is `none`
     readme: str
     register_homes: tuple
     indexed: tuple
@@ -413,12 +413,22 @@ def decisions_index(tool: str) -> DecisionIndex:
         for k in node:
             if k not in INDEX_KEYS:
                 _bad("decisions.index", f"unknown key {k!r}")
-        for k in INDEX_KEYS:
-            if k not in INDEX_OPTIONAL:
-                project.need("decisions.index." + k, tool)
         base = "decisions.index."
-        lists = {}
+        # `register: none` (the string) declares that there is no register; a missing key never does.
+        no_register = node.get("register") == "none"
+        if no_register:
+            if portal_mode(tool) != "decisions":
+                _bad(base + "register", "`none` needs `portal.mode: decisions`")
+            for k in ("register_homes", "register_id"):
+                if k in node:
+                    _bad(base + k, "must be absent when `decisions.index.register` is `none`")
+        for k in INDEX_KEYS:
+            if k not in INDEX_OPTIONAL and not (no_register and k == "register_homes"):
+                project.need("decisions.index." + k, tool)
+        lists = {"register_homes": ()}
         for k in ("register_homes", "indexed"):
+            if no_register and k == "register_homes":
+                continue
             lists[k] = tuple(_name(v, f"{base}{k}[{i}]") for i, v in enumerate(_list(node[k], base + k)))
         local = _prefix(node["local_prefix"], base + "local_prefix")
         foreign = []
@@ -440,7 +450,7 @@ def decisions_index(tool: str) -> DecisionIndex:
                 _name(pin, key + ".pin_check")
             foreign.append(Foreign(prefix, pin))
         _CACHE["decisions_index"] = DecisionIndex(
-            _name(node["register"], base + "register"), _name(node["readme"], base + "readme"),
+            None if no_register else _name(node["register"], base + "register"), _name(node["readme"], base + "readme"),
             lists["register_homes"], lists["indexed"], local, tuple(foreign))
     return _CACHE["decisions_index"]
 

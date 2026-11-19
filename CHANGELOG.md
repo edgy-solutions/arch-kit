@@ -10,6 +10,7 @@ output is unchanged.
 - `decisions.records.prefix` and `.digits`: the decision record id and file name.
 - `decisions.records.file_prefix`: false names a record file `<digits>-<slug>.md`; the record id keeps its prefix.
 - `portal.mode`: `decisions` makes a portal of the decision records, their index and the roadmap note, with no capability record, views or model (`examples/decisions-only`). The default is `full`.
+- `decisions.index.register: none`: a decisions-only project declares that it has no register. Checks 1, 3 and 4 of `check_decision_indexes` do not run, and the run says so; a missing `register` key still exits 2, and `none` in full mode exits 2.
 - `decisions.index.register_id.letters` and `.digits`: the register id grammar of `check_decision_indexes`.
 - `derived.roadmap.increments` and `.fold_ins`: the roadmap note's table headers.
 

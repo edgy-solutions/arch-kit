@@ -153,9 +153,21 @@ decisions:
 ```
 
 `check_decision_indexes` reads it. The files are under `paths.decisions`. Every key is required except `foreign`
-(default: none) and `pin_check` (default: no pin check for that prefix). `register_homes` and `indexed` are lists of
+(default: none) and `pin_check` (default: no pin check for that prefix); `register_homes` is also not read when the
+register is `none` (below). `register_homes` and `indexed` are lists of
 file globs with no spaces in them. A prefix is lowercase letters, digits and hyphens, starting with a letter. A bad or
 missing key exits 2, and the message names it.
+
+- **`register: none`** declares that a decisions-only project has no register. It is allowed only with
+  `portal.mode: decisions` (full mode exits 2), `register_homes` and `register_id` must then be absent, and `readme`,
+  `indexed` and `local_prefix` are still required. Checks 1, 3 and 4 do not run, and the run says so. A missing
+  `register` key is not this: it still exits 2.
+
+  ```yaml
+  portal: {mode: decisions, hosting: none, audience: private}
+  decisions:
+    index: {register: none, readme: README.md, indexed: ["[0-9]*.md"], local_prefix: larkspur}
+  ```
 
 - **`pin_check`** is a script that checks the citations of one foreign repository are pinned to the commit the
   project read. The tool runs it from the decisions directory with one argument, the repository root (both given as

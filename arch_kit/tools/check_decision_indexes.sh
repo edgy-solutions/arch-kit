@@ -13,10 +13,13 @@
 # from the declared decisions directory. It is not meant to be called directly.
 #
 #   IDX_DIRNAME   the decisions directory's own name, for messages
-#   IDX_REGISTER  the register index file: one row per register id
+#   IDX_REGISTER  the register index file: one row per register id. Empty only with IDX_NO_REGISTER=1.
+#   IDX_NO_REGISTER  1 when the declaration says `decisions.index.register: none`: the project has no register, so
+#                 checks 1, 3 and 4 do not run, and the run says so. An empty IDX_REGISTER or IDX_HOMES alone is
+#                 still a failure: absence must not answer as "no register" (see below).
 #   IDX_README    the document index: every indexed document is named in it
 #   IDX_HOMES     globs, space-separated: where register ids are declared, and
-#                 their status tokens
+#                 their status tokens. Empty only with IDX_NO_REGISTER=1.
 #   IDX_INDEXED   globs, space-separated: each document matching one must be
 #                 named in IDX_README
 #   IDX_LOCAL     the local prefix: `PREFIX:<record id>` must resolve here
@@ -36,6 +39,7 @@
 #   check 1  every register ID has an index row, and every row is a real ID
 #   check 2  every indexed document is referenced by the document index
 #   check 3  every row's status equals its home's declared token, exactly
+#   (with IDX_NO_REGISTER=1, checks 1, 3 and 4 do not run, and every run prints that line)
 #   check 4  every row's home HAS a token (so check 3 cannot be skipped by
 #            absence — absence answering as agreement is the disease this
 #            tooling exists to fight)
@@ -52,7 +56,11 @@
 #   The status-token design is recorded in the project's own decision corpus.
 set -uo pipefail
 
-: "${IDX_DIRNAME:?}" "${IDX_REGISTER:?}" "${IDX_README:?}" "${IDX_HOMES:?}" "${IDX_INDEXED:?}"
+: "${IDX_DIRNAME:?}" "${IDX_README:?}" "${IDX_INDEXED:?}"
+# The register and its homes are required unless the declaration says there is none. Only the explicit flag
+# excuses them; an empty variable on its own still fails.
+no_register=0; [ "${IDX_NO_REGISTER:-0}" = 1 ] && no_register=1
+if [ "$no_register" = 0 ]; then : "${IDX_REGISTER:?}" "${IDX_HOMES:?}"; fi
 : "${IDX_LOCAL:?}" "${IDX_ROOT:?}"
 IDX_FOREIGN="${IDX_FOREIGN:-}"
 # The grammar of the ids, from the declaration; the defaults are the original fixed forms.
@@ -71,7 +79,8 @@ fail=0
 # was invisible to checks 3 and 4 — the third instance of scope-as-literal-list
 # in that project. Same fix each time: ASK THE DIRECTORY, not the author's
 # memory of it.
-homes_files=$(ls $IDX_HOMES 2>/dev/null)
+homes_files=""
+[ "$no_register" = 0 ] && homes_files=$(ls $IDX_HOMES 2>/dev/null)
 
 # REGISTER PREFIXES are derived from declaration sites in those homes — both
 # shapes: a bolded heading (`**UD-7 — …`) and a table row (`| **GD-01** |`).
@@ -85,12 +94,15 @@ homes_files=$(ls $IDX_HOMES 2>/dev/null)
 # Also deliberately not scanned from plans or the document index: a plan that
 # describes the status-token design contains an EXAMPLE row, and an example is
 # not a declaration.
-prefixes=$( { grep -ohE "^\*\*${idlet}-${idnum} —" $homes_files
-              grep -ohE "^\| \*\*${idlet}-${idnum}\*\* \|" $homes_files
-            } 2>/dev/null | grep -oE "$idlet" | sort -u | paste -sd'|' -)
-if [ -z "$prefixes" ]; then
-  echo "FAIL: no register prefixes found — the derivation is broken, not the corpus"
-  exit 1
+prefixes=""
+if [ "$no_register" = 0 ]; then
+  prefixes=$( { grep -ohE "^\*\*${idlet}-${idnum} —" $homes_files
+                grep -ohE "^\| \*\*${idlet}-${idnum}\*\* \|" $homes_files
+              } 2>/dev/null | grep -oE "$idlet" | sort -u | paste -sd'|' -)
+  if [ -z "$prefixes" ]; then
+    echo "FAIL: no register prefixes found — the derivation is broken, not the corpus"
+    exit 1
+  fi
 fi
 
 # --- check 1: IDs <-> index rows -------------------------------------------
@@ -98,6 +110,8 @@ fi
 # would include the index in its own corpus, so every row would vouch for
 # itself and the phantom-row direction could never fail. A verification that
 # includes its own subject in its evidence is not a verification.
+corpus=""; missing=""; phantom=""
+if [ "$no_register" = 0 ]; then
 corpus=$(grep -ohE "\b($prefixes)-${idnum}\b" \
            $(ls *.md | grep -vxF "$IDX_REGISTER") | sort -u)
 rows=$(grep -ohE "^\| ($prefixes)-${idnum} " "$IDX_REGISTER" \
@@ -105,6 +119,7 @@ rows=$(grep -ohE "^\| ($prefixes)-${idnum} " "$IDX_REGISTER" \
 
 missing=$(comm -23 <(echo "$corpus") <(echo "$rows"))
 phantom=$(comm -13 <(echo "$corpus") <(echo "$rows"))
+fi
 
 if [ -n "$missing" ]; then
   echo "FAIL: register IDs with no row in $IDX_REGISTER:"
@@ -168,6 +183,8 @@ index_status() {
     | sed -E 's/[[:space:]]+$//'
 }
 
+status_report=""
+if [ "$no_register" = 0 ]; then
 home_status | sort > /tmp/.dec_homes.$$
 index_status | sort > /tmp/.dec_idx.$$
 trap 'rm -f /tmp/.dec_homes.$$ /tmp/.dec_idx.$$' EXIT
@@ -190,6 +207,7 @@ status_report=$(awk -F'\t' '
     }
   }
 ' /tmp/.dec_homes.$$ /tmp/.dec_idx.$$ | sort)
+fi
 
 if [ -n "$status_report" ]; then
   printf '%s\n' "$status_report"
@@ -288,10 +306,15 @@ EOF
 if [ -n "${PINS_OUT:-}" ]; then printf '%s\n' "$pins_all" > "$PINS_OUT"; fi
 
 if [ "$fail" -eq 0 ]; then
-  echo "decision indexes clean: $(echo "$corpus" | wc -l | tr -d ' ') IDs, all documents indexed, all statuses agree"
-  echo "note: 'agree' means the index matches the home, NOT that either is true."
+  if [ "$no_register" = 1 ]; then
+    echo "decision indexes clean: all documents indexed"
+  else
+    echo "decision indexes clean: $(echo "$corpus" | wc -l | tr -d ' ') IDs, all documents indexed, all statuses agree"
+    echo "note: 'agree' means the index matches the home, NOT that either is true."
+  fi
   echo "cross-repo citations: $(printf '%s\n' "$xrefs" | grep -c . || true) prefixed, all prefixes known,"
   echo "  all $IDX_LOCAL:-prefixed ones resolve here."
   printf '%s' "$foreign_summary"
 fi
+[ "$no_register" = 1 ] && echo "checks 1, 3 and 4: not run: decisions.index.register is none"
 exit "$fail"
