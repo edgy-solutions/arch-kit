@@ -1,0 +1,23 @@
+# An accepted record over the kit's seed: two of its groups, and two elements of its own in an invented group.
+title: Sorrel alignment over a seed
+references:
+  - key: dcra
+    read: partial
+    read_note: "Appendix 9 read in full; the rest not read"
+    seed: nato-dcra-v2
+    groups: ["Appendix 9: roles", "Appendix 9: services"]
+    elements:
+      - {id: local-audit, name: Audit trail, where: "Project note 1", group: "Project additions"}
+      - {id: local-export, name: Export control, where: "Project note 2", group: "Project additions"}
+rows:
+  - {ref: dcra, element: ap9-pep, counterpart: "The read path's enforcement point", correspondence: corresponds, evidence: [ADR-0001]}
+  - {ref: dcra, element: ap9-pdp, counterpart: "The depot's decision service", correspondence: partial, evidence: [ADR-0002], owed: ADR-0003}
+  - {ref: dcra, element: ap9-pip, correspondence: none, note: "No information point is built."}
+  - {ref: dcra, element: ap9-pap, correspondence: not_assessed}
+  - {ref: dcra, element: ap9-crypto, correspondence: not_assessed}
+  - {ref: dcra, element: ap9-authz, correspondence: not_assessed}
+  - {ref: dcra, element: ap9-authn, correspondence: not-applicable, note: "The lockers have no accounts."}
+  - {ref: dcra, element: ap9-certs, correspondence: not_assessed}
+  - {ref: dcra, element: ap9-identity, correspondence: not_assessed}
+  - {ref: dcra, element: local-audit, counterpart: "The parcel log", correspondence: corresponds, evidence: [decisions/README.md]}
+  - {ref: dcra, element: local-export, correspondence: not_assessed}

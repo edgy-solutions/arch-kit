@@ -244,6 +244,9 @@ FILE_DEFAULTS = {
 }
 
 
+ALIGNMENT_KEY = "alignment"  # a `files` key with no default: a directory of alignment records, absent unless declared
+
+
 def _relative(value, key):
     """Exit 2 unless value is a plain relative path with no '..', no leading slash and no drive letter."""
     import re
@@ -265,13 +268,19 @@ def content_file(key: str, tool: str) -> str:
             if not isinstance(node, dict):
                 _bad("files", "must be a map")
             for k, v in node.items():
-                if k not in FILE_DEFAULTS:
-                    _bad(f"files.{k}", f"unknown key; the keys are {', '.join(FILE_DEFAULTS)}")
+                if k not in FILE_DEFAULTS and k != ALIGNMENT_KEY:
+                    _bad(f"files.{k}", f"unknown key; the keys are {', '.join((*FILE_DEFAULTS, ALIGNMENT_KEY))}")
                 out[k] = _relative(v, f"files.{k}")
         _CACHE["files"] = out
     if key not in FILE_DEFAULTS:
         raise KeyError(key)
     return _CACHE["files"][key]
+
+
+def alignment_dir(tool: str) -> str | None:
+    """The declared directory of alignment records under paths.root (`files.alignment`), or None. It has no default."""
+    content_file("profiles", tool)  # reads and checks the whole `files` map
+    return _CACHE["files"].get(ALIGNMENT_KEY)
 
 
 def decisions_readme(tool: str) -> str:

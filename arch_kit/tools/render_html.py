@@ -61,6 +61,7 @@ except ImportError:  # reported as an input error by main
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import adr_sections  # noqa: E402
+import alignment  # noqa: E402
 import capability_phases  # noqa: E402
 import check_views  # noqa: E402
 import declared  # noqa: E402
@@ -834,10 +835,12 @@ def style_table(t: str, view: bool = True) -> str:
     rows, head_starts, grid = parsed
     ncols = max(len(r) for r in grid)
     head_texts = [plain(c[2]) for c in grid[0]] if rows[0].start() in head_starts else []
-    group_name = str(project.need("labels.group.column", "render_html"))
-    group_col = head_texts.index(group_name) if view and group_name in head_texts else -1
-    phase_name = str(project.need("labels.phase.column", "render_html"))
-    phase_col = head_texts.index(phase_name) if view and phase_name in head_texts else -1
+    group_col = phase_col = -1
+    if view:
+        group_name = str(project.need("labels.group.column", "render_html"))
+        group_col = head_texts.index(group_name) if group_name in head_texts else -1
+        phase_name = str(project.need("labels.phase.column", "render_html"))
+        phase_col = head_texts.index(phase_name) if phase_name in head_texts else -1
     mins: dict[int, int] = {}
     for col in range(ncols):
         words, cell = 0, 0
@@ -1279,6 +1282,109 @@ def decision_pages(views: dict, dec: Decisions, prov: str) -> tuple[list[str], l
     return sections, nav
 
 
+ALIGNMENT_VALUES = ("corresponds", "partial", "none", "not-applicable", "not_assessed")
+
+
+def _alignment_table(head: list[str], rows: list[list[str]]) -> str:
+    """A table in the markup the decision pages' tables have; the cells are html already."""
+    th = "".join(f"<th>{esc(h)}</th>" for h in head)
+    body = "".join("<tr>" + "".join(f"<td>{c}</td>" for c in r) + "</tr>" for r in rows)
+    return f'<div class="scroll"><table><thead><tr>{th}</tr></thead><tbody>{body}</tbody></table></div>'
+
+
+def _alignment_ref(value: str, dec: Decisions) -> str:
+    """A local decision id links to its page; a foreign id or a path is plain text in <code>."""
+    if value in dec.files and value != ROADMAP_KEY:
+        return f'<a href="#{esc(dec.page_id(value))}">{esc(value)}</a>'
+    return f"<code>{esc(value)}</code>"
+
+
+def _alignment_reference(ref: dict, rows: list[dict], dec: Decisions) -> str:
+    terms = ref["terms"]
+    facts = [("Edition", esc(ref["edition"]))]
+    if "identifier" in ref:
+        facts.append(("Identifier", esc(ref["identifier"])))
+    if "obtained" in ref:
+        facts.append(("Obtained", esc(ref["obtained"])))
+    read = ref["read"] + (f"; {ref['read_note']}" if "read_note" in ref else "")
+    facts.append(("Read", esc(read)))
+    facts.append(("Terms", esc(f"{terms['status']}; {terms['basis']}; {terms['cite']}")))
+    dl = "".join(f"<dt>{k}</dt><dd>{v}</dd>" for k, v in facts)
+    head = f'<div class="reference" data-ref="{esc(ref["key"])}"><h2>{esc(ref["title"])}</h2><dl>{dl}</dl>'
+    if ref["read"] == "title-only":
+        return head + "<p>Cited by title only; not compared.</p></div>"
+    by_element = {r["element"]: r for r in rows if r["ref"] == ref["key"]}
+    els = ref["compared"]
+    groups: list[str] = []
+    for e in els:
+        if e["group"] not in groups:
+            groups.append(e["group"])
+
+    def counts(members: list[dict]) -> list[str]:
+        tally = {v: sum(1 for e in members if by_element[e["id"]]["correspondence"] == v) for v in ALIGNMENT_VALUES}
+        covered = tally["corresponds"] + tally["partial"]
+        return [str(tally[v]) for v in ALIGNMENT_VALUES] + [f"{covered} of {len(members) - tally['not-applicable']}"]
+
+    lines = [[esc(g)] + counts([e for e in els if e["group"] == g]) for g in groups]
+    lines.append(["All groups"] + counts(els))
+    out = [head, "<h3>Coverage</h3>", _alignment_table(
+        ["Group", "Corresponds", "Partial", "None", "Not applicable", "Not assessed", "Covered"], lines)]
+    if ref["left_out"]:
+        out.append(f"<p>Not compared: {esc(', '.join(ref['left_out']))}.</p>")
+    gaps = []
+    for e in els:
+        r = by_element[e["id"]]
+        if r["correspondence"] in ("none", "partial"):
+            text = f"{esc(e['name'])} ({esc(e['where'])}): {r['correspondence']}."
+            if "note" in r:
+                text += f" {esc(r['note'])}"
+            if "owed" in r:
+                text += f" Owed: {_alignment_ref(r['owed'], dec)}"
+            gaps.append(f"<li>{text}</li>")
+    out.append("<h3>Gaps</h3>" + (f"<ul>{''.join(gaps)}</ul>" if gaps else "<p>None.</p>"))
+    unseen = [f"<li>{esc(e['name'])}</li>" for e in els if by_element[e["id"]]["correspondence"] == "not_assessed"]
+    out.append("<h3>Not assessed</h3>" + (f"<ul>{''.join(unseen)}</ul>" if unseen else "<p>None.</p>"))
+    out.append("<h3>Rows</h3>")
+    for g in groups:
+        table = []
+        for e in [e for e in els if e["group"] == g]:
+            r = by_element[e["id"]]
+            evidence = ", ".join(_alignment_ref(v, dec) for v in r.get("evidence", []))
+            table.append([esc(e["name"]), esc(e["where"]), esc(r["correspondence"]),
+                          esc(r.get("counterpart", "")) or "-", evidence or "-", esc(r.get("note", "")) or "-"])
+        out.append(f"<h4>{esc(g)}</h4>" + _alignment_table(
+            ["Element", "Where", "Correspondence", "Counterpart", "Evidence", "Note"], table))
+    out.append("</div>")
+    return "".join(out)
+
+
+def alignment_pages(records: dict[str, dict], dec: Decisions, prov: str) -> tuple[list[str], list[str]]:
+    """One page per alignment record, in record-name order, and the front page's nav items."""
+    md = MarkdownIt("commonmark", {"html": False}).enable("table")
+    md.renderer.rules["table_open"] = lambda t, i, o, e: '<div class="scroll"><table>\n'
+    md.renderer.rules["table_close"] = lambda t, i, o, e: "</table></div>\n"
+    sections, nav = [], []
+    for name, rec in sorted(records.items()):
+        status = f'<p data-status>Status: {esc(rec["status"])}</p>' if "status" in rec else ""
+        context = f'<div class="body">{md.render(rec["context"])}</div>' if "context" in rec else ""
+        refs = "".join(_alignment_reference(ref, rec["rows"], dec) for ref in rec["references"])
+        page = (f'<section id="alignment-{esc(name)}" class="page alignment" data-alignment="{esc(name)}">'
+                f'<h1>{esc(rec["title"])}</h1><p><a href="#front">Front page</a></p>{status}{context}{refs}{prov}</section>')
+        sections.append(style_tables(page, view=False))
+        nav.append(f'<li><a href="#alignment-{esc(name)}">{esc(rec["title"])}</a></li>')
+    return sections, nav
+
+
+def alignment_nav(nav: list[str]) -> str:
+    return f'<nav class="alignment"><h2>Alignment</h2><ul>{"".join(nav)}</ul></nav>' if nav else ""
+
+
+def alignment_records(dec: Decisions) -> dict[str, dict]:
+    """The project's alignment records, validated, by name; empty when it declares none."""
+    return alignment.load("render_html", [k for k in dec.keys() if k != ROADMAP_KEY],
+                          audience=declared.portal_audience("render_html"))
+
+
 COUNT_MARK = "RELABEL-COUNT-PLACEHOLDER"  # the front page sentence, until the HTML pass has counted
 
 
@@ -1300,6 +1406,7 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
     prov = provenance(a, date)
     rules = relabel.load(getattr(a, "relabel", None) or [])
     dec = Decisions(project.DECISIONS, rules)
+    records = alignment_records(dec)
 
     if uaf.exchange:
         dx_text, dx_cells = dx_variants({p: r.dx_content() for p, r in renderers.items()})
@@ -1356,7 +1463,8 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
 
     cap_sections, cap_nav = capability_pages(a, uaf, views, names, dec, prov)
     dec_sections, dec_nav = decision_pages(views, dec, prov)
-    sections += cap_sections + dec_sections
+    al_sections, al_nav = alignment_pages(records, dec, prov)
+    sections += cap_sections + dec_sections + al_sections
 
     shown = COUNT_MARK if rules else "Decision records are shown verbatim."
     grids = [grid_uaf(rows, views, names, uaf.uaf_label),
@@ -1371,6 +1479,7 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
              f'{"".join(grids)}<p class="relabel" data-relabel>{esc(shown)}</p><nav class="views"><h2>Views</h2><ul>{"".join(nav)}</ul></nav>'
              f'<nav class="capabilities"><h2>Capabilities</h2><ul>{"".join(cap_nav)}</ul></nav>'
              f'<nav class="decisions"><h2>Decision records</h2><ul>{"".join(dec_nav)}</ul></nav>'
+             f'{alignment_nav(al_nav)}'
              f'<nav class="declarations"><h2>For a deployment</h2><ul><li><a href="#declarations">'
              f'{esc(DECLARATIONS_TITLE)}</a></li></ul></nav>{prov}</section>')
     doc = (f'<!doctype html>\n<html lang="en" data-profile="uaf" {title_attrs}>\n<head>\n<meta charset="utf-8">\n'
@@ -1395,12 +1504,14 @@ def assemble_decisions(a: argparse.Namespace, date: str) -> tuple[str, list, int
     prov = provenance(a, date)
     rules = relabel.load(getattr(a, "relabel", None) or [])
     dec = Decisions(project.DECISIONS, rules)
+    records = alignment_records(dec)
     dec_sections, dec_nav = decision_pages({}, dec, prov)
+    al_sections, al_nav = alignment_pages(records, dec, prov)
     shown = COUNT_MARK if rules else "Decision records are shown verbatim."
     title = f"{pre}decision records"
     front = (f'<section id="front" class="page" data-front><h1>{esc(title)}</h1>'
              f'<p class="relabel" data-relabel>{esc(shown)}</p>'
-             f'<nav class="decisions"><h2>Decision records</h2><ul>{"".join(dec_nav)}</ul></nav>{prov}</section>')
+             f'<nav class="decisions"><h2>Decision records</h2><ul>{"".join(dec_nav)}</ul></nav>{alignment_nav(al_nav)}{prov}</section>')
     doc = (f'<!doctype html>\n<html lang="en" data-profile="uaf">\n<head>\n<meta charset="utf-8">\n'
            f'<meta name="viewport" content="width=device-width, initial-scale=1">\n'
            f'<meta http-equiv="Content-Security-Policy" content="{CSP}">\n'
@@ -1408,7 +1519,7 @@ def assemble_decisions(a: argparse.Namespace, date: str) -> tuple[str, list, int
            f'<header class="bar"><span class="sys">{esc(system or "Architecture")}</span>'
            f'<a href="#front">Front page</a>'
            f'<input id="q" type="search" placeholder="Search" aria-label="Search the decision records" autocomplete="off"></header>\n'
-           f'<div id="results" hidden></div>\n<main>\n{front}\n' + "\n".join(dec_sections) +
+           f'<div id="results" hidden></div>\n<main>\n{front}\n' + "\n".join(dec_sections + al_sections) +
            f'\n</main>\n<script>\n{JS}\n</script>\n</body>\n</html>\n')
     return doc, rules, dec.replaced
 

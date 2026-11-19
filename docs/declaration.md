@@ -137,6 +137,16 @@ value exits 2 and names the key. Messages and help text print the declared name.
 behaves exactly as before. The decision document index (`README.md` under `paths.decisions`) is
 `decisions.index.readme`, and is read from there even when the other `decisions.index` keys are absent.
 
+One more key is not in the list above, because it has no default: `files.alignment`, a directory under `paths.root`.
+Every `*.yaml` in it is one alignment record (see [the alignment record](design/alignment.md)), named by its file
+stem. A declared directory that does not exist, or holds no `*.yaml`, exits 2 naming `files.alignment`. A project
+that declares neither this key nor the loader function below has no alignment records and renders as before.
+
+A loader may instead define `load_alignment(root)`, where `root` is `paths.root`. It returns a dict of record name to
+record, in the same shape. The function is optional: it is not one of the names every loader provides. Declaring
+`files.alignment` and defining `load_alignment` together exits 2 naming both. The records are validated the same way
+whichever route they come by (`arch_kit/schema/alignment.schema.json`), and the first error exits 2. A record name from a loader must match `[a-z0-9][a-z0-9-]*`, the same pattern a file stem must match.
+
 ### The decision index
 
 ```yaml

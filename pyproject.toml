@@ -19,4 +19,4 @@ version = { attr = "arch_kit.__version__" }
 
 [tool.setuptools.package-data]
 "arch_kit.tools" = ["*.py", "*.txt", "*.sh", "*.mjs", "*.json", "export/*", "testdata/*"]
-"arch_kit" = ["schema/*.json"]
+"arch_kit" = ["schema/*.json", "references/*.yaml"]
