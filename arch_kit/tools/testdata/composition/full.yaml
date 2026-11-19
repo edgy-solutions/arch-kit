@@ -1,6 +1,6 @@
-# A composition of one component and one consumer. Every name is invented.
+# A composition of one member and one consumer. Every name is invented.
 composition: 1
-components:
+members:
   - name: ferro
     repo: https://example.org/ferro.git
     commit: 0123456789abcdef0123456789abcdef01234567

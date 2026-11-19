@@ -1736,7 +1736,7 @@ def assemble_composed(a: argparse.Namespace, date: str) -> tuple[str, list, int]
         mine = [composed.consumes_li(u, pages, composed.states_html(by_name, u.entry.portal, u.entry.commit,
                                                                     u.entry.records))
                 for u in c.own_uses.get(g.name, [])]
-        blocks.append(f'<div class="component" data-component="{esc(g.name)}" id="{esc(composed.component_id(g.name))}">'
+        blocks.append(f'<div class="member" data-member="{esc(g.name)}" id="{esc(composed.member_id(g.name))}">'
                       f'<h2>{esc(g.name)}</h2><nav class="decisions"><h3>Decision records</h3><ul>{nav}</ul></nav>{al}'
                       f'{composed.consumed_by_block(on_front[g.name])}{composed.consumes_block(mine)}</div>')
     shown = COUNT_MARK if rules else "Decision records are shown verbatim."

@@ -86,11 +86,11 @@ class Composed(unittest.TestCase):
         decl.write_text(yaml.safe_dump(c), encoding="utf-8", newline="\n")
         self.head[name] = tick(self.repo[name])
 
-    def commit_portal(self, components=None, consumers=None, edit=None, lists=None):
+    def commit_portal(self, members=None, consumers=None, edit=None, lists=None):
         comp = {"composition": 1,
-                "components": [{"name": n, "repo": f"https://example.org/{n}.git", "commit": self.head[n],
+                "members": [{"name": n, "repo": f"https://example.org/{n}.git", "commit": self.head[n],
                                 "lists": {"relabel": n + "-relabel", "barred": n + "-barred"}}
-                               for n in (components or ("example-platform", "example-second"))]}
+                               for n in (members or ("example-platform", "example-second"))]}
         if consumers is None:
             consumers = ("example-app",)
         if consumers:
@@ -168,14 +168,14 @@ class Build(Composed):
 
     def test_one_front_block_per_group_in_order(self):
         _, doc = self.render()
-        found = re.findall(r'<div class="component" data-component="([^"]+)"', doc)
+        found = re.findall(r'<div class="member" data-member="([^"]+)"', doc)
         self.assertEqual(found, list(GROUPS))
 
-    def test_the_second_component_shows_its_own_words(self):
+    def test_the_second_member_shows_its_own_words(self):
         _, doc = self.render()
         self.assertIn("Work is handed over through a queue", doc)
         self.assertIn("Every outbound record carries a label", doc)
-        self.assertIn("The portal renders the records of its components", doc)
+        self.assertIn("The portal renders the records of its members", doc)
         self.assertIn("DR-001", doc)
 
     def test_colliding_ids_become_distinct_pages_and_links_resolve(self):
@@ -200,7 +200,7 @@ class Build(Composed):
         self.assertNotIn("Secret reason", doc)
         self.assertIn("example-hidden", doc)
 
-    def test_consumes_block_for_a_component_that_consumes(self):
+    def test_consumes_block_for_a_member_that_consumes(self):
         _, doc = self.render()
         self.assertIn("Consumes", doc)
 
@@ -228,7 +228,7 @@ class Build(Composed):
 
 
 class Flows(Composed):
-    """Two components that declare flows (both with an FL-001) and the composing portal, which declares none."""
+    """Two members that declare flows (both with an FL-001) and the composing portal, which declares none."""
 
     FLOWS = {"example-platform": ("ADR-0001", "labels", "store"), "example-second": ("DR-001", "queue", "worker")}
 
@@ -323,9 +323,9 @@ class Refused(Composed):
 
     def test_a_commit_not_in_the_checkout(self):
         def edit(c):
-            c["components"][0]["commit"] = "f" * 40
+            c["members"][0]["commit"] = "f" * 40
         self.commit_portal(consumers=("example-app", "example-hidden"), edit=edit)
-        self.assertIn("components[0]", self.refused())
+        self.assertIn("members[0]", self.refused())
 
     def test_a_full_mode_composing_portal(self):
         decl = self.repo["example-portal"] / DECL
@@ -334,7 +334,7 @@ class Refused(Composed):
         decl.write_text(yaml.safe_dump(c), encoding="utf-8", newline="\n")
         self.refused()
 
-    def _component_edit(self, name, edit):
+    def _member_edit(self, name, edit):
         decl = self.repo[name] / DECL
         c = yaml.safe_load(decl.read_text(encoding="utf-8"))
         edit(c)
@@ -342,17 +342,17 @@ class Refused(Composed):
         self.head[name] = tick(self.repo[name])
         self.commit_portal(consumers=("example-app", "example-hidden"))
 
-    def test_a_component_with_no_portal(self):
-        self._component_edit("example-second", lambda c: c.update(portal="none"))
-        self.assertIn("components[1]", self.refused())
+    def test_a_member_with_no_portal(self):
+        self._member_edit("example-second", lambda c: c.update(portal="none"))
+        self.assertIn("members[1]", self.refused())
 
-    def test_a_full_mode_component(self):
-        self._component_edit("example-second", lambda c: c["portal"].update(mode="full"))
-        self.assertIn("components[1]", self.refused())
+    def test_a_full_mode_member(self):
+        self._member_edit("example-second", lambda c: c["portal"].update(mode="full"))
+        self.assertIn("members[1]", self.refused())
 
-    def test_a_component_that_composes(self):
-        self._component_edit("example-second", lambda c: c.update(files={"composition": "composition.yaml"}))
-        self.assertIn("components[1]", self.refused())
+    def test_a_member_that_composes(self):
+        self._member_edit("example-second", lambda c: c.update(files={"composition": "composition.yaml"}))
+        self.assertIn("members[1]", self.refused())
 
     def test_a_consumer_without_a_consumes_list(self):
         decl = self.repo["example-hidden"] / DECL

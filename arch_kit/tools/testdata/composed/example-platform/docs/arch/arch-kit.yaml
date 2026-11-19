@@ -1,4 +1,4 @@
-# A component of the composed fixtures. Every name in it is invented.
+# A member of the composed fixtures. Every name in it is invented.
 kit: 1
 paths:
   root: .

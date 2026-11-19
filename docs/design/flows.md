@@ -67,8 +67,8 @@ byte.
 
 ## 5. In a composed portal
 
-Each component's flows render with that component's pages, in its own words. A composed portal does not join one
-component's flows to another's: a part's name means something only inside its own project.
+Each member's flows render with that member's pages, in its own words. A composed portal does not join one
+member's flows to another's: a part's name means something only inside its own project.
 
 ## 6. What this does not decide
 
@@ -84,7 +84,7 @@ component's flows to another's: a part's name means something only inside its ow
 |---|---|---|
 | FL-1 | The record, both routes, and the checks | Fixture records, accepted and refused |
 | FL-2 | The Flows page, the lists on decision and capability pages, the front-page entry, and an export check | An example project's golden, and existing exports unchanged |
-| FL-3 | Flows in the composed build | A composed fixture with flows in two components |
+| FL-3 | Flows in the composed build | A composed fixture with flows in two members |
 
 ## Questions for the ruling
 
@@ -102,7 +102,7 @@ component's flows to another's: a part's name means something only inside its ow
 
 1. **One file, or a loader.** Flows are short. A project's flows read best as one table, and the loader route serves
    a project that keeps them elsewhere.
-2. **Named freely, for now.** A list of parts is a component model, which the kit does not have. A declared list can
+2. **Named freely, for now.** A list of parts is a model of a system's parts, which the kit does not have. A declared list can
    be added later without changing the record.
 3. **May be empty.** A flow that runs but was never decided is exactly what the export should show. Refusing it
    would hide it.

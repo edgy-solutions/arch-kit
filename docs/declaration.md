@@ -228,10 +228,10 @@ flows renders byte for byte as before. `check_export` adds one check when the pr
 `data-flows` page, its `data-flow` row ids equal the declared ids in order, and its count line agrees with the records.
 The ok line then ends its shape with `N flows; `. The golden example is `examples/flows`.
 
-In a composed build each component that declares flows gets its own `NAME--flows` page and a Flows list in its front
-block, so two components may both have an `FL-001`. A group without flows gets neither. `check_export` then checks, for
-the portal and each component, that a group with flows has exactly one `NAME--flows` page and one front-page link to
-it, and that a group without flows has neither; a component's `files.flows` is read from its declaration at the pin.
+In a composed build each member that declares flows gets its own `NAME--flows` page and a Flows list in its front
+block, so two members may both have an `FL-001`. A group without flows gets neither. `check_export` then checks, for
+the portal and each member, that a group with flows has exactly one `NAME--flows` page and one front-page link to
+it, and that a group without flows has neither; a member's `files.flows` is read from its declaration at the pin.
 
 ### The decision index
 
@@ -275,9 +275,9 @@ missing key exits 2, and the message names it.
 - **Messages** are built from the declaration. "Known repos: A, B." lists `local_prefix`, then each foreign prefix in
   order. With more than one foreign entry the per-foreign summary lines repeat once per entry, in order.
 
-Phase 2's composition record (arch-kit issue 6, a draft) proposes one table of known project names, for citations,
-compositions and consumption. If it is ruled, the prefixes move there. Until then `local_prefix` and `foreign` are
-the shape.
+Phase 2's composition record (`docs/design/composition.md`, ruled 2026-11-18) puts one table of known project names,
+for citations, compositions and consumption, in the composition file. The prefixes move there at its step P2-2.
+Until then `local_prefix` and `foreign` are the shape.
 
 ## The composition file
 
@@ -287,7 +287,7 @@ repository prefixes from it.
 
 ```yaml
 composition: 1
-components:
+members:
   - name: example-platform                 # a project name
     repo: https://example.org/example-platform.git
     commit: 0123456789abcdef0123456789abcdef01234567   # a full commit
@@ -301,14 +301,14 @@ consumers:                                  # optional
 ```
 
 Every error exits 2 and names `files.composition` and the key within the file. `composition` must be 1 and
-`components` non-empty. Names are project names (lowercase letters, digits and hyphens, starting with a letter),
-unique across `components` and `consumers` together, and none may equal this project's own
+`members` non-empty. Names are project names (lowercase letters, digits and hyphens, starting with a letter),
+unique across `members` and `consumers` together, and none may equal this project's own
 `decisions.index.local_prefix`. `repo` and `commit` follow the rules of `consumes:`. `declaration` is a plain relative
 path with no `..`. `lists` has exactly `relabel` and `barred`; each value is a slot name matching
 `[a-z0-9][a-z0-9-]*`, used once in the whole file, and never a path (a `/` or a backslash is refused). A project with
 `portal: none` that declares `files.composition` exits 2: it composes nothing.
 
-With a composition, `check_decision_indexes` takes the foreign prefixes from the file, components first and then
+With a composition, `check_decision_indexes` takes the foreign prefixes from the file, members first and then
 consumers, each pinned at its `commit`, and runs no pin check for them. Its summary names each prefix and the first
 seven characters of its commit, and says that each cited record existing at the pin is checked when composed, not
 there. `PINS_OUT`, when set, receives a line `- <prefix> <commit> -` for each, in the shape of the pin list a pin check
@@ -318,36 +318,36 @@ composition the tool's input and output are unchanged.
 ### The composed build
 
 With `files.composition`, `render_html` and `check_export` build one document of every group's records: the composing
-portal's own, then each component's in file order. Both take `--checkout NAME=DIR` for every component and every
+portal's own, then each member's in file order. Both take `--checkout NAME=DIR` for every member and every
 consumer in the file (a missing, unlisted or repeated NAME, a DIR that is not a git repository, or a commit not in
-its DIR exits 2, naming `components[i]` or `consumers[i]`, never the project).
+its DIR exits 2, naming `members[i]` or `consumers[i]`, never the project).
 
 - The composing portal must have `portal.mode: decisions`: a composed portal is decisions-only for now.
-- Each component is read at its pin in a temporary local clone (`git clone --shared --no-checkout`, then a detached
-  checkout), removed when the build ends. The source clone is never changed. A component with `portal: none`, a
+- Each member is read at its pin in a temporary local clone (`git clone --shared --no-checkout`, then a detached
+  checkout), removed when the build ends. The source clone is never changed. A member with `portal: none`, a
   `portal.mode` other than `decisions`, or its own `files.composition` is refused. Each group renders in its own
-  process by its own declaration and loader at the pin (the component's loader runs, a consumer's never does).
+  process by its own declaration and loader at the pin (the member's loader runs, a consumer's never does).
 - Page and anchor ids become `NAME--X`, so two groups may both have `ADR-0001`. The front page has one block per
   group, in that group's words.
 - A "Consumed by" block lists the consumers of a record or a portal, read as data from each consumer's declaration at
-  its pin; a "Consumes" block lists what a component consumes. A consumer with `portal: none` or a non-public audience
+  its pin; a "Consumes" block lists what a member consumes. A consumer with `portal: none` or a non-public audience
   shows only its name, repository and commit, never its `why`. No link leaves the page.
 - `check_export` on a composed export runs the barred, provenance, network, size, links and relabel checks and a
-  `components` check; the `decisions` check is not run.
+  `members` check; the `decisions` check is not run.
 - `--list SLOT=FILE` (repeatable, on both tools) gives the list for a slot of `lists:` in the composition file: a
   `relabel` slot holds a relabel list, a `barred` slot a barred list. An unknown or repeated slot, or an unreadable
   file, exits 2. A public composing portal needs every slot, plus its own `--relabel` and `--barred`; a private one
   may omit slots, and one stderr line names the slots that ran empty.
-- A component's relabel slot is applied to that component's records as it renders. The final pass over the document
-  applies the portal's own `--relabel` lists in order, then each component's relabel slot in file order. Two rules with
+- A member's relabel slot is applied to that member's records as it renders. The final pass over the document
+  applies the portal's own `--relabel` lists in order, then each member's relabel slot in file order. Two rules with
   the same pattern and different replacements in different lists exit 2, naming both lists and rule numbers.
 - The leak scan and `check_export` run every relabel and barred list together. A finding names its list (a slot name,
   or `--relabel N` / `--barred N`), the rule number and a count, never the value.
-- A public composing portal refuses a component whose own audience is not public, before any clone is made; the
-  message names the position (`components[i]`), not the project.
+- A public composing portal refuses a member whose own audience is not public, before any clone is made; the
+  message names the position (`members[i]`), not the project.
 - Each "Consumed by" and "Consumes" entry on a group of this export shows a pin state,
   `<span class="pin" data-pin="STATE">`, from the consumer's commit C against the consumed group's commit D (the
-  composition file's pin for a component, `HEAD` for the composing portal). Per named record, first match wins:
+  composition file's pin for a member, `HEAD` for the composing portal). Per named record, first match wins:
   `pin-not-found` (C is not in the repository), `record-not-found` (no file of that id at C, by the consumed project's
   grammar; a fifth state the design did not name, so a record that was never there is not shown as current),
   `superseded` (the record's status at D is declared with `in_force: false`), `changed` (the record's file at D is
@@ -359,7 +359,7 @@ its DIR exits 2, naming `components[i]` or `consumers[i]`, never the project).
   IDS` with `drift: warn` (the default, exit unchanged) and `FAIL: ...` with `drift: fail` (exit 1). It cannot compute
   "superseded since": that needs the consumed project's loader, and the check imports no other project's code. Its
   summary line says so.
-- A component may declare `portal.composed_in: NAME`, which adds one sentence to its own standalone render naming the
+- A member may declare `portal.composed_in: NAME`, which adds one sentence to its own standalone render naming the
   composing portal. Without the key its output is unchanged.
 
 ## A complete example

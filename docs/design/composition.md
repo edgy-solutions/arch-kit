@@ -1,15 +1,16 @@
 # Design record: composed portals and the "consumer of" relation
 
-**Status: proposed, with proposed answers to its questions, pending the project owner's ruling. Nothing is built.**
+**Status: ruled by the project owner on 2026-11-18. All seven answers stand as proposed; question 4 is ruled as
+guidance, not a rule the kit enforces. Nothing is built.**
 
-Proposes a decision: one portal can compose the records of other projects, and any project can declare that it
+Records a decision: one portal can compose the records of other projects, and any project can declare that it
 consumes a portal or part of one. Consumption is declared by the consumer only, is rendered on both sides, and every
 link is pinned to a commit.
 
 Phase 2 of the kit. It builds on Phase 1 (`v0.1.0`), where one project's records render as one portal from one
 declaration (`arch-kit.yaml`) through a loader the project supplies. This record decides the shape of the relations,
-the declaration, how a composed export keeps each component's own words, and how its names are checked. The build
-steps at the end are a sketch, to be specified once this is ruled.
+the declaration, how a composed export keeps each member's own words, and how its names are checked. The build
+steps at the end are a sketch, to be specified next.
 
 ## 1. Three relations, one vocabulary
 
@@ -18,16 +19,16 @@ different places, and the export renders each one differently.
 
 | Relation | Meaning | Declared by | Rendered |
 |---|---|---|---|
-| **composes** | Portal P renders project Q's records as part of P. Q is a *component* of P. | P, in its composition file (§3) | Q's pages appear inside P, under Q's name |
+| **composes** | Portal P renders project Q's records as part of P. Q is a *member* of P. | P, in its composition file (§3) | Q's pages appear inside P, under Q's name |
 | **consumes** | Project X depends on portal Y, or on named records in it, and does not render them. | X, in its own `arch-kit.yaml` (§2) | A link on both sides: in X's portal, and in Y's pages wherever Y is rendered by a composition (§4) |
 | **cites** | One decision record names another, in its text. | The record's author, in the text (`ADR-NNNN`, or `repo:ADR-NNNN` across repositories) | As written. The decision index check already resolves the names |
 
 - **A citation is not a consumption.** A record can cite another project's decision without the project depending on
   that portal. A consumption is usually backed by citations, but the kit does not infer one from the other.
-- **An application is a consumer, not a component.** A project that uses a composed portal, but whose own records are
+- **An application is a consumer, not a member.** A project that uses a composed portal, but whose own records are
   not part of it, is listed by the composed portal as a consumer, with a link. It is not composed into it.
 - **The repository prefixes are the shared key.** The prefix a `repo:ADR-NNNN` citation uses, the name a
-  composition file gives a component, and the name a `consumes` entry gives a portal are the same declared name for
+  composition file gives a member, and the name a `consumes` entry gives a portal are the same declared name for
   the same project. One table of known projects serves all three (§3).
 
 ## 2. The consumer's declaration
@@ -62,10 +63,10 @@ nothing. This is how an application is listed before it has records of its own.
 
 A composing portal declares, in a composition file beside its `arch-kit.yaml`:
 
-- **components:** each composed project, by name, repository and full commit;
+- **members:** each composed project, by name, repository and full commit;
 - **consumers:** each project it lists as a consumer, by name, repository and full commit of that project's
   declaration;
-- **list slots:** for each component, a named slot for its relabel list and one for its barred list (§8). The
+- **list slots:** for each member, a named slot for its relabel list and one for its barred list (§8). The
   file names the slots, never the lists, which are passed by path when the build runs.
 
 The composition file says *where to look*. What a consumer consumes still comes only from that consumer's own
@@ -78,14 +79,14 @@ repository prefixes from the same table, instead of from a list of its own.
 
 At composition time, the build:
 
-1. checks out each component and each listed consumer at its pinned commit;
-2. reads every `consumes` entry whose `portal` is the composing portal or one of its components;
+1. checks out each member and each listed consumer at its pinned commit;
+2. reads every `consumes` entry whose `portal` is the composing portal or one of its members;
 3. renders, on each consumed page, a **"Consumed by"** list: the consumer's name, its `why`, and a link to the
    consumer's portal (or its repository, when it has `portal: none`), pinned to the consumer's listed commit;
 4. renders, in each consumer's portal that the composition also builds, a **"Consumes"** list: the consumed portal
    and records, each linked at the commit the consumer pinned.
 
-A component's own standalone build does not check out its consumers, so it shows no "Consumed by" list. Its front
+A member's own standalone build does not check out its consumers, so it shows no "Consumed by" list. Its front
 page says that its consumers are listed where it is composed, and names that portal when its declaration says one.
 
 ## 5. Pins that have moved on
@@ -109,29 +110,30 @@ Each is shown beside the "Consumed by" entry and beside the consumer's own "Cons
 
 An application is listed as a consumer until it has enough records of its own to need a portal. The proposed
 threshold: **its fifth accepted decision record**. At that point the application gets its own `arch-kit.yaml` with a
-portal. It is then either composed as a component, if its records belong in the composed portal, or stays a consumer
+portal. It is then either composed as a member, if its records belong in the composed portal, or stays a consumer
 with a portal of its own.
 
-The number is a proposal for the project owner to rule.
+Ruled on 2026-11-18 as guidance: the fifth accepted record is when to consider a portal. The kit does not count
+records and does not enforce the number; the application's owner decides.
 
-## 7. Each component keeps its own declaration
+## 7. Each member keeps its own declaration
 
-A composed portal is several projects' records in one export. It is not one merged project. Each component is read
+A composed portal is several projects' records in one export. It is not one merged project. Each member is read
 and rendered as it is in its own standalone build:
 
-- **Its own loader.** The composed build reads each component through the loader that component's `arch-kit.yaml`
-  names, at the pinned commit. No component writes a second set of records for the composition, and the composing
-  portal holds none of its components' formats.
+- **Its own loader.** The composed build reads each member through the loader that member's `arch-kit.yaml`
+  names, at the pinned commit. No member writes a second set of records for the composition, and the composing
+  portal holds none of its members' formats.
 - **Its own words.** Labels, phases with their earning rules, statuses, view kinds and the term dictionary come from
-  the component's declaration. A component's pages show its phases and statuses in its own words, with its own badges.
-- **Nothing is merged across components.** The kit does not map one component's phases or statuses onto another's,
-  and does not rank capabilities across components. A page that lists every component, such as the composed front
-  page, shows each row in that component's words, under the component's name.
+  the member's declaration. A member's pages show its phases and statuses in its own words, with its own badges.
+- **Nothing is merged across members.** The kit does not map one member's phases or statuses onto another's,
+  and does not rank capabilities across members. A page that lists every member, such as the composed front
+  page, shows each row in that member's words, under the member's name.
 - **The composing portal's own declaration** covers only what belongs to the composition: its name, its hosting and
   audience (§8), its composition file (§3), and any pages of its own.
 
-**Whose code runs.** The composed build runs each component's loader, at the commit the composition file pins. The
-composing portal trusts the components it lists, as it trusts the commits it pins. A consumer's declaration is read as
+**Whose code runs.** The composed build runs each member's loader, at the commit the composition file pins. The
+composing portal trusts the members it lists, as it trusts the commits it pins. A consumer's declaration is read as
 data only: the build reads its `consumes:` entries and never imports its loader. A consumer with `portal: none` has no
 loader at all.
 
@@ -140,20 +142,20 @@ loader at all.
 Phase 1's rule applies to the composed export as a whole: relabelling and the leak scan run on the rendered HTML,
 and the export declares its hosting and audience.
 
-- **Each component's lists apply to its pages.** A component's relabel list rewrites that component's pages, as in its
+- **Each member's lists apply to its pages.** A member's relabel list rewrites that member's pages, as in its
   standalone build. Its names are relabelled the same way wherever they appear.
 - **The scan runs on the composed file with every list.** After the composed render, the leak scan runs on the whole
-  file with the union of every component's relabel and barred lists, and the composing portal's own lists. A
-  component's private name in another component's page, or in a "Consumed by" entry, is caught there. A leak writes no
+  file with the union of every member's relabel and barred lists, and the composing portal's own lists. A
+  member's private name in another member's page, or in a "Consumed by" entry, is caught there. A leak writes no
   file, and the message names the list, the rule number and a count, never the value.
-- **The lists are passed by path, as in Phase 1.** The composition file names each component's list *slots*, never
-  their contents. Whoever runs the composed build passes a file for each slot. A component's private lists stay with
-  that component's owner, and are never committed to the composing repository.
-- **Public CI uses the sample lists by design.** A composed build in public CI runs with each component's sample lists.
+- **The lists are passed by path, as in Phase 1.** The composition file names each member's list *slots*, never
+  their contents. Whoever runs the composed build passes a file for each slot. A member's private lists stay with
+  that member's owner, and are never committed to the composing repository.
+- **Public CI uses the sample lists by design.** A composed build in public CI runs with each member's sample lists.
   The relabel with real names runs only locally, where the private lists are, and a CI pass is never reported as a
   real-name check.
 - **Audience.** The composed portal declares its own `portal.hosting` and `portal.audience`. A composed portal whose
-  audience is `public` may compose only components whose own audience is `public`. Composing a `private` component into
+  audience is `public` may compose only members whose own audience is `public`. Composing a `private` member into
   a `public` portal is an input error (exit 2), before any work. A `private` composed portal may compose either.
 - **Consumers and audience.** A "Consumed by" entry shows the consumer's name, its `why` and a link. When the consumer's
   own portal is `private`, or it has `portal: none`, the entry links to its repository and shows nothing else from it.
@@ -167,14 +169,14 @@ and the export declares its hosting and audience.
 - A software development kit or any runtime dependency between projects. This record covers architecture records
   only.
 
-## 10. Build steps, once ruled (sketch)
+## 10. Build steps (sketch)
 
 | Step | What | Proves |
 |---|---|---|
 | P2-1 | `consumes:` in the declaration, the kit's declaration checks (full sha, known names, `records` that exist at the pin), and `portal: none` | Fixture declarations, accepted and refused |
 | P2-2 | The composition file, and the decision index check reading its prefixes from it | The index check's output unchanged for a project with no composition |
-| P2-3 | The composed build: each component through its own loader and declaration, under its name, with the "Consumed by" and "Consumes" lists | The example project, composed with a second fictional project whose phases and statuses differ, and one fictional consumer |
-| P2-4 | Lists and audience in the composed build (§8): list slots, the union scan, the public-audience refusal | A leak planted in each component, caught in the composed file; a private component refused by a public portal |
+| P2-3 | The composed build: each member through its own loader and declaration, under its name, with the "Consumed by" and "Consumes" lists | The example project, composed with a second fictional project whose phases and statuses differ, and one fictional consumer |
+| P2-4 | Lists and audience in the composed build (§8): list slots, the union scan, the public-audience refusal | A leak planted in each member, caught in the composed file; a private member refused by a public portal |
 | P2-5 | Pin states (§5) and `drift: fail` | One fixture per state |
 
 Each step keeps Phase 1's golden comparison for a project that declares no composition: its export stays
@@ -185,7 +187,7 @@ its decision index check runs that pin check. Phase 1 step S6a carries it over a
 (`decisions.index.foreign[].pin_check`). P2-1's `commit` is the same pin, declared rather than scripted. P2-2 should
 replace the script with that declaration, not run beside it, so a project has one pin for each peer, not two.
 
-## Questions for the ruling
+## The questions ruled
 
 Each question names the alternative.
 
@@ -198,28 +200,32 @@ Each question names the alternative.
    alternative is failing by default, with `drift: warn` on request.
 4. Is five accepted decision records the threshold for an application's own portal (§6)? The alternative is no fixed
    number: the application's owner decides.
-5. Does the composed build re-render each component from its sources, through its own loader (§7)? The alternative is
-   to stitch together each component's already-checked export. That runs no component code, but it cannot add the
+5. Does the composed build re-render each member from its sources, through its own loader (§7)? The alternative is
+   to stitch together each member's already-checked export. That runs no member code, but it cannot add the
    "Consumed by" lists or relabel across pages, and the composed file would hold several page shells.
-6. Does the leak scan run on the composed file with the union of every component's lists, passed by path into
-   declared slots (§8)? The alternative is to trust each component's own scan and run only the composing portal's
-   lists. That misses a name that crosses from one component's pages into another's.
-7. Is a `private` component in a `public` composed portal refused outright (§8)? The alternative is to leave it out,
+6. Does the leak scan run on the composed file with the union of every member's lists, passed by path into
+   declared slots (§8)? The alternative is to trust each member's own scan and run only the composing portal's
+   lists. That misses a name that crosses from one member's pages into another's.
+7. Is a `private` member in a `public` composed portal refused outright (§8)? The alternative is to leave it out,
    with a warning.
 
-## Proposed answers, pending the ruling
+## The ruling
 
-These are recommendations, not the ruling. Question 4 is left to the project owner.
+The project owner ruled these answers on 2026-11-18, as proposed. Question 4 is ruled as guidance.
 
-1. **Yes, the consumer declares.** The project owner has already ruled this, on 2026-11-16.
+**The term "member", 2026-11-18.** The project owner ruled that a project a portal composes is a *member*
+of that portal. This record first called it a *component*, and the composition file's key is `members:`. The word
+*component* is left for a record of a system's own parts, which this design does not cover.
+
+1. **Yes, the consumer declares.** First ruled on 2026-11-16, and confirmed with the rest on 2026-11-18.
 2. **Yes, `portal: none`.** It is an explicit value, so a missing portal is always declared and never assumed.
 3. **Yes, a warning by default.** Drift never fails the consumed side's build. A consumer can declare itself strict
    with `drift: fail`, and then its own build fails on its own stale pin.
-4. **The project owner's question.** The recommendation is that five accepted decision records be guidance, not a
-   rule the kit enforces.
-5. **Re-render each component from its sources.** One kit version then renders everything, and every check runs on
-   the whole export. Stitching finished exports would mix kit versions, and would trust each component's own build.
-   The cost is that the composed build needs read access to every component's repository.
-6. **Yes, every component's lists combined.** A name barred in one component is barred across the whole portal.
-7. **Yes, refused outright.** It fails closed, and that includes the component's name: no part of a private
-   component, not even its name, appears in a public portal.
+4. **Guidance, not a rule.** An application considers a portal of its own at its fifth accepted decision record.
+   The kit does not enforce the number.
+5. **Re-render each member from its sources.** One kit version then renders everything, and every check runs on
+   the whole export. Stitching finished exports would mix kit versions, and would trust each member's own build.
+   The cost is that the composed build needs read access to every member's repository.
+6. **Yes, every member's lists combined.** A name barred in one member is barred across the whole portal.
+7. **Yes, refused outright.** It fails closed, and that includes the member's name: no part of a private
+   member, not even its name, appears in a public portal.

@@ -82,8 +82,8 @@ class Accepted(Composition):
         p = self.run_tool()
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
 
-    def test_components_only(self):
-        p = self.run_tool(composition="components-only.yaml")
+    def test_members_only(self):
+        p = self.run_tool(composition="members-only.yaml")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
 
     def test_a_declaration_path(self):
@@ -93,8 +93,8 @@ class Accepted(Composition):
     def test_the_accessor(self):
         self.comp(load("declaration-path.yaml"))
         path = self.decl()
-        code = ("import declared; c = declared.composition('t'); print(c.names(), c.components[0].declaration, "
-                "c.components[0].lists, c.consumers[0].declaration, c.consumers[0].commit[:7])")
+        code = ("import declared; c = declared.composition('t'); print(c.names(), c.members[0].declaration, "
+                "c.members[0].lists, c.consumers[0].declaration, c.consumers[0].commit[:7])")
         p = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8", cwd=HERE,
                            env=dict(os.environ, ARCH_KIT_CONFIG=str(path)))
         self.assertEqual(p.stdout.strip(), "('ferro', 'gild') docs/other/arch-kit.yaml "
@@ -115,25 +115,25 @@ class Refused(Composition):
             with self.subTest(bad=bad):
                 self.refused(self.full(lambda c: c.__setitem__("composition", bad)), "composition:")
 
-    def test_components_is_missing_or_empty(self):
+    def test_members_is_missing_or_empty(self):
         for bad in ("missing", [], "x"):
             with self.subTest(bad=bad):
                 def edit(c):
                     if bad == "missing":
-                        del c["components"]
+                        del c["members"]
                     else:
-                        c["components"] = bad
-                self.refused(self.full(edit), "components:")
+                        c["members"] = bad
+                self.refused(self.full(edit), "members:")
 
     def test_an_unknown_key(self):
         self.refused(self.full(lambda c: c.__setitem__("extra", 1)), "extra: unknown key")
-        self.refused(self.full(lambda c: c["components"][0].__setitem__("branch", "x")), "components[0].branch")
+        self.refused(self.full(lambda c: c["members"][0].__setitem__("branch", "x")), "members[0].branch")
         self.refused(self.full(lambda c: c["consumers"][0].__setitem__("lists", {})), "consumers[0].lists")
 
     def test_a_missing_required_key(self):
         for key in ("name", "repo", "commit", "lists"):
             with self.subTest(key=key):
-                self.refused(self.full(lambda c: c["components"][0].pop(key)), f"components[0].{key}: missing key")
+                self.refused(self.full(lambda c: c["members"][0].pop(key)), f"members[0].{key}: missing key")
         for key in ("name", "repo", "commit"):
             with self.subTest(key=key):
                 self.refused(self.full(lambda c: c["consumers"][0].pop(key)), f"consumers[0].{key}: missing key")
@@ -141,59 +141,59 @@ class Refused(Composition):
     def test_a_name_that_is_not_a_project_name(self):
         for bad in ("Ferro", "1x", "a b", "", 5):
             with self.subTest(bad=bad):
-                self.refused(self.full(lambda c: c["components"][0].__setitem__("name", bad)), "components[0].name")
+                self.refused(self.full(lambda c: c["members"][0].__setitem__("name", bad)), "members[0].name")
                 self.refused(self.full(lambda c: c["consumers"][0].__setitem__("name", bad)), "consumers[0].name")
 
-    def test_a_duplicate_name_across_components_and_consumers(self):
+    def test_a_duplicate_name_across_members_and_consumers(self):
         self.refused(self.full(lambda c: c["consumers"][0].__setitem__("name", "ferro")), "consumers[0].name")
 
     def test_a_name_equal_to_the_local_prefix(self):
-        self.refused(self.full(lambda c: c["components"][0].__setitem__("name", "loam")), "components[0].name")
+        self.refused(self.full(lambda c: c["members"][0].__setitem__("name", "loam")), "members[0].name")
 
     def test_repo_and_commit(self):
         for bad in ("", "https://example.org/a b.git", None):
             with self.subTest(repo=bad):
-                self.refused(self.full(lambda c: c["components"][0].__setitem__("repo", bad)), "components[0].repo")
+                self.refused(self.full(lambda c: c["members"][0].__setitem__("repo", bad)), "members[0].repo")
                 self.refused(self.full(lambda c: c["consumers"][0].__setitem__("repo", bad)), "consumers[0].repo")
         for bad in ("main", C1[:7], C1.upper(), "v1", None):
             with self.subTest(commit=bad):
-                err = self.refused(self.full(lambda c: c["components"][0].__setitem__("commit", bad)),
-                                   "components[0].commit")
+                err = self.refused(self.full(lambda c: c["members"][0].__setitem__("commit", bad)),
+                                   "members[0].commit")
                 self.assertIn("must be a full commit id (40 or 64 hex characters), not a branch, tag or short id", err)
                 self.refused(self.full(lambda c: c["consumers"][0].__setitem__("commit", bad)), "consumers[0].commit")
 
     def test_declaration_is_not_a_relative_path(self):
         for bad in ("/abs/x.yaml", "../x.yaml", "a/../x.yaml", "C:/x.yaml", "", 3):
             with self.subTest(bad=bad):
-                self.refused(self.full(lambda c: c["components"][0].__setitem__("declaration", bad)),
-                             "components[0].declaration")
+                self.refused(self.full(lambda c: c["members"][0].__setitem__("declaration", bad)),
+                             "members[0].declaration")
                 self.refused(self.full(lambda c: c["consumers"][0].__setitem__("declaration", bad)),
                              "consumers[0].declaration")
 
     def test_lists_is_not_a_map_with_exactly_relabel_and_barred(self):
         for bad in ("x", {}, {"relabel": "a"}, {"relabel": "a", "barred": "b", "extra": "c"}, {"relabel": "a", "other": "b"}):
             with self.subTest(bad=bad):
-                self.refused(self.full(lambda c: c["components"][0].__setitem__("lists", bad)), "components[0].lists")
+                self.refused(self.full(lambda c: c["members"][0].__setitem__("lists", bad)), "members[0].lists")
 
     def test_a_slot_name_that_does_not_match(self):
         for bad in ("Ferro", "-x", "a_b", "", 3, None):
             with self.subTest(bad=bad):
-                self.refused(self.full(lambda c: c["components"][0]["lists"].__setitem__("relabel", bad)),
-                             "components[0].lists.relabel")
+                self.refused(self.full(lambda c: c["members"][0]["lists"].__setitem__("relabel", bad)),
+                             "members[0].lists.relabel")
 
     def test_a_slot_name_used_twice(self):
         def across(c):
-            c["components"].append(dict(c["components"][0], name="third"))
-        err = self.refused(self.full(across), "components[1].lists.relabel")
+            c["members"].append(dict(c["members"][0], name="third"))
+        err = self.refused(self.full(across), "members[1].lists.relabel")
         self.assertIn("used twice", err)
-        self.refused(self.full(lambda c: c["components"][0]["lists"].__setitem__("barred", "ferro-relabel")),
-                     "components[0].lists.barred")
+        self.refused(self.full(lambda c: c["members"][0]["lists"].__setitem__("barred", "ferro-relabel")),
+                     "members[0].lists.barred")
 
     def test_a_slot_value_that_is_a_path(self):
         for bad in ("lists/ferro.txt", "..\\ferro.txt", "/etc/x"):
             with self.subTest(bad=bad):
-                err = self.refused(self.full(lambda c: c["components"][0]["lists"].__setitem__("barred", bad)),
-                                   "components[0].lists.barred")
+                err = self.refused(self.full(lambda c: c["members"][0]["lists"].__setitem__("barred", bad)),
+                                   "members[0].lists.barred")
                 self.assertIn("a slot names a slot, never a path", err)
 
     def test_a_missing_file(self):

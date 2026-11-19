@@ -1,5 +1,5 @@
 composition: 1
-components:
+members:
   - name: ferro
     repo: https://example.org/ferro.git
     commit: 0123456789abcdef0123456789abcdef01234567

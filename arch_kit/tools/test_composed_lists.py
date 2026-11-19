@@ -70,7 +70,7 @@ class Scan(Lists):
         self.assertIn("example-second-barred", p.stderr)
         self.assertIn("ran empty", p.stderr)
 
-    def test_a_leak_in_each_component_is_caught_by_its_slot(self):
+    def test_a_leak_in_each_member_is_caught_by_its_slot(self):
         for who, phrase in (("example-platform", "Every outbound record carries"),
                             ("example-second", "handed over through a queue")):
             files = self.slot_files(**{who.replace("-", "_"): phrase})
@@ -129,7 +129,7 @@ class Audience(Lists):
     def make_public(self):
         self.edit("example-portal", lambda c: c["portal"].update(audience="public"))
 
-    def test_a_private_component_under_a_public_portal_is_refused(self):
+    def test_a_private_member_under_a_public_portal_is_refused(self):
         self.edit("example-platform", lambda c: c["portal"].update(audience="private"))
         self.make_public()
         self.standard()
@@ -137,7 +137,7 @@ class Audience(Lists):
         p, _ = self.render(extra=[*self.args(files), "--relabel", str(files["example-platform-relabel"]),
                                   "--barred", str(DATA / "barred.txt")])
         self.assertEqual(p.returncode, 2, p.stderr)
-        self.assertIn("components[0]: its audience is private", p.stderr)
+        self.assertIn("members[0]: its audience is private", p.stderr)
         self.assertNotIn("example-platform", p.stderr)
 
     def test_a_missing_slot_on_a_public_portal_is_refused(self):
