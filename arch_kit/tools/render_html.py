@@ -103,8 +103,12 @@ def natural_key(s: str) -> list:
     return [int(p) if p.isdigit() else p.lower() for p in re.split(r"(\d+)", s)]
 
 
-def css() -> str:
-    """The stylesheet, with the group class and the declared phases' badge rules filled in."""
+def css(decisions_only: bool = False) -> str:
+    """The stylesheet, with the group class and the declared phases' badge rules filled in.
+
+    In `portal.mode: decisions` there are no phases or groups declared: the badge rules are left out."""
+    if decisions_only:
+        return CSS.replace("GROUPCLASS", "group-start").replace("PHASECSS", "").replace(",PHASEPRINT", "")
     phases = declared.phases("render_html")
     rules = "\n".join(f".phase-{declared.slug(p.name)}{{background:var(--{p.badge}-bg);color:var(--{p.badge}-fg)}}"
                       for p in phases)
@@ -363,18 +367,18 @@ class Decisions:
         self.rules = list(rules)
         self.replaced = 0
         self.files: dict[str, Path] = {}
-        rec_re, rec_glob = declared.record_patterns("render_html")
-        for f in sorted(self.dir.glob(rec_glob)):
-            m = re.match(rec_re, f.name)
-            if not m:
+        for f in sorted(self.dir.glob(declared.record_file_patterns("render_html")[1])):
+            rid = declared.record_id_of_file("render_html", f.name)
+            if rid is None:
                 continue
-            if m.group(0) in self.files:
-                raise InputError(f"decisions/ has two files for {m.group(0)}")
-            self.files[m.group(0)] = f
+            if rid in self.files:
+                raise InputError(f"decisions/ has two files for {rid}")
+            self.files[rid] = f
         road = self.dir / capability_phases.roadmap_file()
-        if not road.is_file():
+        if road.is_file():
+            self.files[ROADMAP_KEY] = road
+        elif declared.portal_mode("render_html") != "decisions":
             raise InputError(f"decisions/{capability_phases.roadmap_file()} does not exist")
-        self.files[ROADMAP_KEY] = road
         self.resolved = {k: f.resolve() for k, f in self.files.items()}
         self.raw = {k: f.read_text(encoding="utf-8").replace("\r\n", "\n") for k, f in self.files.items()}
         self.texts = {}
@@ -769,6 +773,11 @@ def values_digest(values: list[str]) -> str:
 
 
 def provenance(a: argparse.Namespace, date: str) -> str:
+    if declared.portal_mode("render_html") == "decisions" and not getattr(a, "chart", None):
+        # No chart: the page names only the date and the declared note; the commit stamp names the record's source.
+        return ('<div class="provenance" data-provenance>'
+                f'<p data-prov="date">Generated: {esc(date)}</p>'
+                f'<p data-prov="declared">{esc(DECLARED)}</p></div>')
     chart = rp.load_yaml(Path(a.chart) / "Chart.yaml") or {}
     name, version = chart.get("name"), chart.get("version")
     if not name or version is None:
@@ -1277,6 +1286,8 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
     """The document before the final pass, the relabel rules, and the replacements made in the records. a holds chart, values, release, readiness, record, slots."""
     if MarkdownIt is None:
         raise InputError("markdown-it-py is not installed: pip install markdown-it-py==4.0.0")
+    if declared.portal_mode("render_html") == "decisions":
+        return assemble_decisions(a, date)
     renderers: dict[str, rp.Renderer] = {}
     for p in PROFILE_NAMES:
         ns = argparse.Namespace(**{**vars(a), "profile": p, "allow_no_kinds": getattr(a, "allow_no_kinds", None)})
@@ -1374,6 +1385,34 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
     return doc, rules, dec.replaced
 
 
+def assemble_decisions(a: argparse.Namespace, date: str) -> tuple[str, list, int]:
+    """`portal.mode: decisions`: the front page, the decision records and the roadmap note when there is one.
+
+    Reads no record, views, profiles, slots, appendix, inventory, readiness or model, and draws no diagram."""
+    name = project.CONFIG.get("name")
+    system = name if isinstance(name, str) else ""
+    pre = f"{system}: " if system else ""
+    prov = provenance(a, date)
+    rules = relabel.load(getattr(a, "relabel", None) or [])
+    dec = Decisions(project.DECISIONS, rules)
+    dec_sections, dec_nav = decision_pages({}, dec, prov)
+    shown = COUNT_MARK if rules else "Decision records are shown verbatim."
+    title = f"{pre}decision records"
+    front = (f'<section id="front" class="page" data-front><h1>{esc(title)}</h1>'
+             f'<p class="relabel" data-relabel>{esc(shown)}</p>'
+             f'<nav class="decisions"><h2>Decision records</h2><ul>{"".join(dec_nav)}</ul></nav>{prov}</section>')
+    doc = (f'<!doctype html>\n<html lang="en" data-profile="uaf">\n<head>\n<meta charset="utf-8">\n'
+           f'<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+           f'<meta http-equiv="Content-Security-Policy" content="{CSP}">\n'
+           f'<title>{esc(title)}</title>\n<style>\n{css(True)}\n</style>\n</head>\n<body>\n'
+           f'<header class="bar"><span class="sys">{esc(system or "Architecture")}</span>'
+           f'<a href="#front">Front page</a>'
+           f'<input id="q" type="search" placeholder="Search" aria-label="Search the decision records" autocomplete="off"></header>\n'
+           f'<div id="results" hidden></div>\n<main>\n{front}\n' + "\n".join(dec_sections) +
+           f'\n</main>\n<script>\n{JS}\n</script>\n</body>\n</html>\n')
+    return doc, rules, dec.replaced
+
+
 def leaks(doc: str, rules, barred) -> list[str]:
     """What the finished document still carries: a relabel survivor, or a barred value. Never the value itself."""
     fails = []
@@ -1418,9 +1457,9 @@ def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Render the architecture views as one HTML file.")
     ap.add_argument("--out", required=True, help="the file to write")
-    ap.add_argument("--chart", required=True)
-    ap.add_argument("--values", action="append", default=[], required=True)
-    ap.add_argument("--release", required=True, help="the Helm release name the chart is rendered under")
+    ap.add_argument("--chart")
+    ap.add_argument("--values", action="append", default=[])
+    ap.add_argument("--release", help="the Helm release name the chart is rendered under")
     ap.add_argument("--readiness", help="the readiness doc (default: the declared readiness.default, from the chart directory)")
     ap.add_argument("--record", default=str(ROOT / declared.content_file("record", "render_html")))
     ap.add_argument("--slots")
@@ -1432,12 +1471,18 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--mmdc", help="the mermaid-cli binary (default: docs/arch/tools/export/node_modules/.bin/mmdc)")
     ap.add_argument("--puppeteer-config", help="a puppeteer config file for mermaid-cli")
     a = ap.parse_args(argv)
+    if declared.portal_mode("render_html") != "decisions":
+        # --chart, --values and --release are required in full mode; a portal of decisions needs no chart.
+        missing = [f for f, v in (("--chart", a.chart), ("--values", a.values), ("--release", a.release)) if not v]
+        if missing:
+            ap.error("the following arguments are required: " + ", ".join(missing))
     declared.require_public_lists("render_html", relabel=bool(a.relabel), barred=bool(a.barred))
     try:
         date = a.date or datetime.datetime.now(datetime.timezone.utc).date().isoformat()
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
             raise InputError("--date must be YYYY-MM-DD")
-        diagram = make_mmdc(a.mmdc or default_mmdc(), a.puppeteer_config)
+        diagram = None if declared.portal_mode("render_html") == "decisions" \
+            else make_mmdc(a.mmdc or default_mmdc(), a.puppeteer_config)
         text = build(a, diagram, date)
     except InputError as e:
         print(f"error: {e}", file=sys.stderr)

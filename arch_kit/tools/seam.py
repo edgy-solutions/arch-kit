@@ -65,3 +65,15 @@ class Loader(Protocol):
 
 # Every name a loader must provide: KEY_NAMES and each function above.
 NAMES = ("KEY_NAMES", *(n for n, v in vars(Loader).items() if inspect.isfunction(v) and not n.startswith("_")))
+
+
+# Under `portal.mode: decisions` the kit reads no capability record, so a loader needs only the decision functions.
+# The capability functions are the record's loading and the readiness quotes; KEY_NAMES is for the record's messages.
+CAPABILITY_NAMES = ("KEY_NAMES", "load_record", "model_capabilities", "resolve_entries", "quote_of", "measured_line",
+                    "resolve_quotes")
+DECISION_NAMES = tuple(n for n in NAMES if n not in CAPABILITY_NAMES)
+
+
+def names_for(mode: str) -> tuple:
+    """The names a loader must provide under a portal mode: every name for `full`, the decision names for `decisions`."""
+    return DECISION_NAMES if mode == "decisions" else NAMES

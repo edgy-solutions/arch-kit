@@ -3,11 +3,18 @@
 ## Unreleased
 
 New optional declaration keys for what 0.1.0 fixed. Every default is the 0.1.0 value, so an existing declaration's
-output is unchanged.
+output is unchanged, with one exception: the record file name is now checked more strictly (see Breaking).
+
+### Breaking
+
+- A decision record file must now be named `PREFIX-<digits>-<slug>.md` (or `<digits>-<slug>.md` with `file_prefix: false`), with exactly the declared number of digits and a slug of at least one character. Before, any file matching `PREFIX-*.md` counted as a record (for example `ADR-0045.md`, `ADR-45-title.md` or `ADR-draft.md`). The checks and the render now ignore a file whose name has no slug or the wrong digit count, so its page and its checks vanish without an error. Rename each such file to the full form, for example `ADR-0045.md` to `ADR-0045-<slug>.md` and `ADR-45-title.md` to `ADR-0045-title.md`.
 
 - `files.*`: the content file names (`profiles`, `slots`, `appendix`, `inventory`, `readme`, `record`, `adr_exemptions`, `annotation_exceptions`).
 - `decisions.index.readme` is also read by `capability_phases` when the other `decisions.index` keys are absent.
 - `decisions.records.prefix` and `.digits`: the decision record id and file name.
+- `decisions.records.file_prefix`: false names a record file `<digits>-<slug>.md`; the record id keeps its prefix.
+- `portal.mode`: `decisions` makes a portal of the decision records, their index and the roadmap note, with no capability record, views or model (`examples/decisions-only`). The default is `full`.
+- `decisions.index.register: none`: a decisions-only project declares that it has no register. Checks 1, 3 and 4 of `check_decision_indexes` do not run, and the run says so; a missing `register` key still exits 2, and `none` in full mode exits 2.
 - `decisions.index.register_id.letters` and `.digits`: the register id grammar of `check_decision_indexes`.
 - `derived.roadmap.increments` and `.fold_ins`: the roadmap note's table headers.
 

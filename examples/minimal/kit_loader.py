@@ -11,6 +11,7 @@ from pathlib import Path
 
 import yaml
 
+import declared
 from data_exchange import InputError
 
 KEY_NAMES = {"groups": "groups", "environments": "environments", "environment": "environment",
@@ -39,7 +40,8 @@ def read_text(path: Path) -> str | None:
 
 
 def adr_file(decisions_dir: Path, adr: str) -> Path | None:
-    found = sorted(Path(decisions_dir).glob(f"{adr}-*.md"))
+    found = sorted(f for f in Path(decisions_dir).glob(declared.record_file_patterns("loader")[1])
+                   if declared.record_id_of_file("loader", f.name) == adr)
     return found[0] if len(found) == 1 else None
 
 

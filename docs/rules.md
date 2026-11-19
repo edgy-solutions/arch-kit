@@ -78,6 +78,12 @@ repository: that a cited file exists at a pinned commit is for a check that can 
 Status is compared, never inferred; an earlier attempt to pattern-match prose gave false positives and false negatives
 both. Exit 0 clean, 1 drift, 2 input.
 
+**No register.** With `decisions.index.register: none` (allowed only when `portal.mode` is `decisions`) the project
+declares that it has no register. Checks 1, 3 and 4 do not run, and every run prints
+`checks 1, 3 and 4: not run: decisions.index.register is none`, whether it is clean or not. Check 2 and the citation
+checks run as before. Leaving the register out of the declaration is not the same thing: that exits 2, because absence
+must not answer as agreement.
+
 ## `check_export`: the HTML file
 
 ```
@@ -91,6 +97,14 @@ It checks:
 - the content security policy, with no remote references or scripts in diagrams;
 - the size of the file;
 - the internal links, the diagrams and the declarations.
+
+With `portal.mode: decisions` it runs only these checks: the barred list and the relabel list, each page's
+provenance line, the content security policy and the size of the file, the internal links, and the decision pages
+(one page per record file, each with its stamp; a roadmap page only when the roadmap file exists). It does not
+read the views, the record or the declarations, and it does not count diagrams. `check_views` and the browser check
+are not run in this mode (the Action skips them). A browser check for decisions mode is an open follow-up, due before
+the first decisions-only portal is published. `check_decision_indexes` runs as in full mode, except that checks 1,
+3 and 4 do not run when `decisions.index.register` is `none`.
 
 ## `check_export_browser.mjs`: the file in a browser
 

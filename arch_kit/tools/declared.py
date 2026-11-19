@@ -165,6 +165,7 @@ def home(name: str, tool: str) -> str:
 
 HOSTINGS = ("ci-artifact", "static-site", "none")
 AUDIENCES = ("public", "private")
+MODES = ("full", "decisions")
 
 
 def _portal(field: str, allowed: tuple, tool: str) -> str:
@@ -185,6 +186,20 @@ def portal_hosting(tool: str) -> str:
 def portal_audience(tool: str) -> str:
     """Who may read the portal: public or private. A public audience makes check_export and render_html require lists."""
     return _portal("audience", AUDIENCES, tool)
+
+
+def portal_mode(tool: str) -> str:
+    """What the portal holds: `full` (the default when `portal.mode` is absent) or `decisions`, the decision records,
+    their index and the roadmap only. Unlike hosting and audience the key is optional."""
+    node = project.CONFIG.get("portal")
+    if node is None:
+        return "full"
+    if not isinstance(node, dict):
+        _bad("portal", "must be a map")
+    mode = node.get("mode", "full")
+    if mode not in MODES:
+        _bad("portal.mode", f"{mode!r} is not one of {', '.join(MODES)}")
+    return mode
 
 
 def require_public_lists(tool: str, **given: bool) -> None:
@@ -209,7 +224,7 @@ class Foreign(NamedTuple):
 
 
 class DecisionIndex(NamedTuple):
-    register: str
+    register: str | None     # None when `decisions.index.register` is `none`
     readme: str
     register_homes: tuple
     indexed: tuple
@@ -283,7 +298,7 @@ def _prefix(value, key):
     return value
 
 
-RECORD_KEYS = ("prefix", "digits")
+RECORD_KEYS = ("prefix", "digits", "file_prefix")
 REGISTER_ID_KEYS = ("letters", "digits")
 
 
@@ -300,7 +315,7 @@ def record_id(tool: str) -> tuple:
     if "record_id" not in _CACHE:
         decisions = project.CONFIG.get("decisions")
         node = decisions.get("records") if isinstance(decisions, dict) else None
-        prefix, digits = "ADR", 4
+        prefix, digits, file_prefix = "ADR", 4, True
         if node is not None:
             if not isinstance(node, dict):
                 _bad("decisions.records", "must be a map")
@@ -314,14 +329,44 @@ def record_id(tool: str) -> tuple:
                                                      f"starting with a letter")
             if "digits" in node:
                 digits = _int(node["digits"], "decisions.records.digits", 1, 8)
+            if "file_prefix" in node:
+                file_prefix = node["file_prefix"]
+                if not isinstance(file_prefix, bool):
+                    _bad("decisions.records.file_prefix", f"{file_prefix!r} must be true or false")
         _CACHE["record_id"] = (prefix, digits)
+        _CACHE["record_file_prefix"] = file_prefix
     return _CACHE["record_id"]
 
 
 def record_patterns(tool: str) -> tuple:
-    """(regex text, file glob) for a decision record: `PREFIX-\d{N}` and `PREFIX-*.md`."""
+    """(regex text, glob) for a decision record id: `PREFIX-\d{N}` and `PREFIX-*.md`. For file names see
+    record_file_patterns and record_id_of_file."""
     prefix, digits = record_id(tool)
     return f"{prefix}-" + chr(92) + f"d{{{digits}}}", f"{prefix}-*.md"
+
+
+def record_file_patterns(tool: str) -> tuple:
+    """(regex text, file glob) for a decision record's file NAME. The regex matches the whole name and captures the
+    digits as `n`. With `decisions.records.file_prefix` true (the default) a name is PREFIX-<digits>-<slug>.md;
+    with false it is <digits>-<slug>.md. The record id is PREFIX-<digits> either way."""
+    prefix, digits = record_id(tool)
+    d = chr(92) + "d"
+    if _CACHE["record_file_prefix"]:
+        return f"{prefix}-(?P<n>{d}{{{digits}}})-.+" + chr(92) + ".md", f"{prefix}-*.md"
+    return f"(?P<n>{d}{{{digits}}})-.+" + chr(92) + ".md", "[0-9]" * digits + "-*.md"
+
+
+def record_id_of_file(tool: str, name: str):
+    """The record id (PREFIX-<digits>) a record file name carries, or None when the name is not a record file."""
+    import re
+    m = re.fullmatch(record_file_patterns(tool)[0], name)
+    return f"{record_id(tool)[0]}-{m.group('n')}" if m else None
+
+
+def record_file_prefixed(tool: str) -> bool:
+    """Whether record file names carry the prefix (`decisions.records.file_prefix`, default true)."""
+    record_id(tool)
+    return _CACHE["record_file_prefix"]
 
 
 def record_form(tool: str) -> str:
@@ -368,12 +413,22 @@ def decisions_index(tool: str) -> DecisionIndex:
         for k in node:
             if k not in INDEX_KEYS:
                 _bad("decisions.index", f"unknown key {k!r}")
-        for k in INDEX_KEYS:
-            if k not in INDEX_OPTIONAL:
-                project.need("decisions.index." + k, tool)
         base = "decisions.index."
-        lists = {}
+        # `register: none` (the string) declares that there is no register; a missing key never does.
+        no_register = node.get("register") == "none"
+        if no_register:
+            if portal_mode(tool) != "decisions":
+                _bad(base + "register", "`none` needs `portal.mode: decisions`")
+            for k in ("register_homes", "register_id"):
+                if k in node:
+                    _bad(base + k, "must be absent when `decisions.index.register` is `none`")
+        for k in INDEX_KEYS:
+            if k not in INDEX_OPTIONAL and not (no_register and k == "register_homes"):
+                project.need("decisions.index." + k, tool)
+        lists = {"register_homes": ()}
         for k in ("register_homes", "indexed"):
+            if no_register and k == "register_homes":
+                continue
             lists[k] = tuple(_name(v, f"{base}{k}[{i}]") for i, v in enumerate(_list(node[k], base + k)))
         local = _prefix(node["local_prefix"], base + "local_prefix")
         foreign = []
@@ -395,7 +450,7 @@ def decisions_index(tool: str) -> DecisionIndex:
                 _name(pin, key + ".pin_check")
             foreign.append(Foreign(prefix, pin))
         _CACHE["decisions_index"] = DecisionIndex(
-            _name(node["register"], base + "register"), _name(node["readme"], base + "readme"),
+            None if no_register else _name(node["register"], base + "register"), _name(node["readme"], base + "readme"),
             lists["register_homes"], lists["indexed"], local, tuple(foreign))
     return _CACHE["decisions_index"]
 

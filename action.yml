@@ -10,11 +10,13 @@ inputs:
     description: Path to the project's arch-kit.yaml.
     required: true
   chart:
-    description: The chart directory, as render_html takes it.
-    required: true
+    description: The chart directory, as render_html takes it. Required unless portal.mode is decisions.
+    required: false
+    default: ''
   release:
-    description: The release name, as render_html takes it.
-    required: true
+    description: The release name, as render_html takes it. Required unless portal.mode is decisions.
+    required: false
+    default: ''
   values:
     description: Values files, newline-separated, in order.
     required: false
@@ -104,6 +106,8 @@ runs:
         while IFS= read -r l; do [ -n "$l" ] && values+=(--values "$l"); done <<< "$IN_VALUES"
         while IFS= read -r l; do [ -n "$l" ] && relabel+=(--relabel "$l"); done <<< "$IN_RELABEL"
         while IFS= read -r l; do [ -n "$l" ] && barred+=(--barred "$l"); done <<< "$IN_BARRED"
+        chart=(); [ -n "$IN_CHART" ] && chart=(--chart "$IN_CHART")
+        release=(); [ -n "$IN_RELEASE" ] && release=(--release "$IN_RELEASE")
         readiness=(); [ -n "$IN_READINESS" ] && readiness=(--readiness "$IN_READINESS")
         if [ -z "${PUPPETEER_EXECUTABLE_PATH:-}" ]; then
           PUPPETEER_EXECUTABLE_PATH="$(command -v google-chrome || command -v chromium || true)"
@@ -126,11 +130,24 @@ runs:
         mmdc="$GITHUB_ACTION_PATH/arch_kit/tools/export/node_modules/.bin/mmdc"
         [ -f "$mmdc.cmd" ] && mmdc="$mmdc.cmd"   # Windows
         ak() { arch-kit --config "$IN_CONFIG" "$@"; }
-        step check_views ak check_views --chart "$IN_CHART" --release "$IN_RELEASE" "${values[@]}" "${readiness[@]}" "${barred[@]}"
-        step render_html ak render_html --out "$IN_OUT/export.html" --chart "$IN_CHART" --release "$IN_RELEASE" \
+        # portal.mode decisions: no views, record or diagrams, so no check_views and no browser check.
+        mode="$(ak portal --mode)" || exit 2
+        if [ "$mode" != decisions ]; then
+          missing=""; noun="input is"
+          [ -z "$IN_CHART" ] && missing="chart"
+          [ -z "$IN_RELEASE" ] && { [ -n "$missing" ] && { missing="chart and release"; noun="inputs are"; } || missing="release"; }
+          if [ -n "$missing" ]; then
+            echo "::error::arch-kit: portal.mode is full: the $missing $noun required"
+            exit 2
+          fi
+        fi
+        if [ "$mode" != decisions ]; then
+          step check_views ak check_views "${chart[@]}" "${release[@]}" "${values[@]}" "${readiness[@]}" "${barred[@]}"
+        fi
+        step render_html ak render_html --out "$IN_OUT/export.html" "${chart[@]}" "${release[@]}" \
           "${values[@]}" "${readiness[@]}" "${relabel[@]}" "${barred[@]}" --mmdc "$mmdc" --puppeteer-config "$IN_OUT/puppeteer.json"
         step check_export ak check_export --export "$IN_OUT/export.html" "${relabel[@]}" "${barred[@]}"
-        if [ "$IN_BROWSER" = true ]; then
+        if [ "$IN_BROWSER" = true ] && [ "$mode" != decisions ]; then
           step browser_facts ak browser_facts --out "$IN_OUT/facts.json"
           step browser node "$GITHUB_ACTION_PATH/arch_kit/tools/export/check_export_browser.mjs" "$IN_OUT/export.html" \
             --shots "$IN_OUT/shots" --facts "$IN_OUT/facts.json" --puppeteer-config "$IN_OUT/puppeteer.json"
