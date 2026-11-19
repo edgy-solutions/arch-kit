@@ -1,0 +1,64 @@
+# Output profiles for the example's views. The content lives once, in views/; a profile only renames and selects.
+profiles:
+  uaf: {label: "UAF 1.2"}
+  dodaf202: {label: "DoDAF 2.02"}
+  naf4: {label: "NAF v4"}
+
+export_titles:
+  dodaf202:
+    AV-2: Integrated Dictionary
+    CV-2: Capability Taxonomy
+    CV-3: Capability Phasing
+    CV-4: Capability Dependencies
+    OV-5a: Operational Activity Decomposition Tree
+    OV-5b: Operational Activity Model
+    SV-1: Systems Interface Description
+    SV-2: Systems Resource Flow Description
+    SV-3: Systems-Systems Matrix
+    SV-4: Systems Functionality Description
+    SV-5a: Operational Activity to Systems Function Traceability Matrix
+    SV-5b: Operational Activity to Systems Traceability Matrix
+    SV-6: Systems Resource Flow Matrix
+  naf4:
+    A1: Meta-Data Definitions
+    C1: Capability Taxonomy
+    C3: Capability Dependencies
+    Cr: Capability Roadmap
+    L4: Logical Activities
+    L4-P4: Activity to Function Mapping
+    P1: Resource Types
+    P3: Resource Connectivity
+    P4: Resource Functions
+
+views:
+  Am-If:
+    name: Information-Dictionary
+    file: views/Am-If.md
+    exports: {dodaf202: [AV-2], naf4: [A1]}
+  Am-Tr:
+    name: Architecture-Traceability
+    file: views/Am-Tr.md
+    exports: {}
+    no_target:
+      dodaf202: "Table 2:1 gives Architecture Traceability no DoDAF 2.02 view."
+      naf4: "Table 2:3 gives Architecture Traceability no NAF 4.0 view."
+  St-Tx:
+    name: Strategic-Taxonomy
+    file: views/St-Tx.md
+    exports: {dodaf202: [CV-2], naf4: [C1]}
+  St-Cn:
+    name: Strategic-Connectivity
+    file: views/St-Cn.md
+    exports: {dodaf202: [CV-4], naf4: [C3]}
+  Op-Pr:
+    name: Operational-Processes
+    file: views/Op-Pr.md
+    exports: {dodaf202: [OV-5a, OV-5b], naf4: [L4]}
+  Rs-Tx:
+    name: Resources-Taxonomy
+    file: views/Rs-Tx.md
+    exports: {dodaf202: [SV-1, SV-2], naf4: [P1]}
+  Rs-Cn:
+    name: Resources-Connectivity
+    file: views/Rs-Cn.md
+    exports: {dodaf202: [SV-3, SV-6], naf4: [P3]}

@@ -1,0 +1,4 @@
+# The size classes a parcel can have. Invented for the example.
+sizes:
+  - {name: small, max_litres: 10}
+  - {name: large, max_litres: 80}
