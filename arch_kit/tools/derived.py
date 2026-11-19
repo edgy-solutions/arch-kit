@@ -57,6 +57,15 @@ def degraded_marker() -> str:
 
 def homes() -> dict[str, str]:
     """Each generated-section marker and the view that holds it, from the declared `views.homes`."""
+    if declared.model_none("derived"):
+        # No model: only a home the declaration names is built, and one that reads the model is refused.
+        named = declared.views("derived")["homes"]
+        marker = ((project.CONFIG.get("labels") or {}).get("degraded_mode") or {}).get("marker")
+        for what in ("taxonomy", marker):
+            if what and named.get(what):
+                raise InputError(f"views.homes.{what}: model: none is declared, and this generated section reads the model")
+        by_marker = {DEPENDENCIES_MARKER: "dependencies", DICTIONARY_MARKER: "dictionary", TRACE_MARKER: "trace"}
+        return {mk: named[name] for mk, name in by_marker.items() if name in named}
     home = lambda name: declared.home(name, "derived")
     return {DEPENDENCIES_MARKER: home("dependencies"), TAXONOMY_MARKER: home("taxonomy"),
             DICTIONARY_MARKER: home("dictionary"), TRACE_MARKER: home("trace"),

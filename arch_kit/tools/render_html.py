@@ -775,7 +775,50 @@ def values_digest(values: list[str]) -> str:
     return h.hexdigest()
 
 
+SOURCE_NAME_RE = re.compile(r"[A-Za-z0-9._-]+")
+COMMIT40_RE = re.compile(r"[0-9a-f]{40}")
+
+
+def kit_commit(a: argparse.Namespace) -> str:
+    """The kit's own commit: --kit-commit, else HEAD of the checkout this file is in."""
+    given = getattr(a, "kit_commit", None)
+    if given is not None:
+        if not COMMIT40_RE.fullmatch(given):
+            raise InputError("--kit-commit must be 40 lowercase hex characters")
+        return given
+    kit_dir = Path(__file__).resolve().parents[2]
+    try:
+        r = subprocess.run(["git", "-C", str(kit_dir), "rev-parse", "HEAD"], capture_output=True, text=True, encoding="utf-8")
+    except OSError:
+        r = None
+    out = r.stdout.strip() if r is not None and r.returncode == 0 else ""
+    if not COMMIT40_RE.fullmatch(out):
+        raise InputError(f"the kit's commit cannot be read from {kit_dir}: pass --kit-commit")
+    return out
+
+
+def source_parts(a: argparse.Namespace) -> list[tuple[str, str]]:
+    """The --source NAME=COMMIT flags, checked, in the order given."""
+    given = getattr(a, "source", None) or []
+    if not given:
+        raise InputError("chart: none is declared; --source NAME=COMMIT is required at least once")
+    out = []
+    for item in given:
+        name, eq, commit = item.partition("=")
+        if not eq or not SOURCE_NAME_RE.fullmatch(name) or not COMMIT40_RE.fullmatch(commit):
+            raise InputError(f"--source {item!r}: expected NAME=COMMIT, NAME of letters, digits, . _ - and COMMIT of 40 lowercase hex characters")
+        out.append((name, commit))
+    return out
+
+
 def provenance(a: argparse.Namespace, date: str) -> str:
+    if declared.chart_none("render_html") and declared.portal_mode("render_html") != "decisions":
+        # No chart: the page names the sources the views were written from, the kit and the date.
+        return ('<div class="provenance" data-provenance>'
+                + "".join(f'<p data-prov="source">Source: {esc(n)} {c}</p>' for n, c in source_parts(a))
+                + f'<p data-prov="kit">Kit: {kit_commit(a)}</p>'
+                f'<p data-prov="date">Generated: {esc(date)}</p>'
+                f'<p data-prov="declared">{esc(DECLARED)}</p></div>')
     if declared.portal_mode("render_html") == "decisions" and not getattr(a, "chart", None):
         # No chart: the page names only the date and the declared note; the commit stamp names the record's source.
         return ('<div class="provenance" data-provenance>'
@@ -1174,6 +1217,8 @@ def status_word(lead: str | None) -> str:
 def capability_pages(a: argparse.Namespace, uaf: "rp.Renderer", views: dict, names: dict, dec: Decisions,
                      prov: str) -> tuple[list[str], list[str]]:
     """(page sections, nav items): one page per capability in the model, in model order."""
+    if declared.model_none("render_html"):
+        return [], []
     record = capability_phases.load_record(getattr(a, "record", None) or ROOT / declared.content_file("record", "render_html"))
     cmap = capability_phases.model_capabilities(uaf.sysml)
     ddir = dec.dir
@@ -1490,6 +1535,35 @@ def with_flows_css(style: str, fl_nav) -> str:
 COUNT_MARK = "RELABEL-COUNT-PLACEHOLDER"  # the front page sentence, until the HTML pass has counted
 
 
+def extra_pages(diagram: Diagram, views: dict, dec: Decisions, prov: str) -> tuple[list[str], list[str]]:
+    """(page sections, nav items) for the declared `pages:`, in order. Each file renders as a view body does."""
+    sections, items = [], []
+    for p in declared.pages("render_html"):
+        path = ROOT / p["file"]
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as e:
+            raise InputError(f"pages: {p['id']}: cannot read {path}: {e.strerror or e}") from None
+        lines = text.split("\n")
+        if lines and lines[0].startswith("# "):
+            lines = lines[1:]
+            while lines and not lines[0].strip():
+                lines.pop(0)
+        page = Page("page-" + p["id"], views, checked(diagram, "page-" + p["id"]), dec)
+        page.base = path.parent
+        body_html = style_tables(page.render("\n".join(lines).rstrip("\n") + "\n"))
+        sections.append(
+            f'<section id="page-{esc(p["id"])}" class="page" data-page="{esc(p["id"])}">'
+            f'<h1>{esc(p["title"])}</h1><p><a href="#front">Front page</a></p>'
+            f'<div class="body">{body_html}</div>{prov}</section>')
+        items.append(f'<li><a href="#page-{esc(p["id"])}">{esc(p["title"])}</a></li>')
+    return sections, items
+
+
+def pages_nav(items: list[str]) -> str:
+    return f'<nav class="pages"><h2>More</h2><ul>{"".join(items)}</ul></nav>' if items else ""
+
+
 def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, list, int]:
     """The document before the final pass, the relabel rules, and the replacements made in the records. a holds chart, values, release, readiness, record, slots."""
     if MarkdownIt is None:
@@ -1557,12 +1631,14 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
     if total_exceptions == 0:
         raise CheckError("no exception table found: no heading starting with 'Exception' is directly "
                          "followed by a table\n")
-    decl_html = style_tables(Page("declarations", views, checked(diagram, "declarations"), dec).render(declarations_md(views)))
-    sections.append(
-        f'<section id="declarations" class="page" data-declarations>'
-        f'<h1>{esc(pre)}{esc(DECLARATIONS_TITLE)}</h1>'
-        f'<p><a href="#front">Front page</a></p>'
-        f'<div class="body">{decl_html}</div>{prov}</section>')
+    no_chart, no_model = declared.chart_none("render_html"), declared.model_none("render_html")
+    if not no_chart:
+        decl_html = style_tables(Page("declarations", views, checked(diagram, "declarations"), dec).render(declarations_md(views)))
+        sections.append(
+            f'<section id="declarations" class="page" data-declarations>'
+            f'<h1>{esc(pre)}{esc(DECLARATIONS_TITLE)}</h1>'
+            f'<p><a href="#front">Front page</a></p>'
+            f'<div class="body">{decl_html}</div>{prov}</section>')
 
     cap_sections, cap_nav = capability_pages(a, uaf, views, names, dec, prov)
     dec_sections, dec_nav = decision_pages(views, dec, prov)
@@ -1572,6 +1648,8 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
         cap_sections = flows_on_capabilities(cap_sections, fl)
     fl_sections, fl_nav = flows_pages(fl, dec, prov, pre)
     sections += cap_sections + dec_sections + al_sections + fl_sections
+    page_sections, page_items = extra_pages(diagram, views, dec, prov)
+    sections += page_sections
 
     shown = COUNT_MARK if rules else "Decision records are shown verbatim."
     grids = [grid_uaf(rows, views, names, uaf.uaf_label),
@@ -1584,11 +1662,12 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
         f"{esc(renderers[p].label)}</button>" for p in PROFILE_NAMES)
     front = (f'<section id="front" class="page" data-front><h1>{esc(pre)}architecture views</h1>'
              f'{"".join(grids)}<p class="relabel" data-relabel>{esc(shown)}</p><nav class="views"><h2>Views</h2><ul>{"".join(nav)}</ul></nav>'
-             f'<nav class="capabilities"><h2>Capabilities</h2><ul>{"".join(cap_nav)}</ul></nav>'
+             f'{pages_nav(page_items)}'
+             + ("" if no_model else f'<nav class="capabilities"><h2>Capabilities</h2><ul>{"".join(cap_nav)}</ul></nav>') +
              f'<nav class="decisions"><h2>Decision records</h2><ul>{"".join(dec_nav)}</ul></nav>'
              f'{alignment_nav(al_nav)}{flows_nav(fl_nav)}'
-             f'<nav class="declarations"><h2>For a deployment</h2><ul><li><a href="#declarations">'
-             f'{esc(DECLARATIONS_TITLE)}</a></li></ul></nav>{prov}</section>')
+             + ("" if no_chart else f'<nav class="declarations"><h2>For a deployment</h2><ul><li><a href="#declarations">'
+                f'{esc(DECLARATIONS_TITLE)}</a></li></ul></nav>') + f'{prov}</section>')
     doc = (f'<!doctype html>\n<html lang="en" data-profile="uaf" {title_attrs}>\n<head>\n<meta charset="utf-8">\n'
             f'<meta name="viewport" content="width=device-width, initial-scale=1">\n'
             f'<meta http-equiv="Content-Security-Policy" content="{CSP}">\n'
@@ -1829,6 +1908,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--date", help="YYYY-MM-DD (default: today, UTC)")
     ap.add_argument("--mmdc", help="the mermaid-cli binary (default: docs/arch/tools/export/node_modules/.bin/mmdc)")
     ap.add_argument("--puppeteer-config", help="a puppeteer config file for mermaid-cli")
+    ap.add_argument("--source", action="append", default=[], metavar="NAME=COMMIT",
+                    help="with chart: none, a source the views were written from: its name and 40-hex commit (repeatable)")
+    ap.add_argument("--kit-commit", help="with chart: none, the kit's commit (default: HEAD of the kit's checkout)")
     a = ap.parse_args(argv)
     a.composition = comp
     if comp:
@@ -1837,7 +1919,16 @@ def main(argv: list[str] | None = None) -> int:
         composed.no_composition_checkouts("render_html", a.checkout)
         composed.no_composition_lists("render_html", a.list)
     a.slots_given = {}
-    if declared.portal_mode("render_html") != "decisions":
+    no_chart = declared.portal_mode("render_html") != "decisions" and declared.chart_none("render_html")
+    if no_chart:
+        for flag, given in (("--chart", a.chart), ("--values", a.values), ("--release", a.release)):
+            if given:
+                print(f"error: chart: none is declared; {flag} is not taken", file=sys.stderr)
+                return EXIT_INPUT
+    elif a.source or a.kit_commit:
+        print("error: --source and --kit-commit are taken only with chart: none", file=sys.stderr)
+        return EXIT_INPUT
+    if declared.portal_mode("render_html") != "decisions" and not no_chart:
         # --chart, --values and --release are required in full mode; a portal of decisions needs no chart.
         missing = [f for f, v in (("--chart", a.chart), ("--values", a.values), ("--release", a.release)) if not v]
         if missing:

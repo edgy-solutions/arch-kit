@@ -35,9 +35,11 @@ const facts = JSON.parse(readFileSync(factsFile, "utf8"));
 const TABLE = facts.roles.table;
 const DIAGRAM = facts.roles.diagram;
 const PROFILE_ONLY = facts.roles.profile_only;
+// facts.model is false for a project with model: none: no capability pages, no phases, no capability links.
+const NO_MODEL = facts.model === false;
 const CAP_LINK = facts.capability_link;
 const GROUP_START = `${facts.group_slug}-start`;
-const PHASES_VIEW = `#view-${facts.phases_home}`;
+const PHASES_VIEW = NO_MODEL ? `#view-${facts.roles.table}` : `#view-${facts.phases_home}`;
 const extraArgs = opt("--puppeteer-config")
   ? JSON.parse(readFileSync(opt("--puppeteer-config"), "utf8")).args ?? []
   : [];
@@ -49,7 +51,8 @@ const PROFILES = ["uaf", "dodaf202", "naf4"];
 const BASE_PAGES = facts.base_pages;
 const CAPABILITY_PAGES = facts.capability_pages;
 const DECISION_PAGES = facts.decision_pages;
-const TOTAL_PAGES = BASE_PAGES + CAPABILITY_PAGES + DECISION_PAGES;
+const EXTRA_PAGES = facts.extra_pages || 0;
+const TOTAL_PAGES = BASE_PAGES + CAPABILITY_PAGES + DECISION_PAGES + EXTRA_PAGES;
 let failed = 0;
 let passed = 0;
 function check(ok, what, detail = "") {
@@ -134,7 +137,7 @@ try {
   check((await display(`#view-${TABLE}`)) === "block" && (await display("#front")) === "none",
     "clicking a filled cell shows that view and hides the front");
   const provCount = await page.evaluate(() => document.querySelectorAll("[data-provenance]").length);
-  check(provCount === TOTAL_PAGES, `a provenance block on every page (${TOTAL_PAGES}: ${BASE_PAGES} + ${CAPABILITY_PAGES} capability + ${DECISION_PAGES} decision)`, String(provCount));
+  check(provCount === TOTAL_PAGES, `a provenance block on every page (${TOTAL_PAGES}: ${BASE_PAGES} + ${CAPABILITY_PAGES} capability + ${DECISION_PAGES} decision + ${EXTRA_PAGES} extra)`, String(provCount));
   const kinds = await page.evaluate(() => [document.querySelectorAll("section.capability").length, document.querySelectorAll("section.decision").length]);
   check(kinds[0] === CAPABILITY_PAGES && kinds[1] === DECISION_PAGES, `${CAPABILITY_PAGES} capability pages and ${DECISION_PAGES} decision pages`, kinds.join(" "));
 
@@ -142,22 +145,22 @@ try {
   await go("#front");
   const navs = await page.evaluate(() => [document.querySelectorAll("nav.capabilities a").length, document.querySelectorAll("nav.decisions a").length]);
   check(navs[0] === CAPABILITY_PAGES && navs[1] === DECISION_PAGES, "front: a link per capability page and per decision page", navs.join(" "));
-  await go(`#view-${CAP_LINK}`);
-  const capHref = await page.evaluate((v) => { const a = document.querySelector(`#view-${v} a[href^="#cap-"]`); return a ? a.getAttribute("href") : null; }, CAP_LINK);
-  check(capHref !== null, "CV-2: a capability name is a link", String(capHref));
+  if (!NO_MODEL) await go(`#view-${CAP_LINK}`);
+  const capHref = NO_MODEL ? null : await page.evaluate((v) => { const a = document.querySelector(`#view-${v} a[href^="#cap-"]`); return a ? a.getAttribute("href") : null; }, CAP_LINK);
+  if (!NO_MODEL) check(capHref !== null, "CV-2: a capability name is a link", String(capHref));
   if (capHref) {
     await page.click(`#view-${CAP_LINK} a[href="${capHref}"]`);
     check((await display(capHref)) === "block" && (await display(`#view-${CAP_LINK}`)) === "none" && (await display("#front")) === "none",
       "CV-2: clicking a capability name shows its page", capHref);
   }
-  const decHref = await page.evaluate(() => {
+  const decHref = NO_MODEL ? null : await page.evaluate(() => {
     for (const sec of document.querySelectorAll("section.capability")) {
       const a = sec.querySelector('a[href^="#adr-"]');
       if (a) return [sec.id, a.getAttribute("href")];
     }
     return null;
   });
-  check(decHref !== null, "a capability page links a decision section", JSON.stringify(decHref));
+  if (!NO_MODEL) check(decHref !== null, "a capability page links a decision section", JSON.stringify(decHref));
   if (decHref) {
     await go("#" + decHref[0]);
     await page.click(`#${decHref[0]} a[href="${decHref[1]}"]`);
@@ -454,7 +457,7 @@ try {
   if (capWide) await page.setViewport({ width: 1600, height: 900 });
   const capFit = capWide ? await page.evaluate((view) => { const s = document.querySelector(`${view} .scroll`); return s.scrollWidth <= s.clientWidth + 1; }, PHASES_VIEW) : cap !== null && cap[1] <= cap[2] + 1;
   if (capWide) await page.setViewport({ width: 1280, height: 900 });
-  check(cap !== null && cap[0] === 7 && capFit, `tables: the seven-column capability table does not scroll at ${capWide ? 1600 : 1280} (ch ${cap && cap[3].toFixed(2)} px)`, String(cap));
+  if (!NO_MODEL) check(cap !== null && cap[0] === 7 && capFit, `tables: the seven-column capability table does not scroll at ${capWide ? 1600 : 1280} (ch ${cap && cap[3].toFixed(2)} px)`, String(cap));
   await go(`#view-${TABLE}`);
   const nine = await page.evaluate((view, cols) => {
     const t = [...document.querySelectorAll(`#view-${view} table`)].find((x) => x.rows[0] && x.rows[0].cells.length === cols);
@@ -473,7 +476,7 @@ try {
       names: bs.every((b) => names.includes(b.textContent)),
       minC: Math.min(...cs.map((c) => contrast(c.color, c.backgroundColor))) };
   `);
-  check(badges.n === facts.phase_badges && badges.bgs === facts.badge_kinds && badges.names && badges.minC >= 4.5, `badges: ${facts.phase_badges} in ${facts.phase_column} column, ${facts.badge_kinds} backgrounds, phase names, contrast at least 4.5`, JSON.stringify(badges));
+  if (!NO_MODEL) check(badges.n === facts.phase_badges && badges.bgs === facts.badge_kinds && badges.names && badges.minC >= 4.5, `badges: ${facts.phase_badges} in ${facts.phase_column} column, ${facts.badge_kinds} backgrounds, phase names, contrast at least 4.5`, JSON.stringify(badges));
 
   const head = await inPage(`
     const hs = [...document.querySelectorAll("#view-${DIAGRAM} thead th")].map((h) => getComputedStyle(h));
@@ -494,7 +497,7 @@ try {
     const r = [...document.querySelectorAll(sel)];
     return [r.length, r.filter((x) => getComputedStyle(x.cells[0]).borderTopWidth !== "2px").length];
   }, `${PHASES_VIEW} tr.${GROUP_START}`);
-  check(lanes[0] === facts.group_starts && lanes[1] === 0, `${facts.group_slug} rules: ${facts.group_starts} ${facts.group_slug} starts in the roadmap, each a 2px top rule`, lanes.join(" "));
+  if (!NO_MODEL) check(lanes[0] === facts.group_starts && lanes[1] === 0, `${facts.group_slug} rules: ${facts.group_starts} ${facts.group_slug} starts in the roadmap, each a 2px top rule`, lanes.join(" "));
 
   const viewHead = await page.evaluate((v) => getComputedStyle(document.querySelector(`#view-${v} thead th`)).backgroundColor, DIAGRAM);
   const filledBg = await page.evaluate(() => {
@@ -556,7 +559,7 @@ try {
   await page.setViewport({ width: 1280, height: 900 });
   check(pr2.texts === screenBadges && pr2.badgeClear === 0, "print: badges lose their fill and keep their words", `${pr2.badgeClear} filled`);
   check(pr2.headBad === 0, "print: thead th has no fill and no white text", String(pr2.headBad));
-  check(pr2.lanes > 0 && pr2.laneBad === 0, `print: ${facts.group_slug} rules are still 2px`, `${pr2.lanes} ${pr2.laneBad}`);
+  if (!NO_MODEL) check(pr2.lanes > 0 && pr2.laneBad === 0, `print: ${facts.group_slug} rules are still 2px`, `${pr2.lanes} ${pr2.laneBad}`);
   check(pr2.wide === 0, "print: no table is wider than its parent at 980", String(pr2.wide));
   check(pr3 === 0, "print: no table is wider than its parent at 980 under a wide font", String(pr3));
   const boxes = [...pdf.toString("latin1").matchAll(/\/MediaBox\s*\[\s*0 0 ([\d.]+) ([\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
