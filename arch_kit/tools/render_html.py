@@ -112,7 +112,7 @@ def css(decisions_only: bool = False) -> str:
     In `portal.mode: decisions` there are no phases or groups declared: the badge rules are left out."""
     if decisions_only:
         return CSS.replace("GROUPCLASS", "group-start").replace("PHASECSS", "").replace(",PHASEPRINT", "")
-    phases = declared.phases("render_html")
+    phases = [] if declared.model_none("render_html") else declared.phases("render_html")
     rules = "\n".join(f".phase-{declared.slug(p.name)}{{background:var(--{p.badge}-bg);color:var(--{p.badge}-fg)}}"
                       for p in phases)
     return (CSS.replace("GROUPCLASS", group_class()).replace("PHASECSS", rules)

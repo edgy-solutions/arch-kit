@@ -174,6 +174,8 @@ def load_yaml(path: Path):
 
 
 def load_slots_registry(root: Path) -> set[str]:
+    if declared.chart_none("render_profile"):
+        return set()
     reg = load_yaml(root / declared.content_file("slots", "render_profile")) or {}
     return set((reg.get("slots") or {}).keys())
 

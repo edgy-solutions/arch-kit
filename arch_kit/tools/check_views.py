@@ -87,7 +87,7 @@ class Tree:
         self.root = root
         self.record = record or root / declared.content_file("record", "check_views")
         self.profiles = self.yaml(root / declared.content_file("profiles", "check_views"))
-        self.slots = self.yaml(root / declared.content_file("slots", "check_views"))
+        self.slots = {} if declared.chart_none("check_views") else self.yaml(root / declared.content_file("slots", "check_views"))
         self.views: dict = self.profiles.get("views") or {}
         self.readme = self.text(root / declared.content_file("readme", "check_views"))
         self.sysml = "" if declared.model_none("check_views") else self.text(project.model_file("check_views", root))
