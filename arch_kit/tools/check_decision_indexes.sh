@@ -26,6 +26,8 @@
 #   IDX_FOREIGN   one line per foreign prefix, in order: the prefix, a tab,
 #                 then the pin check's path relative to the decisions
 #                 directory (empty for none)
+#   IDX_FOREIGN_COMMITS   optional: one line per prefix the composition file pins, the prefix, a tab, then the full
+#                 commit. For such a prefix no pin check runs; the summary says where the pin comes from.
 #   IDX_ROOT      the repository root, relative to the decisions directory
 #   IDX_RECORD_PREFIX, IDX_RECORD_DIGITS   a decision record id is PREFIX-<digits>
 #                 and its file PREFIX-<digits>-<slug>.md (default ADR, 4)
@@ -63,6 +65,7 @@ no_register=0; [ "${IDX_NO_REGISTER:-0}" = 1 ] && no_register=1
 if [ "$no_register" = 0 ]; then : "${IDX_REGISTER:?}" "${IDX_HOMES:?}"; fi
 : "${IDX_LOCAL:?}" "${IDX_ROOT:?}"
 IDX_FOREIGN="${IDX_FOREIGN:-}"
+IDX_FOREIGN_COMMITS="${IDX_FOREIGN_COMMITS:-}"
 # The grammar of the ids, from the declaration; the defaults are the original fixed forms.
 rp="${IDX_RECORD_PREFIX:-ADR}"
 rd="${IDX_RECORD_DIGITS:-4}"
@@ -287,6 +290,15 @@ pins_all=""
 while IFS=$'\t' read -r fp fpin; do
   [ -n "$fp" ] || continue
   foreign=$(printf '%s\n' "$xrefs" | grep -cE "^$fp:$rp-" || true)
+  if [ -n "$IDX_FOREIGN_COMMITS" ]; then
+    fcommit=$(printf '%s\n' "$IDX_FOREIGN_COMMITS" | awk -F'\t' -v p="$fp" '$1==p{print $2; exit}')
+    if [ -n "$fcommit" ]; then
+      pins_all="${pins_all:+$pins_all$'\n'}- ${fp} ${fcommit} -"
+      foreign_summary="${foreign_summary}  ${foreign:-0} ${fp}:-prefixed reference(s); pinned at ${fcommit:0:7} by the composition file. That each cited record"$'\n'
+      foreign_summary="${foreign_summary}  exists at the pin is checked when composed, not here."$'\n'
+      continue
+    fi
+  fi
   if [ -z "$fpin" ]; then
     foreign_summary="${foreign_summary}  ${foreign:-0} ${fp}:-prefixed reference(s); no pin check is declared for this prefix."$'\n'
     continue

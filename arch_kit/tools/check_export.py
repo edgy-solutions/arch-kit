@@ -37,6 +37,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import capability_phases  # noqa: E402
+import check_consumes  # noqa: E402
+import composed  # noqa: E402
 import export_text  # noqa: E402
 from export_text import plain  # noqa: E402,F401
 import check_views  # noqa: E402
@@ -104,6 +106,20 @@ def check_relabel(raw: str, rules) -> list[str]:
                    sum(h[2] for h in relabel.survivors(text, [rule])))
         if hits:
             fails.append(f"relabel: rule {i + 1} (line {rule.line} of {rule.file}) survives {hits} time(s)")
+    front = [body for pid, body in PAGE_RE.findall(raw) if pid == "front"]
+    if not front or "data-relabel" not in front[0]:
+        fails.append("relabel: the front page has no data-relabel line")
+    return fails
+
+
+def check_barred_composed(raw: str, lists) -> list[str]:
+    """The union of the portal's barred lists and every barred slot; each finding names its list and rule."""
+    return ["barred: " + f for f in composed.scan_barred_lists(export_text.barred_strings(raw), lists)]
+
+
+def check_relabel_composed(raw: str, lists) -> list[str]:
+    """The union of the portal's relabel lists and every relabel slot, and the front page's data-relabel line."""
+    fails = ["relabel: " + f for f in composed.scan_relabel([raw, export_text.unescaped(raw)], lists)]
     front = [body for pid, body in PAGE_RE.findall(raw) if pid == "front"]
     if not front or "data-relabel" not in front[0]:
         fails.append("relabel: the front page has no data-relabel line")
@@ -229,6 +245,37 @@ def check_decisions(raw: str, tree: check_views.Tree) -> list[str]:
     return fails
 
 
+MEMBER_PAGE_RE = re.compile(r'<section id="([^"]+)" class="page decision" data-decision="([^"]*)"')
+
+
+def check_members(raw: str, comp, dirs: dict, own: str) -> list[str]:
+    """A composed export: every group has one front-page block, and as many decision pages as record files.
+
+    The composing portal's own record files are counted in its working tree, a member's at its pin."""
+    fails: list[str] = []
+    pages = [(pid, kind) for pid, kind in MEMBER_PAGE_RE.findall(raw) if kind != "roadmap"]
+    groups = [(own, "portal", None)] + [(e.name, f"members[{i}]", e) for i, e in enumerate(comp.members)]
+    for name, key, entry in groups:
+        blocks = len(re.findall(r'<div class="member" data-member="' + re.escape(name) + '"', raw))
+        if blocks != 1:
+            fails.append(f"members: {key} has {blocks} front-page blocks, expected one")
+        got = sum(1 for pid, _ in pages if pid.startswith(name + "--"))
+        if entry is None:
+            want = len({declared.record_id_of_file("check_export", f.name)
+                        for f in project.DECISIONS.glob(declared.record_file_patterns("check_export")[1])
+                        if declared.record_id_of_file("check_export", f.name)})
+        else:
+            code, text = check_consumes._git(str(dirs[key]), "show", f"{entry.commit}:{entry.declaration}")
+            ids, why = check_consumes._record_names(str(dirs[key]), entry.commit, entry.declaration, text)                 if code == 0 else (None, "its declaration is not at the pin")
+            if ids is None:
+                fails.append(f"members: {key}: {why}")
+                continue
+            want = len(ids)
+        if got != want:
+            fails.append(f"members: {key} has {got} decision pages, its record files at the pin number {want}")
+    return fails
+
+
 def check_exceptions(raw: str) -> list[str]:
     return [] if '<details class="exceptions"' in raw else ["exceptions: no details.exceptions in the export"]
 
@@ -248,14 +295,27 @@ def check_declarations(raw: str, tree: check_views.Tree) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    project.require_portal("check_export")
+    declared.consumes("check_export")
+    declared.composed_in("check_export")
+    comp = declared.composition("check_export")
     ap = argparse.ArgumentParser(description="Check the HTML export of the architecture views.")
     ap.add_argument("--export", required=True)
     ap.add_argument("--root", default=str(rp.ROOT))
     ap.add_argument("--barred", action="append", default=[], required=True)
     ap.add_argument("--relabel", action="append", default=[], help="a relabel list the export was rendered with")
+    composed.add_checkout_flag(ap)
+    composed.add_list_flag(ap)
     a = ap.parse_args(argv)
+    if comp:
+        composed.require_decisions_mode("check_export")
+    else:
+        composed.no_composition_checkouts("check_export", a.checkout)
+        composed.no_composition_lists("check_export", a.list)
     declared.require_public_lists("check_export", relabel=bool(a.relabel))
     decisions_only = declared.portal_mode("check_export") == "decisions"
+    dirs = composed.checkouts("check_export", a.checkout, comp) if comp else {}
+    slots = composed.list_files("check_export", a.list, comp) if comp else {}
     try:
         try:
             data = Path(a.export).read_bytes()
@@ -268,10 +328,18 @@ def main(argv: list[str] | None = None) -> int:
         except CheckError as e:
             raise InputError(e.args[0])
         rules = relabel.load(a.relabel) if a.relabel else []
+        if comp:
+            rlists = composed.relabel_lists("check_export", a.relabel, slots, comp)
+            blists = composed.barred_lists(a.barred, slots, comp)
     except (InputError, DataInputError, check_views.InputError, KeyError) as e:
         print(f"error: {e}", file=sys.stderr)
         return EXIT_INPUT
-    if decisions_only:
+    if comp:
+        fails = (check_barred_composed(raw, blists) + check_provenance(raw) + check_network(raw)
+                 + check_size(len(data)) + check_links(raw)
+                 + check_members(raw, comp, dirs, composed.own_name("check_export"))
+                 + (check_relabel_composed(raw, rlists) if rlists else []))
+    elif decisions_only:
         # No views, record, diagrams or declarations page: the decision pages and the structural checks only.
         fails = (check_barred(raw, barred) + check_provenance(raw) + check_network(raw) + check_size(len(data))
                  + check_links(raw) + check_decisions(raw, tree)
@@ -286,7 +354,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FAIL: {f}", file=sys.stderr)
     if fails:
         return EXIT_CHECK
-    shape = (f"{len(PAGE_RE.findall(raw))} pages, decisions only; " if decisions_only else
+    shape = (f"{len(PAGE_RE.findall(raw))} pages, composed: {len(comp.members) + 1} groups; " if comp else
+             f"{len(PAGE_RE.findall(raw))} pages, decisions only; " if decisions_only else
              f"{len(PAGE_RE.findall(raw))} pages, {len(tree.views)} views, equal to check_views; "
              f"{diagram_count(raw)} diagrams; ")
     print(f"ok: export: {shape}"

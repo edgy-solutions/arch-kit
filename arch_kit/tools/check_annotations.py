@@ -162,6 +162,7 @@ def load_ledger(path: Path):
 
 
 def main(argv: list[str] | None = None) -> int:
+    project.require_portal("check_annotations")
     ap = argparse.ArgumentParser(description="Check the topic and consumer-group annotations of a render.")
     ap.add_argument("--chart")
     ap.add_argument("--values", action="append", default=[])

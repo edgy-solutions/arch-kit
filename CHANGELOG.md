@@ -13,6 +13,10 @@ Decisions-only portals, the alignment record type, and the composition design as
 
 - A decision-page table renders when the project declares no `labels.*` keys. Before, it exited 2. View tables are unchanged.
 
+### Added
+
+- Composed build: `render_html` and `check_export` with `files.composition` and `--checkout NAME=DIR`; `portal.composed_in`.
+
 ### Breaking
 
 - A decision record file must now be named `PREFIX-<digits>-<slug>.md` (or `<digits>-<slug>.md` with `file_prefix: false`), with exactly the declared number of digits and a slug of at least one character. Before, any file matching `PREFIX-*.md` counted as a record (for example `ADR-0045.md`, `ADR-45-title.md` or `ADR-draft.md`). The checks and the render now ignore a file whose name has no slug or the wrong digit count, so its page and its checks vanish without an error. Rename each such file to the full form, for example `ADR-0045.md` to `ADR-0045-<slug>.md` and `ADR-45-title.md` to `ADR-0045-title.md`.

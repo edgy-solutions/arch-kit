@@ -1,0 +1,10 @@
+# A project with no portal of its own: it declares only what it consumes.
+kit: 1
+portal: none
+name: Example App
+consumes:
+  - portal: example-platform
+    repo: https://example.org/example-platform.git
+    commit: 0123456789abcdef0123456789abcdef01234567
+    records: [ADR-0012]
+    why: "Labels its outbound records with the platform's label model."

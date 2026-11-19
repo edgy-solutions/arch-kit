@@ -64,6 +64,7 @@ import adr_sections  # noqa: E402
 import alignment  # noqa: E402
 import capability_phases  # noqa: E402
 import check_views  # noqa: E402
+import composed  # noqa: E402
 import declared  # noqa: E402
 import export_text  # noqa: E402
 import project  # noqa: E402
@@ -1494,6 +1495,31 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
     return doc, rules, dec.replaced
 
 
+def decisions_parts(a: argparse.Namespace, date: str):
+    """The pieces of a decisions-mode export: (relabel rules, Decisions, decision sections, decision nav items,
+    alignment sections, alignment nav items, provenance block)."""
+    prov = provenance(a, date)
+    rules = relabel.load(getattr(a, "relabel", None) or [])
+    dec = Decisions(project.DECISIONS, rules)
+    records = alignment_records(dec)
+    dec_sections, dec_nav = decision_pages({}, dec, prov)
+    al_sections, al_nav = alignment_pages(records, dec, prov)
+    return rules, dec, dec_sections, dec_nav, al_sections, al_nav, prov
+
+
+def shell(system: str, title: str, front: str, sections: list[str], style: str) -> str:
+    """The decisions-mode document around a front page and its sections."""
+    return (f'<!doctype html>\n<html lang="en" data-profile="uaf">\n<head>\n<meta charset="utf-8">\n'
+            f'<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+            f'<meta http-equiv="Content-Security-Policy" content="{CSP}">\n'
+            f'<title>{esc(title)}</title>\n<style>\n{style}\n</style>\n</head>\n<body>\n'
+            f'<header class="bar"><span class="sys">{esc(system or "Architecture")}</span>'
+            f'<a href="#front">Front page</a>'
+            f'<input id="q" type="search" placeholder="Search" aria-label="Search the decision records" autocomplete="off"></header>\n'
+            f'<div id="results" hidden></div>\n<main>\n{front}\n' + "\n".join(sections) +
+            f'\n</main>\n<script>\n{JS}\n</script>\n</body>\n</html>\n')
+
+
 def assemble_decisions(a: argparse.Namespace, date: str) -> tuple[str, list, int]:
     """`portal.mode: decisions`: the front page, the decision records and the roadmap note when there is one.
 
@@ -1501,27 +1527,107 @@ def assemble_decisions(a: argparse.Namespace, date: str) -> tuple[str, list, int
     name = project.CONFIG.get("name")
     system = name if isinstance(name, str) else ""
     pre = f"{system}: " if system else ""
+    rules, dec, dec_sections, dec_nav, al_sections, al_nav, prov = decisions_parts(a, date)
+    shown = COUNT_MARK if rules else "Decision records are shown verbatim."
+    title = f"{pre}decision records"
+    parent = declared.composed_in("render_html")
+    sentence = (f'<p class="composed-in" data-composed-in>'
+                f'{esc("Its consumers are listed where it is composed: " + parent + ".")}</p>') if parent else ""
+    front = (f'<section id="front" class="page" data-front><h1>{esc(title)}</h1>'
+             f'<p class="relabel" data-relabel>{esc(shown)}</p>{sentence}'
+             f'<nav class="decisions"><h2>Decision records</h2><ul>{"".join(dec_nav)}</ul></nav>{alignment_nav(al_nav)}{prov}</section>')
+    return shell(system, title, front, dec_sections + al_sections, css(True)), rules, dec.replaced
+
+
+def write_fragment(a: argparse.Namespace, date: str) -> None:
+    """Internal mode of a composed build: one group's pieces as JSON, with no front page, no `finish` and no scan."""
+    if declared.portal_mode("render_html") != "decisions":
+        raise InputError("--fragment needs portal.mode: decisions")
+    if MarkdownIt is None:
+        raise InputError("markdown-it-py is not installed: pip install markdown-it-py==4.0.0")
+    rules, dec, dec_sections, dec_nav, al_sections, al_nav, _prov = decisions_parts(a, date)
+    loader = project.loader("render_html") if "loader" in project.CONFIG else None
+    stated = "statuses" in project.CONFIG
+    records = {}
+    for key in dec.keys():
+        if key == ROADMAP_KEY:
+            continue
+        lead = in_force = None
+        if stated and loader is not None and hasattr(loader, "adr_lead"):
+            lead = loader.adr_lead(project.DECISIONS, key)
+            status = declared.lead_of(lead, "render_html") if lead is not None else None
+            in_force = status.in_force if status else None
+        records[key] = {"page": dec.page_id(key),
+                        "path": Path(dec.files[key]).resolve().relative_to(REPO.resolve()).as_posix(),
+                        "lead": lead, "in_force": in_force}
+    out = Path(a.fragment)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps({"sections": dec_sections + al_sections, "decisions_nav": dec_nav,
+                               "alignment_nav": al_nav, "replaced": dec.replaced, "records": records},
+                              ensure_ascii=False), encoding="utf-8", newline="\n")
+
+
+def assemble_composed(a: argparse.Namespace, date: str) -> tuple[str, list, int]:
+    """`files.composition`: one document of every group's pieces, each group under its own name."""
+    if MarkdownIt is None:
+        raise InputError("markdown-it-py is not installed: pip install markdown-it-py==4.0.0")
+    c = composed.collect("render_html", a.checkout, date, getattr(a, "relabel", None) or [], a.slots_given)
+    for note in c.notes:
+        print(note, file=sys.stderr)
+    name = project.CONFIG.get("name")
+    system = name if isinstance(name, str) else ""
+    pre = f"{system}: " if system else ""
+    a.relabel_lists = composed.relabel_lists("render_html", getattr(a, "relabel", None) or [], a.slots_given,
+                                             declared.composition("render_html"))
+    rules = [r for _, rs in a.relabel_lists for r in rs]
     prov = provenance(a, date)
-    rules = relabel.load(getattr(a, "relabel", None) or [])
-    dec = Decisions(project.DECISIONS, rules)
-    records = alignment_records(dec)
-    dec_sections, dec_nav = decision_pages({}, dec, prov)
-    al_sections, al_nav = alignment_pages(records, dec, prov)
+    groups = {g.name for g in c.groups}
+    pages = {g.name: {k: f'{g.name}--{r["page"]}' for k, r in g.fragment["records"].items()} for g in c.groups}
+    # Where each "Consumed by" entry goes: on the page of each record it names, else in the group's front block.
+    on_page: dict[str, dict[str, list[str]]] = {g.name: {} for g in c.groups}
+    on_front: dict[str, list[str]] = {g.name: [] for g in c.groups}
+    by_name = c.states
+    for use in c.uses:
+        e = use.entry
+        if not e.records:
+            on_front[e.portal].append(composed.consumed_by_li(use, groups,
+                                                              state=composed.states_html(by_name, e.portal, e.commit)))
+            continue
+        loose = []
+        for r in e.records:
+            if r in pages[e.portal]:
+                on_page[e.portal].setdefault(r, []).append(composed.consumed_by_li(
+                    use, groups, state=composed.states_html(by_name, e.portal, e.commit, [r])))
+            else:
+                loose.append(r)
+        if loose:
+            on_front[e.portal].append(composed.consumed_by_li(
+                use, groups, only=loose, state=composed.states_html(by_name, e.portal, e.commit, loose)))
+    blocks, sections, replaced = [], [], 0
+    for g in c.groups:
+        f = g.fragment
+        replaced += f["replaced"]
+        for sec in (composed.prefixed(s, g.name) for s in f["sections"]):
+            m = re.match(r'<section id="([^"]+)"', sec)
+            for key, page in pages[g.name].items():
+                if m and m.group(1) == page and on_page[g.name].get(key):
+                    marker = '<div class="provenance" data-provenance>'
+                    sec = sec.replace(marker, composed.consumed_by_block(on_page[g.name][key]) + marker, 1)
+            sections.append(sec)
+        nav = composed.prefixed("".join(f["decisions_nav"]), g.name)
+        al = composed.prefixed("".join(f["alignment_nav"]), g.name)
+        al = f'<nav class="alignment"><h3>Alignment</h3><ul>{al}</ul></nav>' if al else ""
+        mine = [composed.consumes_li(u, pages, composed.states_html(by_name, u.entry.portal, u.entry.commit,
+                                                                    u.entry.records))
+                for u in c.own_uses.get(g.name, [])]
+        blocks.append(f'<div class="member" data-member="{esc(g.name)}" id="{esc(composed.member_id(g.name))}">'
+                      f'<h2>{esc(g.name)}</h2><nav class="decisions"><h3>Decision records</h3><ul>{nav}</ul></nav>{al}'
+                      f'{composed.consumed_by_block(on_front[g.name])}{composed.consumes_block(mine)}</div>')
     shown = COUNT_MARK if rules else "Decision records are shown verbatim."
     title = f"{pre}decision records"
     front = (f'<section id="front" class="page" data-front><h1>{esc(title)}</h1>'
-             f'<p class="relabel" data-relabel>{esc(shown)}</p>'
-             f'<nav class="decisions"><h2>Decision records</h2><ul>{"".join(dec_nav)}</ul></nav>{alignment_nav(al_nav)}{prov}</section>')
-    doc = (f'<!doctype html>\n<html lang="en" data-profile="uaf">\n<head>\n<meta charset="utf-8">\n'
-           f'<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-           f'<meta http-equiv="Content-Security-Policy" content="{CSP}">\n'
-           f'<title>{esc(title)}</title>\n<style>\n{css(True)}\n</style>\n</head>\n<body>\n'
-           f'<header class="bar"><span class="sys">{esc(system or "Architecture")}</span>'
-           f'<a href="#front">Front page</a>'
-           f'<input id="q" type="search" placeholder="Search" aria-label="Search the decision records" autocomplete="off"></header>\n'
-           f'<div id="results" hidden></div>\n<main>\n{front}\n' + "\n".join(dec_sections + al_sections) +
-           f'\n</main>\n<script>\n{JS}\n</script>\n</body>\n</html>\n')
-    return doc, rules, dec.replaced
+             f'<p class="relabel" data-relabel>{esc(shown)}</p>{"".join(blocks)}{prov}</section>')
+    return shell(system, title, front, sections, css(True) + "\n" + composed.COMPOSED_CSS), rules, replaced
 
 
 def leaks(doc: str, rules, barred) -> list[str]:
@@ -1537,7 +1643,13 @@ def leaks(doc: str, rules, barred) -> list[str]:
     return fails
 
 
-def finish(doc: str, rules, barred, record_replaced: int = 0) -> tuple[str, int]:
+def leaks_composed(doc: str, relabel_lists, barred_lists) -> list[str]:
+    """The composed variant of `leaks`: the union of every list, each finding naming its list and rule, never a value."""
+    return (composed.scan_relabel([doc, export_text.unescaped(doc)], relabel_lists)
+            + composed.scan_barred_lists(export_text.barred_strings(doc), barred_lists))
+
+
+def finish(doc: str, rules, barred, record_replaced: int = 0, lists=None) -> tuple[str, int]:
     """The relabel pass over the finished HTML, the front page sentence, then the leak scan.
 
     Returns the document and the replacements in the HTML. The sentence reports those plus record_replaced.
@@ -1549,7 +1661,7 @@ def finish(doc: str, rules, barred, record_replaced: int = 0) -> tuple[str, int]
         doc = doc.replace(COUNT_MARK, esc(
             f"Names are replaced by neutral labels at export: {record_replaced + n} in this page "
             f"({len(rules)} rules). The sources in the repository are unchanged."))
-    fails = leaks(doc, rules, barred)
+    fails = leaks(doc, rules, barred) if lists is None else leaks_composed(doc, *lists)
     if fails:
         raise CheckError("the export still leaks, nothing written: " + "; ".join(fails) + "\n")
     return doc, n
@@ -1557,7 +1669,13 @@ def finish(doc: str, rules, barred, record_replaced: int = 0) -> tuple[str, int]
 
 def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
     """The whole file as text: the document, relabelled as a whole, and scanned. A leak is a CheckError."""
-    doc, rules, record_replaced = assemble(a, diagram, date)
+    if getattr(a, "composition", None):
+        doc, rules, record_replaced = assemble_composed(a, date)
+    else:
+        doc, rules, record_replaced = assemble(a, diagram, date)
+    if getattr(a, "composition", None):
+        blists = composed.barred_lists(a.barred or [], a.slots_given, a.composition)
+        return finish(doc, rules, [], record_replaced, (a.relabel_lists, blists))[0]
     try:
         barred = load_barred(a.barred) if getattr(a, "barred", None) else []
     except CheckError as e:
@@ -1566,10 +1684,21 @@ def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if declared.portal_none("render_html"):
+        print("portal: none: nothing to render")
+        return 0
+    project.require_portal("render_html")
+    declared.consumes("render_html")
+    declared.composed_in("render_html")
+    fragment = "--fragment" in (sys.argv[1:] if argv is None else argv)
+    comp = None if fragment else declared.composition("render_html")
     ap = argparse.ArgumentParser(description="Render the architecture views as one HTML file.")
-    ap.add_argument("--out", required=True, help="the file to write")
+    ap.add_argument("--out", required=not fragment, help="the file to write")
+    ap.add_argument("--fragment", help=argparse.SUPPRESS)
+    composed.add_checkout_flag(ap)
     ap.add_argument("--chart")
     ap.add_argument("--values", action="append", default=[])
+    composed.add_list_flag(ap)
     ap.add_argument("--release", help="the Helm release name the chart is rendered under")
     ap.add_argument("--readiness", help="the readiness doc (default: the declared readiness.default, from the chart directory)")
     ap.add_argument("--record", default=str(ROOT / declared.content_file("record", "render_html")))
@@ -1582,16 +1711,29 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--mmdc", help="the mermaid-cli binary (default: docs/arch/tools/export/node_modules/.bin/mmdc)")
     ap.add_argument("--puppeteer-config", help="a puppeteer config file for mermaid-cli")
     a = ap.parse_args(argv)
+    a.composition = comp
+    if comp:
+        composed.require_decisions_mode("render_html")
+    elif not fragment:
+        composed.no_composition_checkouts("render_html", a.checkout)
+        composed.no_composition_lists("render_html", a.list)
+    a.slots_given = {}
     if declared.portal_mode("render_html") != "decisions":
         # --chart, --values and --release are required in full mode; a portal of decisions needs no chart.
         missing = [f for f, v in (("--chart", a.chart), ("--values", a.values), ("--release", a.release)) if not v]
         if missing:
             ap.error("the following arguments are required: " + ", ".join(missing))
-    declared.require_public_lists("render_html", relabel=bool(a.relabel), barred=bool(a.barred))
+    if not fragment:
+        declared.require_public_lists("render_html", relabel=bool(a.relabel), barred=bool(a.barred))
+    if comp:
+        a.slots_given = composed.list_files("render_html", a.list, comp)
     try:
         date = a.date or datetime.datetime.now(datetime.timezone.utc).date().isoformat()
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
             raise InputError("--date must be YYYY-MM-DD")
+        if fragment:
+            write_fragment(a, date)
+            return EXIT_OK
         diagram = None if declared.portal_mode("render_html") == "decisions" \
             else make_mmdc(a.mmdc or default_mmdc(), a.puppeteer_config)
         text = build(a, diagram, date)

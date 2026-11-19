@@ -1,0 +1,19 @@
+# The composing portal of the composed fixtures. Every name in it is invented.
+kit: 1
+paths:
+  root: .
+  repo: ../..
+  decisions: ../../decisions
+name: Example Portal
+registers:
+  roadmap: ROADMAP.md
+portal:
+  mode: decisions
+  hosting: none
+  audience: private
+loader: kit_loader.py
+files:
+  composition: composition.yaml
+decisions:
+  index:
+    local_prefix: example-portal

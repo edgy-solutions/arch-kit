@@ -12,9 +12,11 @@ from __future__ import annotations
 import sys
 
 import declared
+import project
 
 
 def main() -> int:
+    project.require_portal("portal")
     if sys.argv[1:] == ["--mode"]:
         print(declared.portal_mode("portal"))
         return 0

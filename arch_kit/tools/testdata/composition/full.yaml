@@ -1,0 +1,11 @@
+# A composition of one member and one consumer. Every name is invented.
+composition: 1
+members:
+  - name: ferro
+    repo: https://example.org/ferro.git
+    commit: 0123456789abcdef0123456789abcdef01234567
+    lists: {relabel: ferro-relabel, barred: ferro-barred}
+consumers:
+  - name: gild
+    repo: https://example.org/gild.git
+    commit: 89abcdef0123456789abcdef0123456789abcdef

@@ -124,6 +124,7 @@ def facts(root: Path) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
+    project.require_portal("browser_facts")
     ap = argparse.ArgumentParser(description="Write the facts the browser check reads, from the declaration.")
     ap.add_argument("--root", default=str(project.ROOT))
     ap.add_argument("--out", required=True, help="the JSON file to write")

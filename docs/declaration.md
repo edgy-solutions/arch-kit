@@ -59,6 +59,44 @@ a chart carries only the date and the declared note, not the chart and digest li
 without it there is no roadmap page and no roadmap entry on the front page. Any other value exits 2 and the message
 names `portal.mode`. `examples/decisions-only` is a complete project in this mode.
 
+### A project with no portal: `portal: none`
+
+`portal: none` (the scalar, not the map's `portal.hosting: none`) declares a project with no portal of its own. It
+still declares what it consumes, so it needs only `kit`, `portal: none` and `consumes:`; `name` is optional. `paths`
+is optional too. When it is present it is read as it always is, and every other declaration still requires it.
+`portal: none` with no `consumes:` exits 2. `check_consumes` runs, `render_html` prints
+`portal: none: nothing to render`, writes no file and exits 0, and every other tool exits 2 with
+`arch-kit: <file>: portal: none: <tool> has no portal to check`.
+
+### What a project consumes: `consumes:`
+
+An optional list at the top level. Each entry names a portal the project depends on, or records in it, and pins it:
+
+```yaml
+consumes:
+  - portal: example-platform      # required: the consumed project's name (a prefix: lowercase letters, digits, hyphens)
+    repo: https://example.org/example-platform.git   # required: a non-empty string with no whitespace
+    commit: 0123456789abcdef0123456789abcdef01234567   # required: a full commit, 40 or 64 lowercase hex characters
+    records: [ADR-0012, capability:LabelledRecords]    # optional: omitted means the whole portal
+    why: "Labels its outbound records with the platform's label model."   # required: one line
+    drift: warn                   # optional: warn (the default) or fail
+```
+
+A branch, a tag, a short id or uppercase hex in `commit` exits 2. `records` is a non-empty list of strings, each a
+decision id or `capability:<name>`; no duplicates. A decision id has the kit-wide record id shape,
+`[A-Z][A-Z0-9]*-[0-9]+`, in any prefix and any digit count; it need not match this project's own grammar. Whether it
+is a record of the consumed project is checked only by `check_consumes` with a checkout. Two entries with the same `portal`, an unknown key, or a missing required
+key exit 2. `drift` is validated and not yet acted on. `render_html` and `check_export` validate `consumes:` and
+render nothing from it: their output is the same with or without it.
+
+`check_consumes [--checkout NAME=DIR[:DECL]]...` checks the entries against local clones. `DIR` is a clone of the
+consumed project `NAME`, and `DECL` the path of its declaration inside the clone (default
+`docs/arch/arch-kit.yaml`). For each entry with a checkout it checks that the pinned commit exists, reads the consumed
+declaration at the pin, and checks that each decision id exists at the pin, using the consumed project's own record
+grammar (`decisions.records`) and decisions directory. A `capability:` reference prints `checked when composed`: the
+tool never imports the consumed project's code. An entry with no checkout prints `not checked: no checkout given`, and
+the summary counts it as not checked, which is not a pass. Exit 0 when nothing failed, 1 on a failure, 2 on input.
+
 ## Keys a tool needs when it uses them
 
 These keys are optional when the declaration loads. A tool that needs an absent key exits 2 with:
@@ -142,6 +180,9 @@ Every `*.yaml` in it is one alignment record (see [the alignment record](design/
 stem. A declared directory that does not exist, or holds no `*.yaml`, exits 2 naming `files.alignment`. A project
 that declares neither this key nor the loader function below has no alignment records and renders as before.
 
+Another key with no default is `files.composition`: the path of the composition file, relative to the declaration
+(not to `paths.root`). Absent means no composition. See [the composition file](#the-composition-file) below.
+
 A loader may instead define `load_alignment(root)`, where `root` is `paths.root`. It returns a dict of record name to
 record, in the same shape. The function is optional: it is not one of the names every loader provides. Declaring
 `files.alignment` and defining `load_alignment` together exits 2 naming both. The records are validated the same way
@@ -161,6 +202,9 @@ decisions:
       - prefix: ferro
         pin_check: scripts/pin-stub.sh   # repository-relative; optional
 ```
+
+With `files.composition` declared, the foreign prefixes come from the composition file (below) and `foreign` must be
+absent: declaring both exits 2.
 
 `check_decision_indexes` reads it. The files are under `paths.decisions`. Every key is required except `foreign`
 (default: none) and `pin_check` (default: no pin check for that prefix); `register_homes` is also not read when the
@@ -189,6 +233,89 @@ missing key exits 2, and the message names it.
 Phase 2's composition record (`docs/design/composition.md`, ruled 2026-11-18) puts one table of known project names,
 for citations, compositions and consumption, in the composition file. The prefixes move there at its step P2-2.
 Until then `local_prefix` and `foreign` are the shape.
+
+## The composition file
+
+`files.composition` names a file beside the declaration that lists the projects a composing portal knows. It is
+the one table of known projects (see [composition](design/composition.md)): the decision index check reads its
+repository prefixes from it.
+
+```yaml
+composition: 1
+members:
+  - name: example-platform                 # a project name
+    repo: https://example.org/example-platform.git
+    commit: 0123456789abcdef0123456789abcdef01234567   # a full commit
+    declaration: docs/arch/arch-kit.yaml   # optional: its declaration in its repository; this is the default
+    lists: {relabel: platform-relabel, barred: platform-barred}   # required: slot names, never paths or values
+consumers:                                  # optional
+  - name: example-app
+    repo: https://example.org/example-app.git
+    commit: 89abcdef0123456789abcdef0123456789abcdef
+    declaration: docs/arch/arch-kit.yaml   # optional, as above
+```
+
+Every error exits 2 and names `files.composition` and the key within the file. `composition` must be 1 and
+`members` non-empty. Names are project names (lowercase letters, digits and hyphens, starting with a letter),
+unique across `members` and `consumers` together, and none may equal this project's own
+`decisions.index.local_prefix`. `repo` and `commit` follow the rules of `consumes:`. `declaration` is a plain relative
+path with no `..`. `lists` has exactly `relabel` and `barred`; each value is a slot name matching
+`[a-z0-9][a-z0-9-]*`, used once in the whole file, and never a path (a `/` or a backslash is refused). A project with
+`portal: none` that declares `files.composition` exits 2: it composes nothing.
+
+With a composition, `check_decision_indexes` takes the foreign prefixes from the file, members first and then
+consumers, each pinned at its `commit`, and runs no pin check for them. Its summary names each prefix and the first
+seven characters of its commit, and says that each cited record existing at the pin is checked when composed, not
+there. `PINS_OUT`, when set, receives a line `- <prefix> <commit> -` for each, in the shape of the pin list a pin check
+prints (citing file, prefix, commit, cited path), with `-` where the composition file has no value. Without a
+composition the tool's input and output are unchanged.
+
+### The composed build
+
+With `files.composition`, `render_html` and `check_export` build one document of every group's records: the composing
+portal's own, then each member's in file order. Both take `--checkout NAME=DIR` for every member and every
+consumer in the file (a missing, unlisted or repeated NAME, a DIR that is not a git repository, or a commit not in
+its DIR exits 2, naming `members[i]` or `consumers[i]`, never the project).
+
+- The composing portal must have `portal.mode: decisions`: a composed portal is decisions-only for now.
+- Each member is read at its pin in a temporary local clone (`git clone --shared --no-checkout`, then a detached
+  checkout), removed when the build ends. The source clone is never changed. A member with `portal: none`, a
+  `portal.mode` other than `decisions`, or its own `files.composition` is refused. Each group renders in its own
+  process by its own declaration and loader at the pin (the member's loader runs, a consumer's never does).
+- Page and anchor ids become `NAME--X`, so two groups may both have `ADR-0001`. The front page has one block per
+  group, in that group's words.
+- A "Consumed by" block lists the consumers of a record or a portal, read as data from each consumer's declaration at
+  its pin; a "Consumes" block lists what a member consumes. A consumer with `portal: none` or a non-public audience
+  shows only its name, repository and commit, never its `why`. No link leaves the page.
+- `check_export` on a composed export runs the barred, provenance, network, size, links and relabel checks and a
+  `members` check; the `decisions` check is not run.
+- `--list SLOT=FILE` (repeatable, on both tools) gives the list for a slot of `lists:` in the composition file: a
+  `relabel` slot holds a relabel list, a `barred` slot a barred list. An unknown or repeated slot, or an unreadable
+  file, exits 2. A public composing portal needs every slot, plus its own `--relabel` and `--barred`; a private one
+  may omit slots, and one stderr line names the slots that ran empty.
+- A member's relabel slot is applied to that member's records as it renders. The final pass over the document
+  applies the portal's own `--relabel` lists in order, then each member's relabel slot in file order. Two rules with
+  the same pattern and different replacements in different lists exit 2, naming both lists and rule numbers.
+- The leak scan and `check_export` run every relabel and barred list together. A finding names its list (a slot name,
+  or `--relabel N` / `--barred N`), the rule number and a count, never the value.
+- A public composing portal refuses a member whose own audience is not public, before any clone is made; the
+  message names the position (`members[i]`), not the project.
+- Each "Consumed by" and "Consumes" entry on a group of this export shows a pin state,
+  `<span class="pin" data-pin="STATE">`, from the consumer's commit C against the consumed group's commit D (the
+  composition file's pin for a member, `HEAD` for the composing portal). Per named record, first match wins:
+  `pin-not-found` (C is not in the repository), `record-not-found` (no file of that id at C, by the consumed project's
+  grammar; a fifth state the design did not name, so a record that was never there is not shown as current),
+  `superseded` (the record's status at D is declared with `in_force: false`), `changed` (the record's file at D is
+  absent or differs from C's), `current`. An entry with no `records` shows one state: `pin-not-found`, else `changed`
+  if any file of the decisions directory differs between C and D, else `current`. The composed build never fails on a
+  state. With no `statuses` declared, `in_force` is unknown and `superseded` never shows.
+- `check_consumes` compares each entry with a `--checkout` against that clone's `HEAD`: a named record (or the decisions
+  directory, for an entry with no `records`) changed since the pin prints `warn: consumes[i]: changed since the pin:
+  IDS` with `drift: warn` (the default, exit unchanged) and `FAIL: ...` with `drift: fail` (exit 1). It cannot compute
+  "superseded since": that needs the consumed project's loader, and the check imports no other project's code. Its
+  summary line says so.
+- A member may declare `portal.composed_in: NAME`, which adds one sentence to its own standalone render naming the
+  composing portal. Without the key its output is unchanged.
 
 ## A complete example
 

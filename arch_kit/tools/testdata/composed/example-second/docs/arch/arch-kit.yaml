@@ -1,0 +1,21 @@
+# The second member of the composed fixtures: its own grammar, statuses and loader. Every name in it is invented.
+kit: 1
+paths:
+  root: .
+  repo: ../..
+  decisions: ../../decisions
+name: Example Second
+registers:
+  roadmap: ROADMAP.md
+portal:
+  mode: decisions
+  hosting: none
+  audience: public
+loader: second_loader.py
+decisions:
+  records:
+    prefix: DR
+    digits: 3
+statuses:
+  - {word: Adopted, lead: adopted, in_force: true}
+  - {word: Retired, lead: retired, in_force: false}

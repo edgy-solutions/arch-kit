@@ -1,0 +1,3 @@
+# A consumer with no portal of its own. The tests add its consumes: entries, because they pin real commits.
+kit: 1
+portal: none

@@ -1,0 +1,18 @@
+# A consumer that consumes two portals. Every name is invented.
+kit: 1
+paths:
+  root: .
+  repo: .
+  decisions: .
+name: Example App
+consumes:
+  - portal: example-platform
+    repo: https://example.org/example-platform.git
+    commit: 0123456789abcdef0123456789abcdef01234567
+    records: [ADR-0012, "capability:LabelledRecords"]
+    why: "Labels its outbound records with the platform's label model."
+    drift: fail
+  - portal: example-second
+    repo: https://example.org/example-second.git
+    commit: 89abcdef0123456789abcdef0123456789abcdef
+    why: "Reads its published schemas."

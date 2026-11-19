@@ -1,0 +1,17 @@
+# A member of the composed fixtures. Every name in it is invented.
+kit: 1
+paths:
+  root: .
+  repo: ../..
+  decisions: ../../decisions
+name: Example Platform
+registers:
+  roadmap: ROADMAP.md
+portal:
+  mode: decisions
+  hosting: none
+  audience: public
+loader: kit_loader.py
+statuses:
+  - {word: Accepted, lead: accepted, in_force: true}
+  - {word: Superseded, lead: superseded, in_force: false}

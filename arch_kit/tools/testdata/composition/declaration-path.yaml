@@ -1,0 +1,11 @@
+composition: 1
+members:
+  - name: ferro
+    repo: https://example.org/ferro.git
+    commit: 0123456789abcdef0123456789abcdef01234567
+    declaration: docs/other/arch-kit.yaml
+    lists: {relabel: ferro-relabel, barred: ferro-barred}
+consumers:
+  - name: gild
+    repo: https://example.org/gild.git
+    commit: 89abcdef0123456789abcdef0123456789abcdef
