@@ -1,0 +1,52 @@
+# The example's alignment record. Every name in it is invented, except the kit's own seed.
+title: Sorrel against two references
+status: draft
+context: |
+  How the lockers project compares with the references its owner named.
+
+  - The first reference is compared in part: its roles only, and one element of our own.
+  - The second is cited by title, because its terms are not confirmed.
+references:
+  - key: dcra
+    read: partial
+    read_note: "Appendix 9 read in full; the other appendices not read"
+    obtained: "supplied by the project owner"
+    seed: nato-dcra-v2
+    groups: ["Appendix 9: roles"]
+    elements:
+      - {id: parcel-log, name: Parcel log, where: "Project note 1", group: "Project additions"}
+  - key: lockers-standard
+    title: Example Standard for Parcel Lockers
+    edition: "2024"
+    read: title-only
+    read_note: "Named by the owner; not yet obtained"
+    terms:
+      status: unconfirmed
+      basis: "the publisher's terms have not been checked"
+      cite: "title only"
+rows:
+  - ref: dcra
+    element: ap9-pep
+    counterpart: "The locker's own check before it opens"
+    correspondence: corresponds
+    evidence: [ADR-0001, decisions/README.md]
+    note: "Each locker asks and applies the answer, even offline."
+  - ref: dcra
+    element: ap9-pdp
+    counterpart: "The depot's routing rules"
+    correspondence: partial
+    evidence: [ADR-0002]
+    note: "Routing is decided at the depot; access is not."
+    owed: ADR-0003
+  - ref: dcra
+    element: ap9-pip
+    correspondence: none
+    note: "Nothing supplies attributes to a decision."
+    owed: ADR-0003
+  - ref: dcra
+    element: ap9-pap
+    correspondence: not-applicable
+    note: "The project has one operator and no policy authoring."
+  - ref: dcra
+    element: parcel-log
+    correspondence: not_assessed

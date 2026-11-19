@@ -145,7 +145,7 @@ that declares neither this key nor the loader function below has no alignment re
 A loader may instead define `load_alignment(root)`, where `root` is `paths.root`. It returns a dict of record name to
 record, in the same shape. The function is optional: it is not one of the names every loader provides. Declaring
 `files.alignment` and defining `load_alignment` together exits 2 naming both. The records are validated the same way
-whichever route they come by (`arch_kit/schema/alignment.schema.json`), and the first error exits 2.
+whichever route they come by (`arch_kit/schema/alignment.schema.json`), and the first error exits 2. A record name from a loader must match `[a-z0-9][a-z0-9-]*`, the same pattern a file stem must match.
 
 ### The decision index
 
