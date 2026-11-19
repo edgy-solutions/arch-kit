@@ -1,15 +1,16 @@
 # Design record: composed portals and the "consumer of" relation
 
-**Status: proposed, with proposed answers to its questions, pending the project owner's ruling. Nothing is built.**
+**Status: ruled by the project owner on 2026-11-18. All seven answers stand as proposed; question 4 is ruled as
+guidance, not a rule the kit enforces. Nothing is built.**
 
-Proposes a decision: one portal can compose the records of other projects, and any project can declare that it
+Records a decision: one portal can compose the records of other projects, and any project can declare that it
 consumes a portal or part of one. Consumption is declared by the consumer only, is rendered on both sides, and every
 link is pinned to a commit.
 
 Phase 2 of the kit. It builds on Phase 1 (`v0.1.0`), where one project's records render as one portal from one
 declaration (`arch-kit.yaml`) through a loader the project supplies. This record decides the shape of the relations,
 the declaration, how a composed export keeps each component's own words, and how its names are checked. The build
-steps at the end are a sketch, to be specified once this is ruled.
+steps at the end are a sketch, to be specified next.
 
 ## 1. Three relations, one vocabulary
 
@@ -112,7 +113,8 @@ threshold: **its fifth accepted decision record**. At that point the application
 portal. It is then either composed as a component, if its records belong in the composed portal, or stays a consumer
 with a portal of its own.
 
-The number is a proposal for the project owner to rule.
+Ruled on 2026-11-18 as guidance: the fifth accepted record is when to consider a portal. The kit does not count
+records and does not enforce the number; the application's owner decides.
 
 ## 7. Each component keeps its own declaration
 
@@ -167,7 +169,7 @@ and the export declares its hosting and audience.
 - A software development kit or any runtime dependency between projects. This record covers architecture records
   only.
 
-## 10. Build steps, once ruled (sketch)
+## 10. Build steps (sketch)
 
 | Step | What | Proves |
 |---|---|---|
@@ -185,7 +187,7 @@ its decision index check runs that pin check. Phase 1 step S6a carries it over a
 (`decisions.index.foreign[].pin_check`). P2-1's `commit` is the same pin, declared rather than scripted. P2-2 should
 replace the script with that declaration, not run beside it, so a project has one pin for each peer, not two.
 
-## Questions for the ruling
+## The questions ruled
 
 Each question names the alternative.
 
@@ -207,16 +209,16 @@ Each question names the alternative.
 7. Is a `private` component in a `public` composed portal refused outright (§8)? The alternative is to leave it out,
    with a warning.
 
-## Proposed answers, pending the ruling
+## The ruling
 
-These are recommendations, not the ruling. Question 4 is left to the project owner.
+The project owner ruled these answers on 2026-11-18, as proposed. Question 4 is ruled as guidance.
 
-1. **Yes, the consumer declares.** The project owner has already ruled this, on 2026-11-16.
+1. **Yes, the consumer declares.** First ruled on 2026-11-16, and confirmed with the rest on 2026-11-18.
 2. **Yes, `portal: none`.** It is an explicit value, so a missing portal is always declared and never assumed.
 3. **Yes, a warning by default.** Drift never fails the consumed side's build. A consumer can declare itself strict
    with `drift: fail`, and then its own build fails on its own stale pin.
-4. **The project owner's question.** The recommendation is that five accepted decision records be guidance, not a
-   rule the kit enforces.
+4. **Guidance, not a rule.** An application considers a portal of its own at its fifth accepted decision record.
+   The kit does not enforce the number.
 5. **Re-render each component from its sources.** One kit version then renders everything, and every check runs on
    the whole export. Stitching finished exports would mix kit versions, and would trust each component's own build.
    The cost is that the composed build needs read access to every component's repository.

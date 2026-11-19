@@ -152,9 +152,9 @@ missing key exits 2, and the message names it.
 - **Messages** are built from the declaration. "Known repos: A, B." lists `local_prefix`, then each foreign prefix in
   order. With more than one foreign entry the per-foreign summary lines repeat once per entry, in order.
 
-Phase 2's composition record (arch-kit issue 6, a draft) proposes one table of known project names, for citations,
-compositions and consumption. If it is ruled, the prefixes move there. Until then `local_prefix` and `foreign` are
-the shape.
+Phase 2's composition record (`docs/design/composition.md`, ruled 2026-11-18) puts one table of known project names,
+for citations, compositions and consumption, in the composition file. The prefixes move there at its step P2-2.
+Until then `local_prefix` and `foreign` are the shape.
 
 ## A complete example
 
