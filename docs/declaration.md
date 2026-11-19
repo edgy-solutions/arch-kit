@@ -53,8 +53,9 @@ reads it to decide what to publish. `audience` drives the rule above.
 nothing else. The kit does not read or require the capability record or its loader functions (`load_record`,
 `model_capabilities`, `resolve_entries`, `quote_of`, `measured_line`, `resolve_quotes`), the views, profiles, slots,
 appendix, inventory, the readiness file or the model, and it draws no diagram. The loader needs only the decision
-functions (`read_text`, `adr_file`, `adr_lead`, `adr_status`, `index_status`). `render_html` still takes `--chart`
-and `--values`, because every page carries the chart's provenance line. The roadmap file is optional in this mode:
+functions (`read_text`, `adr_file`, `adr_lead`, `adr_status`, `index_status`). No chart is needed:
+`render_html` takes `--chart`, `--values` and `--release` here but does not require them, and a page rendered without
+a chart carries only the date and the declared note, not the chart and digest lines. The roadmap file is optional in this mode:
 without it there is no roadmap page and no roadmap entry on the front page. Any other value exits 2 and the message
 names `portal.mode`. `examples/decisions-only` is a complete project in this mode.
 

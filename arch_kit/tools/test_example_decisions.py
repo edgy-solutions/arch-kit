@@ -56,8 +56,7 @@ def tool(root: Path, name: str, *args: str, config: str = "arch-kit.yaml") -> su
 
 
 def render(root: Path, out: Path, config: str = "arch-kit.yaml") -> subprocess.CompletedProcess:
-    return tool(root, "render_html", "--out", str(out), "--chart", "chart", "--values", "values.yaml",
-                "--release", "larkspur", "--barred", "barred.txt", "--date", DATE, config=config)
+    return tool(root, "render_html", "--out", str(out), "--barred", "barred.txt", "--date", DATE, config=config)
 
 
 def check(root: Path, out: Path) -> subprocess.CompletedProcess:
@@ -123,6 +122,36 @@ class Example(unittest.TestCase):
                 render(self.root, self.out, "bad.yaml")
             self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
             self.assertIn("portal.mode", p.stderr)
+
+    def test_no_chart_means_no_chart_provenance_line_and_check_export_passes(self):
+        p = render(self.root, self.out)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        text = self.out.read_text(encoding="utf-8")
+        self.assertNotIn('data-prov="chart"', text)
+        self.assertNotIn('data-prov="digest"', text)
+        self.assertIn('data-prov="date"', text)
+        p = check(self.root, self.out)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+    def test_a_chart_given_in_decisions_mode_is_still_recorded(self):
+        chart = self.root / "chart"
+        chart.mkdir()
+        (chart / "Chart.yaml").write_text("apiVersion: v2" + chr(10) + "name: demo" + chr(10) + "version: 0.1.0" + chr(10), encoding="utf-8")
+        (self.root / "values.yaml").write_text("a: 1" + chr(10), encoding="utf-8")
+        p = tool(self.root, "render_html", "--out", str(self.out), "--chart", "chart", "--values", "values.yaml",
+                 "--release", "demo", "--barred", "barred.txt", "--date", DATE)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("Chart: demo 0.1.0", self.out.read_text(encoding="utf-8"))
+        self.assertEqual(check(self.root, self.out).returncode, 0)
+
+    def test_full_mode_still_requires_the_chart_flags(self):
+        minimal = KIT / "examples" / "minimal"
+        env = dict(os.environ, PYTHONPATH=str(KIT), PYTHONIOENCODING="utf-8")
+        p = subprocess.run([sys.executable, "-m", "arch_kit", "--config", "arch-kit.yaml", "render_html", "--out",
+                            str(self.out), "--barred", "barred.txt"], cwd=minimal, env=env, capture_output=True,
+                           text=True, encoding="utf-8")
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertIn("the following arguments are required: --chart, --values, --release", p.stderr)
 
     def test_portal_prints_the_mode_and_full_when_absent(self):
         p = tool(self.root, "portal", "--mode")

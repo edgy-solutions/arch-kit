@@ -773,6 +773,11 @@ def values_digest(values: list[str]) -> str:
 
 
 def provenance(a: argparse.Namespace, date: str) -> str:
+    if declared.portal_mode("render_html") == "decisions" and not getattr(a, "chart", None):
+        # No chart: the page names only the date and the declared note; the commit stamp names the record's source.
+        return ('<div class="provenance" data-provenance>'
+                f'<p data-prov="date">Generated: {esc(date)}</p>'
+                f'<p data-prov="declared">{esc(DECLARED)}</p></div>')
     chart = rp.load_yaml(Path(a.chart) / "Chart.yaml") or {}
     name, version = chart.get("name"), chart.get("version")
     if not name or version is None:
@@ -1452,9 +1457,9 @@ def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Render the architecture views as one HTML file.")
     ap.add_argument("--out", required=True, help="the file to write")
-    ap.add_argument("--chart", required=True)
-    ap.add_argument("--values", action="append", default=[], required=True)
-    ap.add_argument("--release", required=True, help="the Helm release name the chart is rendered under")
+    ap.add_argument("--chart")
+    ap.add_argument("--values", action="append", default=[])
+    ap.add_argument("--release", help="the Helm release name the chart is rendered under")
     ap.add_argument("--readiness", help="the readiness doc (default: the declared readiness.default, from the chart directory)")
     ap.add_argument("--record", default=str(ROOT / declared.content_file("record", "render_html")))
     ap.add_argument("--slots")
@@ -1466,6 +1471,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--mmdc", help="the mermaid-cli binary (default: docs/arch/tools/export/node_modules/.bin/mmdc)")
     ap.add_argument("--puppeteer-config", help="a puppeteer config file for mermaid-cli")
     a = ap.parse_args(argv)
+    if declared.portal_mode("render_html") != "decisions":
+        # --chart, --values and --release are required in full mode; a portal of decisions needs no chart.
+        missing = [f for f, v in (("--chart", a.chart), ("--values", a.values), ("--release", a.release)) if not v]
+        if missing:
+            ap.error("the following arguments are required: " + ", ".join(missing))
     declared.require_public_lists("render_html", relabel=bool(a.relabel), barred=bool(a.barred))
     try:
         date = a.date or datetime.datetime.now(datetime.timezone.utc).date().isoformat()

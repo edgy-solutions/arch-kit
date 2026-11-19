@@ -127,8 +127,5 @@ jobs:
         uses: ./
         with:
           config: examples/decisions-only/arch-kit.yaml
-          chart: examples/decisions-only/chart
-          release: larkspur
-          values: examples/decisions-only/values.yaml
           barred: examples/decisions-only/barred.txt
           out: ${{ runner.temp }}/arch-kit-export-3

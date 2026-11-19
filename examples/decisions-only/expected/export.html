@@ -103,7 +103,7 @@ nav.views ul,nav.capabilities ul,nav.decisions ul{columns:2 280px;padding-left:1
 <header class="bar"><span class="sys">Larkspur</span><a href="#front">Front page</a><input id="q" type="search" placeholder="Search" aria-label="Search the decision records" autocomplete="off"></header>
 <div id="results" hidden></div>
 <main>
-<section id="front" class="page" data-front><h1>Larkspur: decision records</h1><p class="relabel" data-relabel>Decision records are shown verbatim.</p><nav class="decisions"><h2>Decision records</h2><ul><li><a href="#adr-0001">ADR-0001 Lockers accept parcels offline</a></li><li><a href="#adr-0002">ADR-0002 The depot routes parcels by size</a></li><li><a href="#adr-0003">ADR-0003 Lockers wait for the depot</a></li></ul></nav><div class="provenance" data-provenance><p data-prov="chart">Chart: larkspur 0.1.0</p><p data-prov="digest">Bundle digest: sha256:06cb32c566b10e594d85d898f633088596ae1859dd038c30acb4a91291a2bbaf <span class="note">of the values files read, in order: values.yaml</span></p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="front" class="page" data-front><h1>Larkspur: decision records</h1><p class="relabel" data-relabel>Decision records are shown verbatim.</p><nav class="decisions"><h2>Decision records</h2><ul><li><a href="#adr-0001">ADR-0001 Lockers accept parcels offline</a></li><li><a href="#adr-0002">ADR-0002 The depot routes parcels by size</a></li><li><a href="#adr-0003">ADR-0003 Lockers wait for the depot</a></li></ul></nav><div class="provenance" data-provenance><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
 <section id="adr-0001" class="page decision" data-decision="ADR-0001"><h1>ADR-0001 Lockers accept parcels offline</h1><p class="stamp" data-stamp>Commit SHA, DATE: decisions/0001-lockers-accept-parcels-offline.md</p><p><a href="#front">Front page</a></p><div class="body"><h2 id="adr-0001-status">Status</h2>
 <p>Accepted.</p>
 <h2 id="adr-0001-1-decision">1. Decision</h2>
@@ -111,7 +111,7 @@ nav.views ul,nav.capabilities ul,nav.decisions ul{columns:2 280px;padding-left:1
 record until the link returns, then sends it on.</p>
 <h2 id="adr-0001-2-consequences">2. Consequences</h2>
 <p>The depot learns of a parcel later than the sender does. A receipt is not proof that the depot has the record.</p>
-</div><div class="provenance" data-provenance><p data-prov="chart">Chart: larkspur 0.1.0</p><p data-prov="digest">Bundle digest: sha256:06cb32c566b10e594d85d898f633088596ae1859dd038c30acb4a91291a2bbaf <span class="note">of the values files read, in order: values.yaml</span></p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+</div><div class="provenance" data-provenance><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
 <section id="adr-0002" class="page decision" data-decision="ADR-0002"><h1>ADR-0002 The depot routes parcels by size</h1><p class="stamp" data-stamp>Commit SHA, DATE: decisions/0002-depot-routes-parcels-by-size.md</p><p><a href="#front">Front page</a></p><div class="body"><h2 id="adr-0002-status">Status</h2>
 <p>Accepted.</p>
 <h2 id="adr-0002-1-decision">1. Decision</h2>
@@ -123,12 +123,12 @@ describes.</p>
 <p><code>Status: open</code>
 <strong>OF-1 — A parcel with no size class</strong></p>
 <p>Until it is decided, the depot holds such a parcel at the bay.</p>
-</div><div class="provenance" data-provenance><p data-prov="chart">Chart: larkspur 0.1.0</p><p data-prov="digest">Bundle digest: sha256:06cb32c566b10e594d85d898f633088596ae1859dd038c30acb4a91291a2bbaf <span class="note">of the values files read, in order: values.yaml</span></p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+</div><div class="provenance" data-provenance><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
 <section id="adr-0003" class="page decision" data-decision="ADR-0003"><h1>ADR-0003 Lockers wait for the depot</h1><p class="stamp" data-stamp>Commit SHA, DATE: decisions/0003-lockers-wait-for-the-depot.md</p><p><a href="#front">Front page</a></p><div class="body"><h2 id="adr-0003-status">Status</h2>
 <p>Superseded by ADR-0001.</p>
 <h2 id="adr-0003-1-decision">1. Decision</h2>
 <p>A locker refuses every parcel while its link to the depot is down. ADR-0001 replaces this.</p>
-</div><div class="provenance" data-provenance><p data-prov="chart">Chart: larkspur 0.1.0</p><p data-prov="digest">Bundle digest: sha256:06cb32c566b10e594d85d898f633088596ae1859dd038c30acb4a91291a2bbaf <span class="note">of the values files read, in order: values.yaml</span></p><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+</div><div class="provenance" data-provenance><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
 </main>
 <script>
 (function () {

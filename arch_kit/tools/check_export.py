@@ -115,6 +115,8 @@ def check_provenance(raw: str) -> list[str]:
     fails: list[str] = []
     if not any(pid == "front" for pid, _ in pages):
         fails.append("provenance: there is no front page")
+    # A decisions-only portal rendered with no chart carries neither the chart nor the digest part.
+    optional = ("chart", "digest") if declared.portal_mode("check_export") == "decisions" else ()
     seen: dict[str, set[str]] = {k: set() for k in PARTS}
     for pid, body in pages:
         if 'data-provenance' not in body:
@@ -123,6 +125,8 @@ def check_provenance(raw: str) -> list[str]:
         block = body[body.index("data-provenance"):]
         found = {k: plain(v) for k, v in PART_RE.findall(block)}
         for k, pat in PARTS.items():
+            if k not in found and k in optional:
+                continue
             if k not in found:
                 fails.append(f"provenance: page {pid} lacks the {k} part")
             elif not pat.match(found[k]):
