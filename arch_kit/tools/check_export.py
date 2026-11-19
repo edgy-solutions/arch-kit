@@ -208,8 +208,9 @@ def check_decisions(raw: str, tree: check_views.Tree) -> list[str]:
     fails: list[str] = []
     pages = {pid: body for pid, body in PAGE_RE.findall(raw) if pid.startswith((declared.record_id("check_export")[0].lower() + "-", "decision-"))}
     directory = project.DECISIONS
+    roadmap = declared.portal_mode("check_export") != "decisions" or (directory / capability_phases.roadmap_file()).is_file()
     if directory.is_dir():
-        want = sorted(declared.record_id_of_file("check_export", f.name).lower() for f in directory.glob(declared.record_file_patterns("check_export")[1]) if declared.record_id_of_file("check_export", f.name)) + ["decision-roadmap"]
+        want = sorted(declared.record_id_of_file("check_export", f.name).lower() for f in directory.glob(declared.record_file_patterns("check_export")[1]) if declared.record_id_of_file("check_export", f.name)) + ["decision-roadmap"] * roadmap
         got = sorted(i for i in pages if i != "decision-roadmap") + ["decision-roadmap"] * ("decision-roadmap" in pages)
         if got != want:
             fails.append(f"decisions: the export has {len(pages)} decision pages, decisions/ has {len(want)}"
@@ -250,13 +251,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--relabel", action="append", default=[], help="a relabel list the export was rendered with")
     a = ap.parse_args(argv)
     declared.require_public_lists("check_export", relabel=bool(a.relabel))
+    decisions_only = declared.portal_mode("check_export") == "decisions"
     try:
         try:
             data = Path(a.export).read_bytes()
         except OSError as e:
             raise InputError(f"cannot read {a.export}: {e.strerror or e}")
         raw = data.decode("utf-8", "replace")
-        tree = check_views.Tree(Path(a.root))
+        tree = None if decisions_only else check_views.Tree(Path(a.root))
         try:
             barred = load_barred(a.barred)
         except CheckError as e:
@@ -265,17 +267,25 @@ def main(argv: list[str] | None = None) -> int:
     except (InputError, DataInputError, check_views.InputError, KeyError) as e:
         print(f"error: {e}", file=sys.stderr)
         return EXIT_INPUT
-    fails = (check_views_equal(raw, tree) + check_barred(raw, barred) + check_provenance(raw)
-             + check_network(raw) + check_size(len(data)) + check_links(raw)
-             + check_diagrams(raw, tree) + check_exceptions(raw) + check_declarations(raw, tree)
-             + check_capabilities(raw, tree) + check_decisions(raw, tree)
-             + (check_relabel(raw, rules) if a.relabel else []))
+    if decisions_only:
+        # No views, record, diagrams or declarations page: the decision pages and the structural checks only.
+        fails = (check_barred(raw, barred) + check_provenance(raw) + check_network(raw) + check_size(len(data))
+                 + check_links(raw) + check_decisions(raw, tree)
+                 + (check_relabel(raw, rules) if a.relabel else []))
+    else:
+        fails = (check_views_equal(raw, tree) + check_barred(raw, barred) + check_provenance(raw)
+                 + check_network(raw) + check_size(len(data)) + check_links(raw)
+                 + check_diagrams(raw, tree) + check_exceptions(raw) + check_declarations(raw, tree)
+                 + check_capabilities(raw, tree) + check_decisions(raw, tree)
+                 + (check_relabel(raw, rules) if a.relabel else []))
     for f in fails:
         print(f"FAIL: {f}", file=sys.stderr)
     if fails:
         return EXIT_CHECK
-    print(f"ok: export: {len(PAGE_RE.findall(raw))} pages, {len(tree.views)} views, equal to check_views; "
-          f"{diagram_count(raw)} diagrams; "
+    shape = (f"{len(PAGE_RE.findall(raw))} pages, decisions only; " if decisions_only else
+             f"{len(PAGE_RE.findall(raw))} pages, {len(tree.views)} views, equal to check_views; "
+             f"{diagram_count(raw)} diagrams; ")
+    print(f"ok: export: {shape}"
           f"{len(data)} bytes; barred: 0 on {len(barred)} entries of "
           f"{', '.join(Path(p).name for p in a.barred)}"
           + (f"; relabel: 0 survivors on {len(rules)} rules" if a.relabel else ""))

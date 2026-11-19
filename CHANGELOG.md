@@ -9,6 +9,7 @@ output is unchanged.
 - `decisions.index.readme` is also read by `capability_phases` when the other `decisions.index` keys are absent.
 - `decisions.records.prefix` and `.digits`: the decision record id and file name.
 - `decisions.records.file_prefix`: false names a record file `<digits>-<slug>.md`; the record id keeps its prefix.
+- `portal.mode`: `decisions` makes a portal of the decision records, their index and the roadmap note, with no capability record, views or model (`examples/decisions-only`). The default is `full`.
 - `decisions.index.register_id.letters` and `.digits`: the register id grammar of `check_decision_indexes`.
 - `derived.roadmap.increments` and `.fold_ins`: the roadmap note's table headers.
 

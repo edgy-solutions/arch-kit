@@ -30,6 +30,7 @@ naming the file and the key.
 portal:
   hosting: ci-artifact     # ci-artifact | static-site | none
   audience: public         # public | private
+  mode: full               # optional: full (the default) | decisions
 ```
 
 `portal`, `portal.hosting` and `portal.audience` are all required. The tools that read them, `render_html` and
@@ -46,6 +47,16 @@ checks off. Any other value exits 2 and the message lists the allowed values.
 
 `hosting` is declared and validated only. No tool changes what it does because of it. The Action added in step S6
 reads it to decide what to publish. `audience` drives the rule above.
+
+`portal.mode` is optional. `full` (the default when the key is absent) is the portal as it has always been.
+`decisions` is a portal of the decision records, their index and the roadmap note when the project has one, and
+nothing else. The kit does not read or require the capability record or its loader functions (`load_record`,
+`model_capabilities`, `resolve_entries`, `quote_of`, `measured_line`, `resolve_quotes`), the views, profiles, slots,
+appendix, inventory, the readiness file or the model, and it draws no diagram. The loader needs only the decision
+functions (`read_text`, `adr_file`, `adr_lead`, `adr_status`, `index_status`). `render_html` still takes `--chart`
+and `--values`, because every page carries the chart's provenance line. The roadmap file is optional in this mode:
+without it there is no roadmap page and no roadmap entry on the front page. Any other value exits 2 and the message
+names `portal.mode`. `examples/decisions-only` is a complete project in this mode.
 
 ## Keys a tool needs when it uses them
 

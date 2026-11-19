@@ -1,0 +1,6 @@
+system:
+  name: Larkspur
+regions:
+  - id: depot
+edges:
+  - id: kiosk

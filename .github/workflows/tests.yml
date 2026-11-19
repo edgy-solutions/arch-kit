@@ -121,3 +121,14 @@ jobs:
         run: |
           test "$HOSTING" = ci-artifact
           if [ -z "$ARTIFACT" ]; then echo "no artifact was uploaded with hosting ci-artifact"; exit 1; fi
+
+      # portal.mode: decisions skips check_views and the browser check; the rest of the chain must pass.
+      - name: Run the Action, decisions-only portal
+        uses: ./
+        with:
+          config: examples/decisions-only/arch-kit.yaml
+          chart: examples/decisions-only/chart
+          release: larkspur
+          values: examples/decisions-only/values.yaml
+          barred: examples/decisions-only/barred.txt
+          out: ${{ runner.temp }}/arch-kit-export-3

@@ -1,0 +1,2 @@
+# A barred list that matches nothing in this project. One regex per line, case-insensitive, optional |label.
+no-such-value-in-this-example|format sample

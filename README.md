@@ -217,7 +217,7 @@ filled at render time.
 | `derived` | Builds the tables a view takes from a declared artefact instead of writing them |
 | `marks` | Fills a Sources row's Evidence from the cited record's status line |
 | `adr_sections` | Reads a decision record's sections, and resolves `ADR-NNNN §LABEL` citations |
-| `portal` | Prints the declared `portal.hosting` and `portal.audience` on one line, for the Action |
+| `portal` | Prints the declared `portal.hosting` and `portal.audience` on one line, for the Action; with `--mode`, the declared `portal.mode` |
 | `relabel` | Replaces internal names in decision records as they are exported. The sources are not changed |
 | `validate_sysml` | Parses the model with the reference parser, and proves the parser rejects two broken copies |
 

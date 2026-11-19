@@ -165,6 +165,7 @@ def home(name: str, tool: str) -> str:
 
 HOSTINGS = ("ci-artifact", "static-site", "none")
 AUDIENCES = ("public", "private")
+MODES = ("full", "decisions")
 
 
 def _portal(field: str, allowed: tuple, tool: str) -> str:
@@ -185,6 +186,20 @@ def portal_hosting(tool: str) -> str:
 def portal_audience(tool: str) -> str:
     """Who may read the portal: public or private. A public audience makes check_export and render_html require lists."""
     return _portal("audience", AUDIENCES, tool)
+
+
+def portal_mode(tool: str) -> str:
+    """What the portal holds: `full` (the default when `portal.mode` is absent) or `decisions`, the decision records,
+    their index and the roadmap only. Unlike hosting and audience the key is optional."""
+    node = project.CONFIG.get("portal")
+    if node is None:
+        return "full"
+    if not isinstance(node, dict):
+        _bad("portal", "must be a map")
+    mode = node.get("mode", "full")
+    if mode not in MODES:
+        _bad("portal.mode", f"{mode!r} is not one of {', '.join(MODES)}")
+    return mode
 
 
 def require_public_lists(tool: str, **given: bool) -> None:
