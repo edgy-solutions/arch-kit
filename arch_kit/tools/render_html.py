@@ -56,6 +56,7 @@ import yaml
 
 try:
     from markdown_it import MarkdownIt
+    from markdown_it.common.utils import escapeHtml
 except ImportError:  # reported as an input error by main
     MarkdownIt = None
 
@@ -443,8 +444,34 @@ class Decisions:
         return self.page_id(key)
 
 
+BREAK_AFTER = re.compile(r"[^/#?&=_\-.:]*[/#?&=_\-.:]|[^/#?&=_\-.:]+")
+LONG_RUN = re.compile(r"\S{24,}")
+
+
+def _break_run(run: str, escape) -> str:
+    """One unbroken run, escaped piece by piece with a <wbr> between the pieces: after each of / # ? & = _ - . :
+    and, inside a piece longer than 20 characters, after every 20th character."""
+    pieces: list[str] = []
+    for seg in BREAK_AFTER.findall(run):
+        pieces += [seg[i:i + 20] for i in range(0, len(seg), 20)]
+    return "<wbr>".join(escape(p) for p in pieces)
+
+
+def escape_breaks(text: str, escape=esc) -> str:
+    """`text` escaped, with break opportunities in each run of 24 or more characters without whitespace."""
+    out, at = [], 0
+    for m in LONG_RUN.finditer(text):
+        out.append(escape(text[at:m.start()]))
+        out.append(_break_run(m.group(0), escape))
+        at = m.end()
+    out.append(escape(text[at:]))
+    return "".join(out)
+
+
 class Page:
     """Markdown to html for one view, with the link, slot, table and diagram rules applied."""
+
+    breaks = True  # long tokens in table cells get <wbr> break opportunities
 
     def __init__(self, vid: str, views: dict, diagram: Diagram, dec: Decisions | None = None):
         self.vid, self.views, self.diagram, self.dec = vid, views, diagram, dec
@@ -453,8 +480,14 @@ class Page:
         self.stack: list[tuple[str, str, str]] = []
         self.exceptions = 0
         self.in_h1 = False
+        self.in_cell = False
         md = MarkdownIt("commonmark", {"html": False}).enable("table")
         md.renderer.rules["fence"] = self.fence
+        for tag in ("td_open", "th_open"):
+            md.renderer.rules[tag] = self.cell_open
+        for tag in ("td_close", "th_close"):
+            md.renderer.rules[tag] = self.cell_close
+        md.renderer.rules["code_inline"] = self.code_inline
         md.renderer.rules["text"] = self.text
         md.renderer.rules["link_open"] = self.link_open
         md.renderer.rules["link_close"] = self.link_close
@@ -483,6 +516,24 @@ class Page:
         self.in_h1 = False
         return self.md.renderer.renderToken(tokens, idx, options, env)
 
+    def cell_open(self, tokens, idx, options, env) -> str:
+        self.in_cell = True
+        return self.md.renderer.renderToken(tokens, idx, options, env)
+
+    def cell_close(self, tokens, idx, options, env) -> str:
+        self.in_cell = False
+        return self.md.renderer.renderToken(tokens, idx, options, env)
+
+    def esc_text(self, text: str) -> str:
+        """Escaped text; in a table cell, with break opportunities in long tokens."""
+        return escape_breaks(text) if self.breaks and self.in_cell else esc(text)
+
+    def code_inline(self, tokens, idx, options, env) -> str:
+        if not (self.breaks and self.in_cell):
+            return self.md.renderer.code_inline(tokens, idx, options, env)
+        tok = tokens[idx]
+        return f"<code{self.md.renderer.renderAttrs(tok)}>{escape_breaks(tok.content, escapeHtml)}</code>"
+
     def text(self, tokens, idx, options, env) -> str:
         parts = rp.SLOT_RE.split(tokens[idx].content)
         out = []
@@ -493,17 +544,17 @@ class Page:
     def cited(self, text: str) -> str:
         """Escaped text, with each `ADR-NNNN §LABEL` a link to its section. Not inside a link or an h1."""
         if self.dec is None or self.stack or self.in_h1:
-            return esc(text)
+            return self.esc_text(text)
         out, at = [], 0
         for m in adr_sections.CITATION_IN_TEXT_RE.finditer(text):
-            out.append(esc(text[at:m.start()]))
+            out.append(self.esc_text(text[at:m.start()]))
             try:
                 anchor = self.dec.cite(m.group(1), m.group(2))
             except LookupError as e:
                 raise CheckError(f"{self.vid}: {m.group(0)}: {e.args[0]}\n") from None
             out.append(f'<a href="#{esc(anchor)}">{esc(m.group(1))} §{esc(self.dec.shown(m.group(1), m.group(2)))}</a>')
             at = m.end()
-        out.append(esc(text[at:]))
+        out.append(self.esc_text(text[at:]))
         return "".join(out)
 
     @staticmethod
@@ -594,6 +645,8 @@ class Page:
 
 class DecisionPage(Page):
     """One decision record's body: links to the other records and the views, a heading id per h2 to h4."""
+
+    breaks = False
 
     def __init__(self, key: str, views: dict, dec: Decisions):
         super().__init__(key, views, lambda source, svg_id: "", dec)
