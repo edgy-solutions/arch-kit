@@ -1,0 +1,2 @@
+# A barred list that matches nothing in these fixtures. One regex per line, case-insensitive.
+no-such-value-in-these-fixtures|format sample

@@ -5,6 +5,10 @@
 New optional declaration keys for what 0.1.0 fixed. Every default is the 0.1.0 value, so an existing declaration's
 output is unchanged, with one exception: the record file name is now checked more strictly (see Breaking).
 
+### Added
+
+- Composed build: `render_html` and `check_export` with `files.composition` and `--checkout NAME=DIR`; `portal.composed_in`.
+
 ### Breaking
 
 - A decision record file must now be named `PREFIX-<digits>-<slug>.md` (or `<digits>-<slug>.md` with `file_prefix: false`), with exactly the declared number of digits and a slug of at least one character. Before, any file matching `PREFIX-*.md` counted as a record (for example `ADR-0045.md`, `ADR-45-title.md` or `ADR-draft.md`). The checks and the render now ignore a file whose name has no slug or the wrong digit count, so its page and its checks vanish without an error. Rename each such file to the full form, for example `ADR-0045.md` to `ADR-0045-<slug>.md` and `ADR-45-title.md` to `ADR-0045-title.md`.

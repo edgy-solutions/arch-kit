@@ -212,6 +212,20 @@ def portal_mode(tool: str) -> str:
     return mode
 
 
+def composed_in(tool: str) -> str | None:
+    """`portal.composed_in`: the name of the portal this project is composed into, or None. Optional.
+
+    A standalone decisions-mode front page names it. The value is a project name (PREFIX_RE)."""
+    node = project.CONFIG.get("portal")
+    if node is None:
+        return None
+    if portal_none(tool):
+        _bad("portal.composed_in", "portal: none has no portal to be composed")
+    if not isinstance(node, dict) or "composed_in" not in node:
+        return None
+    return _prefix(node["composed_in"], "portal.composed_in")
+
+
 def require_public_lists(tool: str, **given: bool) -> None:
     """Exit 2 when the audience is public and a list the tool needs is not given. `given` maps a flag to whether it was."""
     portal_hosting(tool)

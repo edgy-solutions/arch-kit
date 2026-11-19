@@ -1,0 +1,10 @@
+# A consumer whose own portal is private. The tests add its consumes: entries, because they pin real commits.
+kit: 1
+paths:
+  root: .
+  repo: ../..
+  decisions: ../../decisions
+portal:
+  mode: decisions
+  hosting: none
+  audience: private

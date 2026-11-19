@@ -270,6 +270,28 @@ there. `PINS_OUT`, when set, receives a line `- <prefix> <commit> -` for each, i
 prints (citing file, prefix, commit, cited path), with `-` where the composition file has no value. Without a
 composition the tool's input and output are unchanged.
 
+### The composed build
+
+With `files.composition`, `render_html` and `check_export` build one document of every group's records: the composing
+portal's own, then each component's in file order. Both take `--checkout NAME=DIR` for every component and every
+consumer in the file (a missing, unlisted or repeated NAME, a DIR that is not a git repository, or a commit not in
+its DIR exits 2, naming `components[i]` or `consumers[i]`, never the project).
+
+- The composing portal must have `portal.mode: decisions`: a composed portal is decisions-only for now.
+- Each component is read at its pin in a temporary local clone (`git clone --shared --no-checkout`, then a detached
+  checkout), removed when the build ends. The source clone is never changed. A component with `portal: none`, a
+  `portal.mode` other than `decisions`, or its own `files.composition` is refused. Each group renders in its own
+  process by its own declaration and loader at the pin (the component's loader runs, a consumer's never does).
+- Page and anchor ids become `NAME--X`, so two groups may both have `ADR-0001`. The front page has one block per
+  group, in that group's words.
+- A "Consumed by" block lists the consumers of a record or a portal, read as data from each consumer's declaration at
+  its pin; a "Consumes" block lists what a component consumes. A consumer with `portal: none` or a non-public audience
+  shows only its name, repository and commit, never its `why`. No link leaves the page.
+- `check_export` on a composed export runs the barred, provenance, network, size, links and relabel checks and a
+  `components` check; the `decisions` check is not run.
+- A component may declare `portal.composed_in: NAME`, which adds one sentence to its own standalone render naming the
+  composing portal. Without the key its output is unchanged.
+
 ## A complete example
 
 The kit's own tests use this declaration. Every value is made up.
