@@ -228,6 +228,11 @@ flows renders byte for byte as before. `check_export` adds one check when the pr
 `data-flows` page, its `data-flow` row ids equal the declared ids in order, and its count line agrees with the records.
 The ok line then ends its shape with `N flows; `. The golden example is `examples/flows`.
 
+In a composed build each component that declares flows gets its own `NAME--flows` page and a Flows list in its front
+block, so two components may both have an `FL-001`. A group without flows gets neither. `check_export` then checks, for
+the portal and each component, that a group with flows has exactly one `NAME--flows` page and one front-page link to
+it, and that a group without flows has neither; a component's `files.flows` is read from its declaration at the pin.
+
 ### The decision index
 
 ```yaml

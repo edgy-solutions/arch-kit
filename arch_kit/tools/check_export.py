@@ -38,6 +38,8 @@ from html import unescape as html_unescape
 import sys
 from pathlib import Path
 
+import yaml
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import capability_phases  # noqa: E402
 import check_consumes  # noqa: E402
@@ -277,6 +279,35 @@ def check_components(raw: str, comp, dirs: dict, own: str) -> list[str]:
             want = len(ids)
         if got != want:
             fails.append(f"components: {key} has {got} decision pages, its record files at the pin number {want}")
+        fails += check_group_flows(raw, name, key, entry, dirs, own_flows=flows.declared_route("check_export"))
+    return fails
+
+
+def check_group_flows(raw: str, name: str, key: str, entry, dirs: dict, own_flows: bool) -> list[str]:
+    """A group with flows has exactly one `NAME--flows` page and one front-page link to it; a group without flows has
+    neither. The portal's own flows are known from its declaration, a component's file route from its declaration at
+    the pin; a loader route at the pin shows only as the page and the link, which must then agree."""
+    page = f'<section id="{name}--flows" class="page flows" data-flows>'
+    pages = raw.count(page)
+    navs = sum(1 for n in re.findall(r'<nav class="flows">.*?</nav>', raw, re.S) if f'href="#{name}--flows"' in n)
+    if entry is None:
+        has = own_flows
+    else:
+        has = pages > 0 or navs > 0
+        code, text = check_consumes._git(str(dirs[key]), "show", f"{entry.commit}:{entry.declaration}")
+        if code == 0:
+            try:
+                files = (yaml.safe_load(text) or {}).get("files")
+            except yaml.YAMLError:
+                files = None
+            has = has or (isinstance(files, dict) and "flows" in files)
+    fails = []
+    if has and pages != 1:
+        fails.append(f"components: {key} has {pages} {name}--flows pages, expected one")
+    if has and navs != 1:
+        fails.append(f"components: {key} has {navs} front-page links to its flows page, expected one")
+    if not has and (pages or navs):
+        fails.append(f"components: {key} declares no flows but the export has a flows page or link for it")
     return fails
 
 

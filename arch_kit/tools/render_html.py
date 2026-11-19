@@ -1658,7 +1658,7 @@ def write_fragment(a: argparse.Namespace, date: str) -> None:
         raise InputError("--fragment needs portal.mode: decisions")
     if MarkdownIt is None:
         raise InputError("markdown-it-py is not installed: pip install markdown-it-py==4.0.0")
-    rules, dec, dec_sections, dec_nav, al_sections, al_nav, _prov, _fl_nav = decisions_parts(a, date)
+    rules, dec, dec_sections, dec_nav, al_sections, al_nav, _prov, fl_nav = decisions_parts(a, date)
     loader = project.loader("render_html") if "loader" in project.CONFIG else None
     stated = "statuses" in project.CONFIG
     records = {}
@@ -1676,7 +1676,8 @@ def write_fragment(a: argparse.Namespace, date: str) -> None:
     out = Path(a.fragment)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({"sections": dec_sections + al_sections, "decisions_nav": dec_nav,
-                               "alignment_nav": al_nav, "replaced": dec.replaced, "records": records},
+                               "alignment_nav": al_nav, "flows_nav": fl_nav, "replaced": dec.replaced,
+                               "records": records},
                               ensure_ascii=False), encoding="utf-8", newline="\n")
 
 
@@ -1730,6 +1731,8 @@ def assemble_composed(a: argparse.Namespace, date: str) -> tuple[str, list, int]
         nav = composed.prefixed("".join(f["decisions_nav"]), g.name)
         al = composed.prefixed("".join(f["alignment_nav"]), g.name)
         al = f'<nav class="alignment"><h3>Alignment</h3><ul>{al}</ul></nav>' if al else ""
+        fln = composed.prefixed("".join(f.get("flows_nav", [])), g.name)
+        al += f'<nav class="flows"><h3>Flows</h3><ul>{fln}</ul></nav>' if fln else ""
         mine = [composed.consumes_li(u, pages, composed.states_html(by_name, u.entry.portal, u.entry.commit,
                                                                     u.entry.records))
                 for u in c.own_uses.get(g.name, [])]
@@ -1740,7 +1743,10 @@ def assemble_composed(a: argparse.Namespace, date: str) -> tuple[str, list, int]
     title = f"{pre}decision records"
     front = (f'<section id="front" class="page" data-front><h1>{esc(title)}</h1>'
              f'<p class="relabel" data-relabel>{esc(shown)}</p>{"".join(blocks)}{prov}</section>')
-    return shell(system, title, front, sections, css(True) + "\n" + composed.COMPOSED_CSS), rules, replaced
+    style = css(True) + "\n" + composed.COMPOSED_CSS
+    if any(g.fragment.get("flows_nav") for g in c.groups):
+        style += "\n" + FLOWS_CSS
+    return shell(system, title, front, sections, style), rules, replaced
 
 
 def leaks(doc: str, rules, barred) -> list[str]:

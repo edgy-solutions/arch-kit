@@ -227,6 +227,70 @@ class Build(Composed):
         self.assertIn("example-portal", out.read_text(encoding="utf-8"))
 
 
+class Flows(Composed):
+    """Two components that declare flows (both with an FL-001) and the composing portal, which declares none."""
+
+    FLOWS = {"example-platform": ("ADR-0001", "labels", "store"), "example-second": ("DR-001", "queue", "worker")}
+
+    def setUp(self):
+        super().setUp()
+        for name, (decided, a, b) in self.FLOWS.items():
+            d = self.repo[name] / DECL
+            c = yaml.safe_load(d.read_text(encoding="utf-8"))
+            c["files"] = dict(c.get("files") or {}, flows="flows.yaml")
+            d.write_text(yaml.safe_dump(c), encoding="utf-8", newline="\n")
+            (self.repo[name] / "docs" / "arch" / "flows.yaml").write_text(yaml.safe_dump({"flows": [
+                {"id": "FL-001", "from": a, "to": b, "carries": f"{a}.v1", "via": f"{a}/{b}",
+                 "decided_by": [decided], "built": name == "example-second"}]}), encoding="utf-8", newline="\n")
+            self.head[name] = tick(self.repo[name])
+        self.standard()
+
+    def test_each_group_with_flows_has_its_own_page_and_link(self):
+        p, doc = self.render()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        ids = re.findall(r'\bid="([^"]+)"', doc)
+        self.assertEqual(len(ids), len(set(ids)))
+        for g in ("example-platform", "example-second"):
+            self.assertEqual(doc.count(f'<section id="{g}--flows" class="page flows" data-flows>'), 1, g)
+            self.assertEqual(doc.count(f'<li><a href="#{g}--flows">Flows (1)</a></li>'), 1, g)
+        self.assertNotIn("example-portal--flows", doc)
+        self.assertEqual(doc.count('data-flow="FL-001"'), 2)
+        self.assertEqual(len(re.findall(r'<nav class="flows"><h3>Flows</h3>', doc)), 2)
+        targets = set(re.findall(r'href="#([^"]+)"', doc)) - {"front"}
+        self.assertFalse(targets - set(ids), sorted(targets - set(ids))[:5])
+        self.assertIn("nav.flows ul", doc)
+
+    def test_the_decision_page_lists_point_at_their_own_flows_page(self):
+        _, doc = self.render()
+        start = doc.index('<section id="example-second--dr-001"')
+        block = doc[start:doc.index("</section>", start)]
+        self.assertIn('<a href="#example-second--flows">FL-001: queue', block)
+
+    def test_the_check_passes_and_a_missing_page_or_link_fails(self):
+        p, doc = self.render()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        c = self.check()
+        self.assertEqual(c.returncode, 0, c.stdout + c.stderr)
+        out = self.tmp / "out.html"
+        out.write_text(doc.replace('<li><a href="#example-second--flows">Flows (1)</a></li>', ""),
+                       encoding="utf-8", newline="\n")
+        c = self.check()
+        self.assertEqual(c.returncode, 1, c.stdout + c.stderr)
+        self.assertIn("example-second", c.stderr)
+        self.assertIn("front-page links to its flows page", c.stderr)
+
+    def test_no_flows_anywhere_adds_nothing(self):
+        # the base fixtures declare no flows: the document carries no trace
+        base = Build("test_the_build_and_the_check")
+        base.setUp()
+        try:
+            _, doc = base.render()
+        finally:
+            base.doCleanups()
+        for needle in ("data-flows", "data-flow", 'class="flows"', "nav.flows"):
+            self.assertNotIn(needle, doc)
+
+
 class Refused(Composed):
     def setUp(self):
         super().setUp()
