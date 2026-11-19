@@ -2,6 +2,8 @@
 
 **Status: proposed, with proposed answers to its questions, pending the project owner's ruling. Nothing is built.**
 
+AL-1 to AL-4 are built on branch feat/alignment-type, pending the ruling. Question 4's exemption is not built.
+
 Proposes a decision: the kit gets one general record type for comparing a project with external references, such as
 a reference architecture, a standard or a framework. The comparison is made element by element, and each comparison
 carries its evidence. A record can cite more than one reference. The export renders a coverage view for each

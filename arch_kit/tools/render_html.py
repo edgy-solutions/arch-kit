@@ -1381,7 +1381,8 @@ def alignment_nav(nav: list[str]) -> str:
 
 def alignment_records(dec: Decisions) -> dict[str, dict]:
     """The project's alignment records, validated, by name; empty when it declares none."""
-    return alignment.load("render_html", [k for k in dec.keys() if k != ROADMAP_KEY])
+    return alignment.load("render_html", [k for k in dec.keys() if k != ROADMAP_KEY],
+                          audience=declared.portal_audience("render_html"))
 
 
 COUNT_MARK = "RELABEL-COUNT-PLACEHOLDER"  # the front page sentence, until the HTML pass has counted

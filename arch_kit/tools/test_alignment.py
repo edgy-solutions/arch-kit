@@ -482,5 +482,44 @@ class Seeded(unittest.TestCase):
                 self.assertIn(text, r.stderr, name)
 
 
+class Audience(unittest.TestCase):
+    """AL-4: a public portal shows unconfirmed terms by title only and never shows restricted terms."""
+
+    def finish(self, rec, audience):
+        ctx = alignment.Context("render_html", ["ADR-0001", "ADR-0002", "ADR-0003"], KIT / "examples" / "decisions-only",
+                                audience=audience)
+        ctx._foreign = {"other"}
+        return alignment._finish("alignment/coverage.yaml", rec, ctx)
+
+    def with_status(self, key: str, status: str):
+        rec = good()
+        next(r for r in rec["references"] if r["key"] == key)["terms"]["status"] = status
+        return rec
+
+    def test_public_refuses_an_unconfirmed_reference_that_has_elements(self):
+        with self.assertRaises(alignment.InputError) as c:
+            self.finish(self.with_status("ref-a", "unconfirmed"), "public")
+        self.assertEqual(str(c.exception), "alignment/coverage.yaml: references.0: reference ref-a has unconfirmed "
+                         "terms; a public portal shows it by title only, so it may carry no elements")
+
+    def test_public_accepts_an_unconfirmed_title_only_reference(self):
+        self.finish(good(), "public")
+
+    def test_public_refuses_restricted_whether_or_not_title_only(self):
+        for key, i in (("ref-a", 0), ("ref-b", 1)):
+            with self.subTest(key):
+                with self.assertRaises(alignment.InputError) as c:
+                    self.finish(self.with_status(key, "restricted"), "public")
+                self.assertEqual(str(c.exception), f"alignment/coverage.yaml: references.{i}: reference {key} has "
+                                 "restricted terms; a public portal may not show it")
+
+    def test_private_shows_all_three(self):
+        rec = good()
+        rec["references"][0]["terms"]["status"] = "restricted"
+        rec["references"][1]["terms"]["status"] = "restricted"
+        self.finish(rec, "private")
+        self.finish(self.with_status("ref-a", "unconfirmed"), "private")
+
+
 if __name__ == "__main__":
     unittest.main()

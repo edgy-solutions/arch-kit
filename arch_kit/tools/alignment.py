@@ -313,5 +313,22 @@ def load(tool: str, local_ids, audience: str | None = None) -> dict[str, dict]:
     return out
 
 
+def check_audience(where: str, record: dict, audience: str | None) -> None:
+    """A public portal shows a reference with unconfirmed terms by title only and never shows one with restricted
+    terms. A private portal, or no audience given, shows everything."""
+    if audience != "public":
+        return
+    for i, ref in enumerate(record["references"]):
+        status = ref["terms"]["status"]
+        if status == "restricted":
+            _fail(where, f"references.{i}", f"reference {ref['key']} has restricted terms; a public portal may "
+                                            f"not show it")
+        if status == "unconfirmed" and ref["read"] != "title-only":
+            _fail(where, f"references.{i}", f"reference {ref['key']} has unconfirmed terms; a public portal shows "
+                                            f"it by title only, so it may carry no elements")
+
+
 def _finish(where: str, record, ctx: Context) -> dict:
-    return validate(where, record, ctx)
+    merged = validate(where, record, ctx)
+    check_audience(where, merged, ctx.audience)
+    return merged
