@@ -15,7 +15,7 @@ check.
 The record and the roadmap note are two routes to one roadmap. When a route is declared and `registers.roadmap` names a
 file that exists under the decisions directory, load() refuses; a declared note that does not exist is not an error.
 
-render() makes the Roadmap page and the front page's nav items, and nav() wraps the items; lane 02's render_html wires
+render() makes the Roadmap page and the front page's nav items, and nav() wraps the items; render_html wires
 them in, passing render_html's roadmap page id as `page_id` so the existing links to the roadmap page keep working.
 CSS goes to the page style. This module must not import render_html.
 """
