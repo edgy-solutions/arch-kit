@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en" data-profile="uaf">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; font-src data:">
+<title>Teasel: decision records</title>
+<style>
+:root{--fg:#1d2430;--muted:#6b7480;--line:#d5dae1;--bg:#fff;--soft:#f3f5f8;--accent:#0b5cad;
+--head:#1f3a5f;--zebra:#f3f5f8;--filled:#d9e8fb;
+--m-bg:#d6f0e0;--m-fg:#0f5132;--b-bg:#d9e8fb;--b-fg:#0b4080;--a-bg:#fdecc8;--a-fg:#7a4d00;
+--p-bg:#f0e1f7;--p-fg:#5b2a78;--r-bg:#e6e8eb;--r-fg:#3a424d}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--fg);background:var(--bg)}
+a{color:var(--accent)}
+.bar{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:8px 16px;background:var(--soft);border-bottom:1px solid var(--line)}
+.bar .sys{font-weight:600}
+.bar .profiles{display:flex;gap:4px}
+.bar button{font:inherit;padding:4px 10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:4px;cursor:pointer}
+.bar button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.bar input{font:inherit;padding:4px 8px;border:1px solid var(--line);border-radius:4px;min-width:0;flex:1 1 160px}
+#results{padding:8px 16px;background:var(--soft);border-bottom:1px solid var(--line)}
+#results[hidden]{display:none}
+#results li{margin:6px 0}
+#results .snip{color:var(--muted);display:block;font-size:14px}
+main{padding:0 16px 48px}
+main p,main ul,main ol,main h1,main h2,main h3,main nav{max-width:1100px}
+.page{display:none}
+.page:target,.page:has(:target){display:block}
+body:not(:has(.page:target,.page :target)) #front{display:block}
+h1{font-size:1.5rem;line-height:1.25;overflow-wrap:anywhere}
+h2{font-size:1.25rem;margin-top:2rem}
+h3{font-size:1.1rem}
+p,li,summary{overflow-wrap:anywhere}
+.scroll{overflow-x:auto;max-width:100%;margin:1em 0}
+.scroll table{width:100%}
+.nb,th.pname{white-space:nowrap}
+table{border-collapse:collapse;font-size:14px}
+th,td{border:1px solid var(--line);padding:4px 8px;vertical-align:top;text-align:left}
+thead th{background:var(--head);color:#fff}
+tbody th{background:var(--soft)}
+tbody tr:nth-child(even)>*{background:var(--zebra)}
+tr.group-start>*{border-top:2px solid var(--head)}
+.pending{display:inline-block;margin-left:8px;padding:0 8px;border:1px dashed currentColor;border-radius:10px;font-size:13px;font-weight:600}
+.badge{display:inline-block;white-space:nowrap;padding:0 8px;border-radius:10px;font-size:13px;font-weight:600}
+
+pre{margin:0;padding:12px;background:var(--soft);font-size:13px;line-height:1.4}
+code{font-family:ui-monospace,Consolas,monospace;font-size:.92em}
+figure.diagram{margin:1em 0;padding:8px;border:1px solid var(--line);overflow-x:auto;background:#fff}
+figure.diagram svg{max-width:100%;height:auto}
+details.exceptions{margin:1em 0}
+details.exceptions summary{cursor:pointer;font-weight:600}
+.slot,.empty{color:var(--muted)}
+.slot{font-family:ui-monospace,Consolas,monospace;font-size:.92em}
+.ref{border-bottom:1px dotted var(--muted)}
+.grid{display:none}
+html[data-profile="uaf"] #grid-uaf,html[data-profile="dodaf202"] #grid-dodaf202,html[data-profile="naf4"] #grid-naf4{display:block}
+.gridtable td{min-width:3.5em}
+.gridtable tbody tr>*{border-top:2px solid var(--head)}
+.gridtable td:has(.filled){background:var(--filled)}
+.gridtable td span{white-space:nowrap;margin-right:6px}
+.gridtable small{color:var(--muted);margin-left:2px}
+.legend{color:var(--muted);font-size:14px}
+.profile-only{display:none;color:var(--muted)}
+html[data-profile="dodaf202"] .profile-only[data-for="dodaf202"],html[data-profile="naf4"] .profile-only[data-for="naf4"]{display:block}
+.attribution{color:var(--muted);margin-top:0}
+.provenance{margin-top:2.5rem;padding-top:8px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.provenance p{margin:2px 0}
+.provenance .note{display:block}
+nav.views ul,nav.capabilities ul,nav.decisions ul{columns:2 280px;padding-left:1.2em}
+.stamp,.derived,.cap-group,.cap-increment,.relabel{color:var(--muted);margin:4px 0}
+.stamp{font-size:13px}
+@page{size:landscape}
+@media (max-width:600px){h1{font-size:1.3rem}.bar{gap:6px 8px}}
+@media print{
+  .bar,#results{display:none!important}
+  body{font-size:11pt}
+  main{max-width:none;padding:0}
+  .page,.page:target,.page:has(:target),body:not(:has(.page:target,.page :target)) #front{display:block}
+  .page{break-before:page}
+  .page:first-of-type{break-before:auto}
+  .scroll{overflow:visible}
+  table{font-size:8pt;width:100%}
+  thead th{background:none;color:inherit;border-bottom:2px solid var(--head)}
+  tbody tr:nth-child(even)>*,tbody th,.gridtable td:has(.filled){background:none}
+  .badge{background:none;color:inherit;padding:0;border-radius:0;font-weight:600}
+  th:nth-child(n+4){min-width:0!important}
+  .decision th{min-width:0!important}
+  .decision td:nth-child(-n+3),.decision th:nth-child(-n+3){overflow-wrap:normal}
+  .decision td:nth-child(n+4),.decision th:nth-child(n+4){overflow-wrap:anywhere}
+  .decision td:nth-child(n+4) .nb{white-space:normal}
+  table:has(thead th:nth-child(8)) td:nth-child(n+4),table:has(thead th:nth-child(8)) th:nth-child(n+4){overflow-wrap:anywhere}
+  table:has(thead th:nth-child(8)) td:nth-child(n+4) .nb,table:has(thead th:nth-child(8)) th:nth-child(n+4) .nb{white-space:normal}
+  pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:8.5pt}
+  figure.diagram{overflow:visible;break-inside:avoid}
+  svg{max-width:100%;height:auto}
+  a{color:inherit;text-decoration:none}
+}
+.flow-count{color:var(--muted)}
+.flows-decided,.flows-capability{margin:1rem 0;font-size:14px}
+.flows-decided h2,.flows-capability h2{font-size:1rem;margin:.5rem 0}
+nav.flows ul{padding-left:1.2em}
+</style>
+</head>
+<body>
+<header class="bar"><span class="sys">Teasel</span><a href="#front">Front page</a><input id="q" type="search" placeholder="Search" aria-label="Search the decision records" autocomplete="off"></header>
+<div id="results" hidden></div>
+<main>
+<section id="front" class="page" data-front><h1>Teasel: decision records</h1><p class="relabel" data-relabel>Decision records are shown verbatim.</p><nav class="decisions"><h2>Decision records</h2><ul><li><a href="#adr-0001">ADR-0001 Lockers accept parcels offline</a></li><li><a href="#adr-0002">ADR-0002 The depot routes parcels by size</a></li><li><a href="#adr-0003">ADR-0003 Lockers wait for the depot</a></li></ul></nav><nav class="flows"><h2>Flows</h2><ul><li><a href="#flows">Flows (4)</a></li></ul></nav><div class="provenance" data-provenance><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="adr-0001" class="page decision" data-decision="ADR-0001"><h1>ADR-0001 Lockers accept parcels offline</h1><p class="stamp" data-stamp>Commit SHA, DATE: decisions/0001-lockers-accept-parcels-offline.md</p><p><a href="#front">Front page</a></p><div class="body"><h2 id="adr-0001-status">Status</h2>
+<p>Accepted.</p>
+<h2 id="adr-0001-1-decision">1. Decision</h2>
+<p>A locker takes in a parcel and gives the sender a receipt without a link to the depot. The locker keeps the parcel&#x27;s
+record until the link returns, then sends it on.</p>
+<h2 id="adr-0001-2-consequences">2. Consequences</h2>
+<p>The depot learns of a parcel later than the sender does. A receipt is not proof that the depot has the record.</p>
+</div><div class="flows-decided" data-flows-decided><h2>Flows this record decides</h2><ul><li><a href="#flows">FL-001: intake → depot (parcel.v1)</a></li></ul></div><div class="provenance" data-provenance><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="adr-0002" class="page decision" data-decision="ADR-0002"><h1>ADR-0002 The depot routes parcels by size</h1><p class="stamp" data-stamp>Commit SHA, DATE: decisions/0002-depot-routes-parcels-by-size.md</p><p><a href="#front">Front page</a></p><div class="body"><h2 id="adr-0002-status">Status</h2>
+<p>Accepted.</p>
+<h2 id="adr-0002-1-decision">1. Decision</h2>
+<p>The depot sends a parcel to a van by its size class. Large parcels go to the cargo van and small ones to the
+courier bike. A parcel a locker took in offline is routed the same way once its record arrives, as ADR-0001 §2
+describes.</p>
+<h2 id="adr-0002-2-open-question">2. Open question</h2>
+<p>How the depot routes a parcel whose size class is missing is not decided.</p>
+<p><code>Status: open</code>
+<strong>OF-1 — A parcel with no size class</strong></p>
+<p>Until it is decided, the depot holds such a parcel at the bay.</p>
+</div><div class="flows-decided" data-flows-decided><h2>Flows this record decides</h2><ul><li><a href="#flows">FL-002: depot → ledger (receipt.v1)</a></li><li><a href="#flows">FL-003: depot → intake (routing.v1)</a></li></ul></div><div class="provenance" data-provenance><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="adr-0003" class="page decision" data-decision="ADR-0003"><h1>ADR-0003 Lockers wait for the depot</h1><p class="stamp" data-stamp>Commit SHA, DATE: decisions/0003-lockers-wait-for-the-depot.md</p><p><a href="#front">Front page</a></p><div class="body"><h2 id="adr-0003-status">Status</h2>
+<p>Superseded by ADR-0001.</p>
+<h2 id="adr-0003-1-decision">1. Decision</h2>
+<p>A locker refuses every parcel while its link to the depot is down. ADR-0001 replaces this.</p>
+</div><div class="flows-decided" data-flows-decided><h2>Flows this record decides</h2><ul><li><a href="#flows">FL-002: depot → ledger (receipt.v1)</a></li></ul></div><div class="provenance" data-provenance><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+<section id="flows" class="page flows" data-flows><h1>Teasel: Flows</h1><p><a href="#front">Front page</a></p><p class="flow-count" data-flow-count>4 flows: 1 built, 3 not built; 1 with no decision record.</p><div class="scroll"><table><thead><tr><th style="min-width:6ch">Id</th><th style="min-width:6ch">From</th><th style="min-width:6ch">To</th><th style="min-width:10ch">Carries</th><th style="min-width:14ch">Via</th><th style="min-width:18ch">Decided by</th><th style="min-width:9ch">Built</th></tr></thead><tbody><tr data-flow="FL-001"><td><span class="nb">FL-001</span></td><td>intake</td><td>depot</td><td>parcel.v1</td><td><span class="nb">broker/parcels</span></td><td><a href="#adr-0001"><span class="nb">ADR-0001</span></a></td><td>Built</td></tr><tr data-flow="FL-002"><td><span class="nb">FL-002</span></td><td>depot</td><td>ledger</td><td>receipt.v1</td><td><span class="nb">/api/receipts</span></td><td><a href="#adr-0002"><span class="nb">ADR-0002</span></a>, <a href="#adr-0003"><span class="nb">ADR-0003</span></a></td><td>Not built</td></tr><tr data-flow="FL-003"><td><span class="nb">FL-003</span></td><td>depot</td><td>intake</td><td>routing.v1</td><td><span class="nb">queue/routing</span></td><td><a href="#adr-0002"><span class="nb">ADR-0002</span></a></td><td>Not built</td></tr><tr data-flow="FL-004"><td><span class="nb">FL-004</span></td><td>ledger</td><td>intake</td><td>ack.v1</td><td><span class="nb">queue/acks</span></td><td>none</td><td>Not built</td></tr></tbody></table></div><h2>Flows no decision record covers</h2><ul><li>FL-004: ledger → intake</li></ul><div class="provenance" data-provenance><p data-prov="date">Generated: DATE</p><p data-prov="declared">Declared, not measured: this export reads the views, the model and a chart render, and read no running system.</p></div></section>
+</main>
+<script>
+(function () {
+  var root = document.documentElement;
+  var KEY = {uaf: "uaf", dodaf202: "dodaf202", naf4: "naf4"};
+  function setProfile(p) {
+    if (!KEY[p]) return;
+    root.setAttribute("data-profile", p);
+    document.querySelectorAll(".pname").forEach(function (e) {
+      var v = e.getAttribute("data-" + p);
+      if (v !== null) e.textContent = v;
+    });
+    document.title = root.getAttribute("data-title-" + p) || document.title;
+    document.querySelectorAll("[data-profile-btn]").forEach(function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-profile-btn") === p ? "true" : "false");
+    });
+  }
+  document.querySelectorAll("[data-profile-btn]").forEach(function (b) {
+    b.addEventListener("click", function () { setProfile(b.getAttribute("data-profile-btn")); });
+  });
+
+  var input = document.getElementById("q");
+  var panel = document.getElementById("results");
+  function pageText(page) {
+    var c = page.cloneNode(true);
+    var p = root.getAttribute("data-profile");
+    c.querySelectorAll("style,script,.profile-only").forEach(function (e) { e.remove(); });
+    c.querySelectorAll(".grid").forEach(function (g) { if (g.getAttribute("data-grid") !== p) g.remove(); });
+    return c.textContent.replace(/\s+/g, " ");
+  }
+  function pageName(page) {
+    var h = page.querySelector("h1");
+    return h ? h.textContent : page.id;
+  }
+  function clearSearch() {
+    input.value = "";
+    panel.hidden = true;
+    panel.textContent = "";
+  }
+  function search() {
+    var q = input.value.trim().toLowerCase();
+    panel.textContent = "";
+    if (q.length < 2) { panel.hidden = true; return; }
+    var list = document.createElement("ul");
+    var total = 0;
+    document.querySelectorAll(".page").forEach(function (page) {
+      var text = pageText(page), low = text.toLowerCase();
+      var at = low.indexOf(q), n = 0;
+      if (at < 0) return;
+      var first = at;
+      while (at >= 0) { n++; at = low.indexOf(q, at + q.length); }
+      total++;
+      var li = document.createElement("li");
+      var a = document.createElement("a");
+      a.href = "#" + page.id;
+      a.textContent = pageName(page);
+      var count = document.createElement("span");
+      count.textContent = " (" + n + (n === 1 ? " match)" : " matches)");
+      var snip = document.createElement("span");
+      snip.className = "snip";
+      snip.textContent = (first > 40 ? "\u2026" : "") + text.slice(Math.max(0, first - 40), first + q.length + 80);
+      li.appendChild(a); li.appendChild(count); li.appendChild(snip);
+      list.appendChild(li);
+    });
+    var head = document.createElement("p");
+    head.textContent = total + (total === 1 ? " page matches" : " pages match");
+    panel.appendChild(head);
+    panel.appendChild(list);
+    panel.hidden = false;
+  }
+  input.addEventListener("input", search);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") clearSearch(); });
+  panel.addEventListener("click", function (e) { if (e.target.tagName === "A") clearSearch(); });
+
+  var saved = [];
+  window.addEventListener("beforeprint", function () {
+    saved = [];
+    document.querySelectorAll("details").forEach(function (d) { saved.push([d, d.open]); d.open = true; });
+  });
+  window.addEventListener("afterprint", function () {
+    saved.forEach(function (s) { s[0].open = s[1]; });
+    saved = [];
+  });
+})();
+</script>
+</body>
+</html>

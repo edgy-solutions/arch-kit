@@ -271,7 +271,8 @@ FILE_DEFAULTS = {
 
 ALIGNMENT_KEY = "alignment"  # a `files` key with no default: a directory of alignment records, absent unless declared
 COMPOSITION_KEY = "composition"  # a `files` key with no default: the composition file, relative to the declaration
-OPTIONAL_FILE_KEYS = (ALIGNMENT_KEY, COMPOSITION_KEY)
+FLOWS_KEY = "flows"  # a `files` key with no default: one YAML file of flow records, absent unless declared
+OPTIONAL_FILE_KEYS = (ALIGNMENT_KEY, COMPOSITION_KEY, FLOWS_KEY)
 
 
 def _relative(value, key):
@@ -308,6 +309,12 @@ def alignment_dir(tool: str) -> str | None:
     """The declared directory of alignment records under paths.root (`files.alignment`), or None. It has no default."""
     content_file("profiles", tool)  # reads and checks the whole `files` map
     return _CACHE["files"].get(ALIGNMENT_KEY)
+
+
+def flows_file(tool: str) -> str | None:
+    """The declared file of flow records under paths.root (`files.flows`), or None. It has no default."""
+    content_file("profiles", tool)  # reads and checks the whole `files` map
+    return _CACHE["files"].get(FLOWS_KEY)
 
 
 def decisions_readme(tool: str) -> str:

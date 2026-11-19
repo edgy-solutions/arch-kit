@@ -20,7 +20,9 @@ src, import, link, frame, object, embed, remote url() or href that does not
 start with #), size (under 16,000,000 bytes), links (every # href has an id),
 diagrams (no Mermaid source left; one SVG per Mermaid fence in the views),
 exceptions (at least one details.exceptions), declarations (one declarations
-page, listing the slots of INVENTORY.md's slot table, in its order).
+page, listing the slots of INVENTORY.md's slot table, in its order),
+flows (only when the project declares flows: one data-flows page, its data-flow row ids equal the declared ids in
+order, and its count line agrees with the records).
 
 relabel (given --relabel: no pattern of the relabel lists matches the export or
 its unescaped text, and the front page has its data-relabel line; a finding names
@@ -32,14 +34,18 @@ from __future__ import annotations
 
 import argparse
 import re
+from html import unescape as html_unescape
 import sys
 from pathlib import Path
+
+import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import capability_phases  # noqa: E402
 import check_consumes  # noqa: E402
 import composed  # noqa: E402
 import export_text  # noqa: E402
+import flows  # noqa: E402
 from export_text import plain  # noqa: E402,F401
 import check_views  # noqa: E402
 import declared  # noqa: E402
@@ -273,7 +279,74 @@ def check_members(raw: str, comp, dirs: dict, own: str) -> list[str]:
             want = len(ids)
         if got != want:
             fails.append(f"members: {key} has {got} decision pages, its record files at the pin number {want}")
+        fails += check_group_flows(raw, name, key, entry, dirs, own_flows=flows.declared_route("check_export"))
     return fails
+
+
+def check_group_flows(raw: str, name: str, key: str, entry, dirs: dict, own_flows: bool) -> list[str]:
+    """A group with flows has exactly one `NAME--flows` page and one front-page link to it; a group without flows has
+    neither. The portal's own flows are known from its declaration, a member's file route from its declaration at
+    the pin; a loader route at the pin shows only as the page and the link, which must then agree."""
+    page = f'<section id="{name}--flows" class="page flows" data-flows>'
+    pages = raw.count(page)
+    navs = sum(1 for n in re.findall(r'<nav class="flows">.*?</nav>', raw, re.S) if f'href="#{name}--flows"' in n)
+    if entry is None:
+        has = own_flows
+    else:
+        has = pages > 0 or navs > 0
+        code, text = check_consumes._git(str(dirs[key]), "show", f"{entry.commit}:{entry.declaration}")
+        if code == 0:
+            try:
+                files = (yaml.safe_load(text) or {}).get("files")
+            except yaml.YAMLError:
+                files = None
+            has = has or (isinstance(files, dict) and "flows" in files)
+    fails = []
+    if has and pages != 1:
+        fails.append(f"members: {key} has {pages} {name}--flows pages, expected one")
+    if has and navs != 1:
+        fails.append(f"members: {key} has {navs} front-page links to its flows page, expected one")
+    if not has and (pages or navs):
+        fails.append(f"members: {key} declares no flows but the export has a flows page or link for it")
+    return fails
+
+
+FLOWS_PAGE_RE = re.compile(r'<section id="[^"]*" class="page flows" data-flows>(.*?)</section>', re.S)
+FLOW_ROW_RE = re.compile(r'<tr data-flow="([^"]*)"')
+FLOW_COUNT_RE = re.compile(r'<p class="flow-count" data-flow-count>(.*?)</p>', re.S)
+FLOW_COUNT_LINE = re.compile(r"^(\d+) flows: (\d+) built, (\d+) not built; (\d+) with no decision record\.$")
+
+
+def check_flows(raw: str, fl) -> list[str]:
+    """One Flows page whose rows are the declared flows, in order, and whose count line agrees with them."""
+    pages = FLOWS_PAGE_RE.findall(raw)
+    if len(pages) != 1:
+        return [f"flows: the export has {len(pages)} flows pages, expected one"]
+    fails: list[str] = []
+    got = [html_unescape(i) for i in FLOW_ROW_RE.findall(pages[0])]
+    want = [f["id"] for f in fl]
+    if got != want:
+        fails.append(f"flows: the page has {len(got)} data-flow rows, the record {len(want)}"
+                     + ("" if sorted(got) != sorted(want) else " (same ids, different order)")
+                     + "".join(f"; missing {n}" for n in want if n not in got)
+                     + "".join(f"; extra {n}" for n in got if n not in want))
+    counts = FLOW_COUNT_RE.findall(pages[0])
+    m = FLOW_COUNT_LINE.match(plain(counts[0])) if len(counts) == 1 else None
+    built = sum(1 for f in fl if f["built"])
+    expect = (len(fl), built, len(fl) - built, sum(1 for f in fl if not f["decided_by"]))
+    if m is None:
+        fails.append("flows: the page has no count line of the expected form")
+    elif tuple(int(x) for x in m.groups()) != expect:
+        fails.append(f"flows: the count line says {', '.join(m.groups())} (flows, built, not built, no decision), "
+                     f"the record {', '.join(str(x) for x in expect)}")
+    return fails
+
+
+def local_decision_ids() -> list[str]:
+    """The ids of the record files in the project's decisions directory."""
+    found = (declared.record_id_of_file("check_export", f.name)
+             for f in project.DECISIONS.glob(declared.record_file_patterns("check_export")[1]))
+    return sorted(i for i in found if i)
 
 
 def check_exceptions(raw: str) -> list[str]:
@@ -328,6 +401,7 @@ def main(argv: list[str] | None = None) -> int:
         except CheckError as e:
             raise InputError(e.args[0])
         rules = relabel.load(a.relabel) if a.relabel else []
+        fl = () if comp else flows.load("check_export", local_decision_ids())
         if comp:
             rlists = composed.relabel_lists("check_export", a.relabel, slots, comp)
             blists = composed.barred_lists(a.barred, slots, comp)
@@ -342,13 +416,14 @@ def main(argv: list[str] | None = None) -> int:
     elif decisions_only:
         # No views, record, diagrams or declarations page: the decision pages and the structural checks only.
         fails = (check_barred(raw, barred) + check_provenance(raw) + check_network(raw) + check_size(len(data))
-                 + check_links(raw) + check_decisions(raw, tree)
+                 + check_links(raw) + check_decisions(raw, tree) + (check_flows(raw, fl) if fl else [])
                  + (check_relabel(raw, rules) if a.relabel else []))
     else:
         fails = (check_views_equal(raw, tree) + check_barred(raw, barred) + check_provenance(raw)
                  + check_network(raw) + check_size(len(data)) + check_links(raw)
                  + check_diagrams(raw, tree) + check_exceptions(raw) + check_declarations(raw, tree)
                  + check_capabilities(raw, tree) + check_decisions(raw, tree)
+                 + (check_flows(raw, fl) if fl else [])
                  + (check_relabel(raw, rules) if a.relabel else []))
     for f in fails:
         print(f"FAIL: {f}", file=sys.stderr)
@@ -358,6 +433,8 @@ def main(argv: list[str] | None = None) -> int:
              f"{len(PAGE_RE.findall(raw))} pages, decisions only; " if decisions_only else
              f"{len(PAGE_RE.findall(raw))} pages, {len(tree.views)} views, equal to check_views; "
              f"{diagram_count(raw)} diagrams; ")
+    if fl:
+        shape += f"{len(fl)} flows; "
     print(f"ok: export: {shape}"
           f"{len(data)} bytes; barred: 0 on {len(barred)} entries of "
           f"{', '.join(Path(p).name for p in a.barred)}"
