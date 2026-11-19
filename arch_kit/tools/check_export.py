@@ -245,20 +245,20 @@ def check_decisions(raw: str, tree: check_views.Tree) -> list[str]:
     return fails
 
 
-COMPONENT_PAGE_RE = re.compile(r'<section id="([^"]+)" class="page decision" data-decision="([^"]*)"')
+MEMBER_PAGE_RE = re.compile(r'<section id="([^"]+)" class="page decision" data-decision="([^"]*)"')
 
 
-def check_components(raw: str, comp, dirs: dict, own: str) -> list[str]:
+def check_members(raw: str, comp, dirs: dict, own: str) -> list[str]:
     """A composed export: every group has one front-page block, and as many decision pages as record files.
 
-    The composing portal's own record files are counted in its working tree, a component's at its pin."""
+    The composing portal's own record files are counted in its working tree, a member's at its pin."""
     fails: list[str] = []
-    pages = [(pid, kind) for pid, kind in COMPONENT_PAGE_RE.findall(raw) if kind != "roadmap"]
-    groups = [(own, "portal", None)] + [(e.name, f"components[{i}]", e) for i, e in enumerate(comp.components)]
+    pages = [(pid, kind) for pid, kind in MEMBER_PAGE_RE.findall(raw) if kind != "roadmap"]
+    groups = [(own, "portal", None)] + [(e.name, f"members[{i}]", e) for i, e in enumerate(comp.members)]
     for name, key, entry in groups:
-        blocks = len(re.findall(r'<div class="component" data-component="' + re.escape(name) + '"', raw))
+        blocks = len(re.findall(r'<div class="member" data-member="' + re.escape(name) + '"', raw))
         if blocks != 1:
-            fails.append(f"components: {key} has {blocks} front-page blocks, expected one")
+            fails.append(f"members: {key} has {blocks} front-page blocks, expected one")
         got = sum(1 for pid, _ in pages if pid.startswith(name + "--"))
         if entry is None:
             want = len({declared.record_id_of_file("check_export", f.name)
@@ -268,11 +268,11 @@ def check_components(raw: str, comp, dirs: dict, own: str) -> list[str]:
             code, text = check_consumes._git(str(dirs[key]), "show", f"{entry.commit}:{entry.declaration}")
             ids, why = check_consumes._record_names(str(dirs[key]), entry.commit, entry.declaration, text)                 if code == 0 else (None, "its declaration is not at the pin")
             if ids is None:
-                fails.append(f"components: {key}: {why}")
+                fails.append(f"members: {key}: {why}")
                 continue
             want = len(ids)
         if got != want:
-            fails.append(f"components: {key} has {got} decision pages, its record files at the pin number {want}")
+            fails.append(f"members: {key} has {got} decision pages, its record files at the pin number {want}")
     return fails
 
 
@@ -337,7 +337,7 @@ def main(argv: list[str] | None = None) -> int:
     if comp:
         fails = (check_barred_composed(raw, blists) + check_provenance(raw) + check_network(raw)
                  + check_size(len(data)) + check_links(raw)
-                 + check_components(raw, comp, dirs, composed.own_name("check_export"))
+                 + check_members(raw, comp, dirs, composed.own_name("check_export"))
                  + (check_relabel_composed(raw, rlists) if rlists else []))
     elif decisions_only:
         # No views, record, diagrams or declarations page: the decision pages and the structural checks only.
@@ -354,7 +354,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FAIL: {f}", file=sys.stderr)
     if fails:
         return EXIT_CHECK
-    shape = (f"{len(PAGE_RE.findall(raw))} pages, composed: {len(comp.components) + 1} groups; " if comp else
+    shape = (f"{len(PAGE_RE.findall(raw))} pages, composed: {len(comp.members) + 1} groups; " if comp else
              f"{len(PAGE_RE.findall(raw))} pages, decisions only; " if decisions_only else
              f"{len(PAGE_RE.findall(raw))} pages, {len(tree.views)} views, equal to check_views; "
              f"{diagram_count(raw)} diagrams; ")

@@ -1,4 +1,4 @@
-# The second component of the composed fixtures: its own grammar, statuses and loader. Every name in it is invented.
+# The second member of the composed fixtures: its own grammar, statuses and loader. Every name in it is invented.
 kit: 1
 paths:
   root: .

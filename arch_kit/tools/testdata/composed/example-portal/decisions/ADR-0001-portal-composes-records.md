@@ -6,8 +6,8 @@ Accepted.
 
 ## 1. Decision
 
-The portal renders the records of its components under their own names and keeps none of their formats.
+The portal renders the records of its members under their own names and keeps none of their formats.
 
 ## 2. Consequences
 
-A reader finds each component's words where its owner wrote them.
+A reader finds each member's words where its owner wrote them.

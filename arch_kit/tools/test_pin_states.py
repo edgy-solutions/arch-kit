@@ -62,15 +62,15 @@ class States(Composed):
         self.assertEqual(pins(section(doc, "example-platform--adr-0001")), ["changed"])
         self.assertEqual(pins(section(doc, "example-platform--adr-0002")), ["superseded"])
         self.assertEqual(sorted(pins(section(doc, "example-platform--adr-0003"))), ["current", "pin-not-found"])
-        front = doc[doc.index('data-component="example-platform"'):doc.index('data-component="example-second"')]
+        front = doc[doc.index('data-member="example-platform"'):doc.index('data-member="example-second"')]
         self.assertIn("record-not-found", pins(front))
-        second = doc[doc.index('data-component="example-second"'):]
+        second = doc[doc.index('data-member="example-second"'):]
         self.assertEqual(pins(second[:second.index("</div></div>") + 1]).count("record-not-found"), 1)
 
     def test_whole_portal_entries(self):
         doc = self.build({"example-second": (self.d, None), "example-app": (self.c0, None),
                           "example-hidden": (ZERO, None)})
-        front = doc[doc.index('data-component="example-platform"'):doc.index('data-component="example-second"')]
+        front = doc[doc.index('data-member="example-platform"'):doc.index('data-member="example-second"')]
         self.assertEqual(sorted(pins(front)), ["changed", "current", "pin-not-found"])
 
     def test_the_text_of_a_state(self):

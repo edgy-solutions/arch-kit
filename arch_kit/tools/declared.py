@@ -495,7 +495,7 @@ def decisions_index(tool: str) -> DecisionIndex:
                 _bad(base + "foreign", "a project with files.composition takes its foreign prefixes from it; "
                                        "declare one, not both")
             items = []
-            foreign = [Foreign(e.name, None, e.commit) for e in (*comp.components, *comp.consumers)]
+            foreign = [Foreign(e.name, None, e.commit) for e in (*comp.members, *comp.consumers)]
         for i, item in enumerate(items):
             key = f"{base}foreign[{i}]"
             if not isinstance(item, dict) or "prefix" not in item:
@@ -722,7 +722,7 @@ class Lists(NamedTuple):
     barred: str
 
 
-class Component(NamedTuple):
+class Member(NamedTuple):
     name: str
     repo: str
     commit: str
@@ -738,12 +738,12 @@ class Consumer(NamedTuple):
 
 
 class Composition(NamedTuple):
-    components: tuple
+    members: tuple
     consumers: tuple
 
     def names(self) -> tuple:
-        """Every name in file order: the components, then the consumers."""
-        return tuple(e.name for e in (*self.components, *self.consumers))
+        """Every name in file order: the members, then the consumers."""
+        return tuple(e.name for e in (*self.members, *self.consumers))
 
 
 def _cbad(key, why):
@@ -773,11 +773,11 @@ def composition(tool: str) -> Composition | None:
             if data.get("composition") != 1 or isinstance(data.get("composition"), bool):
                 _cbad("composition", "must be 1")
             for k in data:
-                if k not in ("composition", "components", "consumers"):
+                if k not in ("composition", "members", "consumers"):
                     _cbad(k, "unknown key")
-            comps = data.get("components")
+            comps = data.get("members")
             if not isinstance(comps, list) or not comps:
-                _cbad("components", "must be a non-empty list")
+                _cbad("members", "must be a non-empty list")
             decl = project.CONFIG.get("decisions")
             index = decl.get("index") if isinstance(decl, dict) else None
             local = index.get("local_prefix") if isinstance(index, dict) else None
@@ -814,7 +814,7 @@ def composition(tool: str) -> Composition | None:
 
             built = []
             for i, item in enumerate(comps):
-                key = f"components[{i}]"
+                key = f"members[{i}]"
                 name, repo, commit, d = entry(item, key, (*COMPOSITION_ENTRY_KEYS, "lists"))
                 lists = item["lists"]
                 if not isinstance(lists, dict) or set(lists) != {"relabel", "barred"}:
@@ -828,7 +828,7 @@ def composition(tool: str) -> Composition | None:
                     if slot in slots:
                         _cbad(f"{key}.lists.{k}", f"slot {slot!r} is used twice")
                     slots.append(slot)
-                built.append(Component(name, repo, commit, d, Lists(lists["relabel"], lists["barred"])))
+                built.append(Member(name, repo, commit, d, Lists(lists["relabel"], lists["barred"])))
             cons = data.get("consumers", [])
             if not isinstance(cons, list):
                 _cbad("consumers", "must be a list")

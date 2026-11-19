@@ -1,16 +1,16 @@
-"""composed.py - the plumbing of a composed build: pinned trees, component declarations, fragments, relations.
+"""composed.py - the plumbing of a composed build: pinned trees, member declarations, fragments, relations.
 
 A composing portal declares `files.composition`. Its build renders each group (its own records, then each
-component) in a subprocess of its own, reading that group's declaration and loader at the pinned commit, and joins
+member) in a subprocess of its own, reading that group's declaration and loader at the pinned commit, and joins
 the pieces into one page (render_html.assemble_composed). This module holds everything around that join:
 
-- the `--checkout NAME=DIR` flags (one for every component and consumer the composition file lists) and their checks,
-- each component's and consumer's declaration, read as data at its pin (`git show`), never imported,
-- the temporary clone a component is rendered from, and its removal,
+- the `--checkout NAME=DIR` flags (one for every member and consumer the composition file lists) and their checks,
+- each member's and consumer's declaration, read as data at its pin (`git show`), never imported,
+- the temporary clone a member is rendered from, and its removal,
 - the `--fragment` subprocess and the page ids it gets made unique with,
 - the relations: "Consumed by" and "Consumes".
 
-Errors about a component name its position (`components[1]`, `consumers[0]`), never its name, repository or lists.
+Errors about a member name its position (`members[1]`, `consumers[0]`), never its name, repository or lists.
 Exit codes follow the tools': input errors exit 2 through project.die.
 """
 from __future__ import annotations
@@ -66,8 +66,8 @@ def require_decisions_mode(tool: str) -> None:
 
 
 def listed(comp) -> list:
-    """(position key, entry) for every component, then every consumer, in file order."""
-    return ([(f"components[{i}]", e) for i, e in enumerate(comp.components)]
+    """(position key, entry) for every member, then every consumer, in file order."""
+    return ([(f"members[{i}]", e) for i, e in enumerate(comp.members)]
             + [(f"consumers[{i}]", e) for i, e in enumerate(comp.consumers)])
 
 
@@ -82,7 +82,7 @@ def checkouts(tool: str, items: list[str], comp) -> dict:
         if not eq or not name or not rest:
             _die(tool, f"--checkout argument {n} is not NAME=DIR")
         if name not in by_name:
-            _die(tool, f"--checkout argument {n} names no component or consumer of the composition file")
+            _die(tool, f"--checkout argument {n} names no member or consumer of the composition file")
         key = by_name[name][0]
         if key in got:
             _die(tool, f"{key}: --checkout is given twice")
@@ -101,7 +101,7 @@ def checkouts(tool: str, items: list[str], comp) -> dict:
 
 def add_checkout_flag(ap) -> None:
     ap.add_argument("--checkout", action="append", default=[], metavar="NAME=DIR",
-                    help="a local clone of a component or consumer the composition file lists (one for each)")
+                    help="a local clone of a member or consumer the composition file lists (one for each)")
 
 
 def no_composition_checkouts(tool: str, items) -> None:
@@ -136,12 +136,12 @@ def audience_of(config: dict) -> str | None:
     return node.get("audience") if node else None
 
 
-def refuse_component(key: str, config: dict) -> None:
+def refuse_member(key: str, config: dict) -> None:
     if config.get("portal") == "none":
-        _bad(key, "portal: none: a project with no portal is a consumer, not a component")
+        _bad(key, "portal: none: a project with no portal is a consumer, not a member")
     node = portal_of(config)
     if (node.get("mode", "full") if node else "full") != "decisions":
-        _bad(key, "portal.mode: a full-mode component is not composed yet")
+        _bad(key, "portal.mode: a full-mode member is not composed yet")
     files = config.get("files")
     if isinstance(files, dict) and declared.COMPOSITION_KEY in files:
         _bad(key, "files.composition: composition does not nest")
@@ -257,7 +257,7 @@ def decisions_rel(decl_rel: str, config: dict) -> str:
 class Use(NamedTuple):
     """One `consumes:` entry, with the project that declared it."""
     who: str            # the declaring project's name
-    key: str            # "portal", components[i] or consumers[i]
+    key: str            # "portal", members[i] or consumers[i]
     open: bool          # its own portal is public: its why may be shown
     repo: str           # the declaring project's repository, from the composition file ("" for the portal itself)
     commit: str         # the declaring project's pin in the composition file
@@ -267,7 +267,7 @@ class Use(NamedTuple):
 class Collected(NamedTuple):
     own: str
     groups: list
-    uses: list          # every Use that names the composing portal or a component, in order
+    uses: list          # every Use that names the composing portal or a member, in order
     own_uses: dict      # group name to the Use list of that group's own consumes:
     notes: list
     states: dict        # (consumed group, consumer's commit, record or None) to a pin state, read while the clones exist
@@ -284,8 +284,8 @@ def collect(tool: str, items: list[str], date: str, relabels=(), slots=None) -> 
     configs = {}
     for key, entry in listed(comp):
         configs[key] = read_declaration(key, dirs[key], entry)
-        (refuse_component if key.startswith("components") else refuse_consumer)(key, configs[key])
-        if key.startswith("components"):
+        (refuse_member if key.startswith("members") else refuse_consumer)(key, configs[key])
+        if key.startswith("members"):
             refuse_audience(tool, key, configs[key])
     notes: list[str] = []
     groups: list[Group] = []
@@ -295,8 +295,8 @@ def collect(tool: str, items: list[str], date: str, relabels=(), slots=None) -> 
         decl_rel = top_relative(repo, project.PATH)
         groups.append(Group(own, "portal", run_fragment("portal", project.PATH, date, relabels), repo, "HEAD",
                             decl_rel, top_relative(repo, project.DECISIONS), project.CONFIG))
-        for i, entry in enumerate(comp.components):
-            key = f"components[{i}]"
+        for i, entry in enumerate(comp.members):
+            key = f"members[{i}]"
             tree = stack.enter_context(pinned(key, dirs[key], entry.commit))
             decl = tree / entry.declaration
             groups.append(Group(entry.name, key, run_fragment(key, decl, date, [(slots or {})[entry.lists.relabel]]
@@ -328,13 +328,13 @@ def collect(tool: str, items: list[str], date: str, relabels=(), slots=None) -> 
 
 # --- blocks -------------------------------------------------------------------------------------------------------
 
-def component_id(name: str) -> str:
-    return f"{name}--component"
+def member_id(name: str) -> str:
+    return f"{name}--member"
 
 
 def _who(use: Use, groups: set) -> str:
     name = esc(use.who)
-    return f'<a href="#{esc(component_id(use.who))}">{name}</a>' if use.who in groups else name
+    return f'<a href="#{esc(member_id(use.who))}">{name}</a>' if use.who in groups else name
 
 
 def consumed_by_li(use: Use, groups: set, only=None, state: str = "") -> str:
@@ -359,7 +359,7 @@ def consumes_li(use: Use, group_pages: dict, state: str = "") -> str:
     e = use.entry
     name = esc(e.portal)
     if e.portal in group_pages:
-        name = f'<a href="#{esc(component_id(e.portal))}">{name}</a>'
+        name = f'<a href="#{esc(member_id(e.portal))}">{name}</a>'
     refs = ""
     if e.records:
         shown = []
@@ -377,8 +377,8 @@ def consumes_block(lis: list[str]) -> str:
 
 
 COMPOSED_CSS = """
-.component{margin:1.5rem 0;padding-bottom:8px;border-top:2px solid var(--head)}
-.component h2{margin-top:1rem}
+.member{margin:1.5rem 0;padding-bottom:8px;border-top:2px solid var(--head)}
+.member h2{margin-top:1rem}
 .consumed-by,.consumes{margin:1rem 0;font-size:14px}
 .consumed-by h2,.consumes h3{font-size:1rem;margin:.5rem 0}
 .consumed-by .repo,.consumes .repo{color:var(--muted)}
@@ -402,11 +402,11 @@ def no_composition_lists(tool: str, items) -> None:
 
 
 def slot_table(comp) -> dict:
-    """Slot name to (position key, kind), for every component's two slots, in file order."""
+    """Slot name to (position key, kind), for every member's two slots, in file order."""
     out = {}
-    for i, e in enumerate(comp.components):
-        out[e.lists.relabel] = (f"components[{i}]", "relabel")
-        out[e.lists.barred] = (f"components[{i}]", "barred")
+    for i, e in enumerate(comp.members):
+        out[e.lists.relabel] = (f"members[{i}]", "relabel")
+        out[e.lists.barred] = (f"members[{i}]", "barred")
     return out
 
 
@@ -436,16 +436,16 @@ def list_files(tool: str, items: list[str], comp) -> dict:
 
 
 def refuse_audience(tool: str, key: str, config: dict) -> None:
-    """A public portal composes only public components. Before any clone; the message carries no name."""
+    """A public portal composes only public members. Before any clone; the message carries no name."""
     if declared.portal_audience(tool) == "public" and audience_of(config) != "public":
-        _bad(key, "its audience is private; a public portal composes only public components")
+        _bad(key, "its audience is private; a public portal composes only public members")
 
 
 def relabel_lists(tool: str, own: list, slots: dict, comp) -> list:
-    """(label, rules): the portal's own lists in order, then each component's relabel slot in file order."""
+    """(label, rules): the portal's own lists in order, then each member's relabel slot in file order."""
     import relabel
     out = [(f"--relabel {n}", relabel.load([p])) for n, p in enumerate(own, 1)]
-    for e in comp.components:
+    for e in comp.members:
         if e.lists.relabel in slots:
             out.append((e.lists.relabel, relabel.load([slots[e.lists.relabel]])))
     seen: dict[str, tuple] = {}
@@ -461,14 +461,14 @@ def relabel_lists(tool: str, own: list, slots: dict, comp) -> list:
 
 
 def barred_lists(own: list, slots: dict, comp) -> list:
-    """(label, patterns): the portal's own lists in order, then each component's barred slot in file order."""
+    """(label, patterns): the portal's own lists in order, then each member's barred slot in file order."""
     from capability_phases import CheckError, load_barred
     from data_exchange import InputError
     out = []
     try:
         for n, p in enumerate(own, 1):
             out.append((f"--barred {n}", load_barred([p])))
-        for e in comp.components:
+        for e in comp.members:
             if e.lists.barred in slots:
                 out.append((e.lists.barred, load_barred([slots[e.lists.barred]])))
     except CheckError as e:
