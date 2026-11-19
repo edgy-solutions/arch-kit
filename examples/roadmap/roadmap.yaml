@@ -1,0 +1,24 @@
+roadmap:
+  - id: RM-001
+    increment: Offline pickup
+    isolates: whether a locker accepts a parcel with no depot link
+    home: ADR-0001
+    depends_on: []
+    status: measured
+  - id: RM-002
+    increment: Size routing
+    isolates: whether the depot routes parcels by size & weight
+    home: ADR-0002
+    depends_on: [RM-001]
+    status: accepted
+  - id: RM-003
+    increment: Joint wait
+    isolates: whether a locker waits for the depot before it releases a parcel
+    home: other:ADR-0007
+    depends_on: [RM-001, RM-002]
+    status: built
+  - id: RM-004
+    increment: Return leg
+    isolates: whether a returned parcel finds its way back to the depot
+    depends_on: [RM-003]
+    status: proposed

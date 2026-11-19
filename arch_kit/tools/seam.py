@@ -14,6 +14,8 @@ One more name is optional: `load_alignment(root)`, for a project that keeps its 
 docs/design/alignment.md) somewhere other than `files.alignment`. A loader may leave it out; it is not in NAMES.
 Another is `load_components(root)`, for a project that keeps its component records somewhere other than
 `files.components`; it returns a list of components and is optional in the same way.
+Another is `load_roadmap(root)`, for a project that keeps its roadmap increments somewhere other than
+`files.roadmap`; it returns a list of increments and is optional in the same way.
 """
 from __future__ import annotations
 
@@ -73,9 +75,12 @@ class Loader(Protocol):
     def load_components(self, root: Path) -> list[dict]:
         """Optional. The component records, in the kit's shape; root is paths.root."""
 
+    def load_roadmap(self, root: Path) -> list[dict]:
+        """Optional. The roadmap increments, in the kit's shape; root is paths.root."""
+
 
 # Names a loader may leave out.
-OPTIONAL_NAMES = ("load_alignment", "load_components")
+OPTIONAL_NAMES = ("load_alignment", "load_components", "load_roadmap")
 
 # Every name a loader must provide: KEY_NAMES and each function above, less the optional ones.
 NAMES = ("KEY_NAMES", *(n for n, v in vars(Loader).items()
