@@ -128,6 +128,20 @@ class LongTokens(unittest.TestCase):
         self.assertIn(f"<td>{PATH47}</td>", second)
         self.assertIn("<td>parcels/<wbr>lockers/", second)
 
+    def test_a_header_min_width_counts_a_break_hint_as_a_break(self):
+        out = render_html.style_tables(render(HEAD + row("w", PATH, "y", "z")))
+        self.assertIn("<wbr>", out)
+        piece = max(len(w) for w in PATH.replace("/", "/ ").replace("-", "- ").split())
+        width = int(re.search(r'<th[^>]*min-width:(\d+)ch[^>]*>b</th>', out).group(1))
+        self.assertLessEqual(width, max(piece, render_html.PROSE_MIN_CH))
+        self.assertLess(width, len(PATH))
+
+    def test_a_header_min_width_for_an_unbroken_token_is_its_length(self):
+        token = "0123456789" * 4
+        out = render_html.style_tables(render(HEAD + row("w", token, "y", "z")))
+        self.assertNotIn("<wbr>", out)
+        self.assertRegex(out, r'<th[^>]*min-width:40ch[^>]*>b</th>')
+
 
 if __name__ == "__main__":
     unittest.main()

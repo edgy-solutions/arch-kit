@@ -1055,7 +1055,8 @@ def style_table(t: str, view: bool = True) -> str:
             if col < len(r):
                 text = plain(r[col][2])
                 cell = max(cell, len(text))
-                words = max([words] + [len(w) for w in text.split()])
+                broken = plain(r[col][2].replace("<wbr>", " "))
+                words = max([words] + [len(w) for w in broken.split()])
         mins[col] = min(cell, max(words, PROSE_MIN_CH))
     state = {"row": -1, "prev": None, "body": 0}
 
