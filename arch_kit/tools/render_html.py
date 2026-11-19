@@ -363,14 +363,13 @@ class Decisions:
         self.rules = list(rules)
         self.replaced = 0
         self.files: dict[str, Path] = {}
-        rec_re, rec_glob = declared.record_patterns("render_html")
-        for f in sorted(self.dir.glob(rec_glob)):
-            m = re.match(rec_re, f.name)
-            if not m:
+        for f in sorted(self.dir.glob(declared.record_file_patterns("render_html")[1])):
+            rid = declared.record_id_of_file("render_html", f.name)
+            if rid is None:
                 continue
-            if m.group(0) in self.files:
-                raise InputError(f"decisions/ has two files for {m.group(0)}")
-            self.files[m.group(0)] = f
+            if rid in self.files:
+                raise InputError(f"decisions/ has two files for {rid}")
+            self.files[rid] = f
         road = self.dir / capability_phases.roadmap_file()
         if not road.is_file():
             raise InputError(f"decisions/{capability_phases.roadmap_file()} does not exist")

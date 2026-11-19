@@ -86,7 +86,7 @@ So a project that never runs the data-exchange generator does not need to declar
 | `derived.dictionary.dir`, `derived.dictionary.terms` | The term dictionary: a directory under the repository root, and the (file, path) pairs the dictionary table shows (see below) | `derived`, and through it `check_views` and `render_html` |
 | `files.*` | The content file names under `paths.root`: `profiles`, `slots`, `appendix`, `inventory`, `readme`, `record`, `adr_exemptions`, `annotation_exceptions`. Optional; default is today's name for each (see below) | `check_views`, `check_annotations`, `check_export`, `check_views_canary`, `browser_facts`, `data_exchange`, `derived`, `render_html`, `render_profile` |
 | `decisions.index.readme` | Also the name of the decision document index that `capability_phases` reads when no other `decisions.index` key is declared. Optional; default `README.md` | `capability_phases` |
-| `decisions.records.prefix`, `decisions.records.digits` | The decision record id grammar: `PREFIX-<digits>`, file `PREFIX-<digits>-<slug>.md`. Optional; default `ADR` and `4` (see below) | `adr_sections`, `capability_phases`, `check_export`, `check_views`, `derived`, `render_html`, `check_decision_indexes` |
+| `decisions.records.prefix`, `decisions.records.digits`, `decisions.records.file_prefix` | The decision record id grammar: `PREFIX-<digits>`, file `PREFIX-<digits>-<slug>.md`, or `<digits>-<slug>.md` when `file_prefix` is false. Optional; default `ADR`, `4` and `true` (see below) | `adr_sections`, `capability_phases`, `check_export`, `check_views`, `derived`, `render_html`, `check_decision_indexes` |
 | `decisions.index.register_id.letters`, `.digits` | The register id grammar. Optional; default `2` and `[1, 2]` (see below) | `check_decision_indexes` |
 | `derived.roadmap.increments`, `derived.roadmap.fold_ins` | The header cells of the roadmap note's two tables. Optional; default is the original headers (see below) | `derived` |
 
@@ -343,6 +343,7 @@ decisions:
   records:              # optional; a record id is PREFIX-<digits>, its file PREFIX-<digits>-<slug>.md
     prefix: ADR         # capital letters and digits, starting with a letter (default ADR)
     digits: 4           # an integer 1..8 (default 4)
+    file_prefix: true   # true or false (default true): false names a record file <digits>-<slug>.md
   index:
     register_id:        # optional; the register id grammar
       letters: 2        # an integer 1..6: that many capital letters (default 2)
@@ -352,6 +353,10 @@ decisions:
 `decisions.records` may be declared without `decisions.index`. Messages that print the record form (`ADR-NNNN`)
 print the declared prefix and one `N` per digit. A bad value exits 2 and names the key. The `register_homes` and
 `indexed` globs are the project's own and are not changed by `records.prefix`.
+
+With `file_prefix: false` a record file is `0007-use-a-queue.md`, and its id is still `ADR-0007`: ids are what prose
+cites and what page ids are made from, and only the mapping between a file name and an id changes. The prefix itself
+cannot be empty, because an id of bare digits would match years in prose. A value that is not true or false exits 2.
 
 ### The roadmap note's tables
 
@@ -374,8 +379,9 @@ behaves as before.
 - The content file names under `paths.root`: `files.profiles`, `files.slots`, `files.appendix`, `files.inventory`,
   `files.readme`, `files.record`, `files.adr_exemptions`, `files.annotation_exceptions`.
 - The decision document index name under `paths.decisions`: `decisions.index.readme` (default `README.md`).
-- The decision record id and file name: `decisions.records.prefix` and `decisions.records.digits` (default `ADR` and
-  `4`, so `ADR-NNNN-<slug>.md` and the citation `prefix:ADR-NNNN`).
+- The decision record id and file name: `decisions.records.prefix`, `decisions.records.digits` and
+  `decisions.records.file_prefix` (default `ADR`, `4` and `true`, so `ADR-NNNN-<slug>.md` and the citation
+  `prefix:ADR-NNNN`; `false` drops the prefix from the file name only).
 - The register id grammar of `check_decision_indexes`: `decisions.index.register_id.letters` and `.digits` (default
   two capital letters and one or two digits, such as `XY-7` and `QZ-01`).
 - The roadmap note's table headers: `derived.roadmap.increments` and `derived.roadmap.fold_ins`.

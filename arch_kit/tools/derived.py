@@ -284,17 +284,16 @@ def adr_class(adr: str, text: str) -> str:
 
 def traceability(decisions: Path, views: Path, record: dict, exemptions: Path) -> str:
     try:
-        files = sorted(decisions.glob(declared.record_patterns("derived")[1]))
+        files = sorted(decisions.glob(declared.record_file_patterns("derived")[1]))
     except OSError as e:
         raise InputError(f"cannot list {decisions}: {e}")
     fails: list[str] = []
     in_force = {st.word for st in declared.statuses("derived") if st.in_force}
     info: dict[str, tuple[str, str]] = {}
     for p in files:
-        m = ADR_RE.match(p.name)
-        if not m:
+        adr = declared.record_id_of_file("derived", p.name)
+        if adr is None:
             continue
-        adr = m.group(0)
         try:
             text = p.read_text(encoding="utf-8")
         except OSError as e:

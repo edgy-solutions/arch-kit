@@ -179,7 +179,7 @@ def check_diagrams(raw: str, tree: check_views.Tree) -> list[str]:
     return fails
 
 
-STAMP_RE = re.compile(r"^Commit [0-9a-f]{7,}, \d{4}-\d{2}-\d{2}: decisions/" + declared.record_patterns("check_export")[0] + r"-.+\.md")
+STAMP_RE = re.compile(r"^Commit [0-9a-f]{7,}, \d{4}-\d{2}-\d{2}: decisions/" + declared.record_file_patterns("check_export")[0])
 WHAT_RE = re.compile(r"<p data-what>(.*?)</p>", re.S)
 STAMP_P_RE = re.compile(r'<p class="stamp" data-stamp>(.*?)</p>', re.S)
 
@@ -208,9 +208,8 @@ def check_decisions(raw: str, tree: check_views.Tree) -> list[str]:
     fails: list[str] = []
     pages = {pid: body for pid, body in PAGE_RE.findall(raw) if pid.startswith((declared.record_id("check_export")[0].lower() + "-", "decision-"))}
     directory = project.DECISIONS
-    rec_prefix, rec_digits = declared.record_id("check_export")
     if directory.is_dir():
-        want = sorted(f.name[:len(rec_prefix) + 1 + rec_digits].lower() for f in directory.glob(declared.record_patterns("check_export")[1])) + ["decision-roadmap"]
+        want = sorted(declared.record_id_of_file("check_export", f.name).lower() for f in directory.glob(declared.record_file_patterns("check_export")[1]) if declared.record_id_of_file("check_export", f.name)) + ["decision-roadmap"]
         got = sorted(i for i in pages if i != "decision-roadmap") + ["decision-roadmap"] * ("decision-roadmap" in pages)
         if got != want:
             fails.append(f"decisions: the export has {len(pages)} decision pages, decisions/ has {len(want)}"

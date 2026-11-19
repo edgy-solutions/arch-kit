@@ -55,7 +55,7 @@ def main() -> int:
                IDX_DIRNAME=directory.name, IDX_REGISTER=index.register, IDX_README=index.readme,
                IDX_HOMES=" ".join(index.register_homes), IDX_INDEXED=" ".join(index.indexed),
                IDX_LOCAL=index.local_prefix, IDX_FOREIGN="\n".join(foreign), IDX_ROOT=_rel(repo, directory),
-               IDX_RECORD_PREFIX=IDX_RECORD_PREFIX, IDX_RECORD_DIGITS=str(IDX_RECORD_DIGITS),
+               IDX_RECORD_PREFIX=IDX_RECORD_PREFIX, IDX_RECORD_FILE_PREFIX="1" if declared.record_file_prefixed(TOOL) else "0", IDX_RECORD_DIGITS=str(IDX_RECORD_DIGITS),
                IDX_ID_LETTERS=str(IDX_ID_LETTERS), IDX_ID_MIN=str(IDX_ID_MIN), IDX_ID_MAX=str(IDX_ID_MAX))
     sys.stdout.flush()
     sys.stderr.flush()

@@ -26,6 +26,7 @@
 #   IDX_ROOT      the repository root, relative to the decisions directory
 #   IDX_RECORD_PREFIX, IDX_RECORD_DIGITS   a decision record id is PREFIX-<digits>
 #                 and its file PREFIX-<digits>-<slug>.md (default ADR, 4)
+#   IDX_RECORD_FILE_PREFIX   0 when a record file is <digits>-<slug>.md, with no prefix (default 1)
 #   IDX_ID_LETTERS, IDX_ID_MIN, IDX_ID_MAX   a register id is that many capital
 #                 letters, a hyphen, then MIN to MAX digits (default 2, 1, 2)
 #
@@ -57,6 +58,8 @@ IDX_FOREIGN="${IDX_FOREIGN:-}"
 # The grammar of the ids, from the declaration; the defaults are the original fixed forms.
 rp="${IDX_RECORD_PREFIX:-ADR}"
 rd="${IDX_RECORD_DIGITS:-4}"
+# A record file is PREFIX-<digits>-<slug>.md, or <digits>-<slug>.md when IDX_RECORD_FILE_PREFIX is 0.
+rfp="$rp-"; [ "${IDX_RECORD_FILE_PREFIX:-1}" = 0 ] && rfp=""
 idlet="[A-Z]{${IDX_ID_LETTERS:-2}}"
 idnum="[0-9]{${IDX_ID_MIN:-1},${IDX_ID_MAX:-2}}"
 recform="$rp-$(printf '%*s' "$rd" '' | tr ' ' N)"
@@ -250,7 +253,7 @@ fi
 missing_local=""
 for ref in $(printf '%s\n' "$xrefs" | grep -E "^$IDX_LOCAL:$rp-[0-9]{$rd}$"); do
   num="${ref#$IDX_LOCAL:$rp-}"
-  ls $rp-${num}-*.md >/dev/null 2>&1 || missing_local="${missing_local}    ${ref}"$'\n'
+  ls ${rfp}${num}-*.md >/dev/null 2>&1 || missing_local="${missing_local}    ${ref}"$'\n'
 done
 if [ -n "$missing_local" ]; then
   echo "FAIL: $IDX_LOCAL:-prefixed citations with no matching document here:" >&2

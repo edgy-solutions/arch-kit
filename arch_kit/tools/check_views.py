@@ -321,7 +321,6 @@ def rule_links(t: Tree) -> list[str]:
 
 COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 CITED_VIEW = uaf.CAPABILITY_TAXONOMY
-DECISION_FILE_RE = re.compile(r"^(" + declared.record_patterns("check_views")[0] + r")-.+\.md$")
 TEXT_LINK_RE = re.compile(r"\[([^\]\n]*)\]\(([^)\s]+)\)")
 
 
@@ -339,8 +338,8 @@ def rule_decision_links(t: Tree) -> list[str]:
                     continue
                 path, _, fragment = target.partition("#")
                 file = (t.root / "views" / path).resolve()
-                m = DECISION_FILE_RE.match(file.name)
-                if file.parent != decisions or not m or not file.is_file():
+                rid = declared.record_id_of_file("check_views", file.name)
+                if file.parent != decisions or not rid or not file.is_file():
                     continue
                 label = label.strip()
                 if vid != CITED_VIEW and "§" not in label:
@@ -350,9 +349,9 @@ def rule_decision_links(t: Tree) -> list[str]:
                     fails.append(f"decision-links: {vid}: link text {label!r} is not a citation of the form "
                                  f"{declared.record_form('check_views')} §LABEL")
                     continue
-                if c.group(1) != m.group(1):
+                if c.group(1) != rid:
                     fails.append(f"decision-links: {vid}: link text {label!r} cites {c.group(1)} "
-                                 f"and the link is to {m.group(1)}")
+                                 f"and the link is to {rid}")
                     continue
                 try:
                     heading = adr_sections.resolve(file.read_text(encoding="utf-8"), c.group(2))

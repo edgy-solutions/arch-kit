@@ -283,7 +283,7 @@ def _prefix(value, key):
     return value
 
 
-RECORD_KEYS = ("prefix", "digits")
+RECORD_KEYS = ("prefix", "digits", "file_prefix")
 REGISTER_ID_KEYS = ("letters", "digits")
 
 
@@ -300,7 +300,7 @@ def record_id(tool: str) -> tuple:
     if "record_id" not in _CACHE:
         decisions = project.CONFIG.get("decisions")
         node = decisions.get("records") if isinstance(decisions, dict) else None
-        prefix, digits = "ADR", 4
+        prefix, digits, file_prefix = "ADR", 4, True
         if node is not None:
             if not isinstance(node, dict):
                 _bad("decisions.records", "must be a map")
@@ -314,14 +314,44 @@ def record_id(tool: str) -> tuple:
                                                      f"starting with a letter")
             if "digits" in node:
                 digits = _int(node["digits"], "decisions.records.digits", 1, 8)
+            if "file_prefix" in node:
+                file_prefix = node["file_prefix"]
+                if not isinstance(file_prefix, bool):
+                    _bad("decisions.records.file_prefix", f"{file_prefix!r} must be true or false")
         _CACHE["record_id"] = (prefix, digits)
+        _CACHE["record_file_prefix"] = file_prefix
     return _CACHE["record_id"]
 
 
 def record_patterns(tool: str) -> tuple:
-    """(regex text, file glob) for a decision record: `PREFIX-\d{N}` and `PREFIX-*.md`."""
+    """(regex text, glob) for a decision record id: `PREFIX-\d{N}` and `PREFIX-*.md`. For file names see
+    record_file_patterns and record_id_of_file."""
     prefix, digits = record_id(tool)
     return f"{prefix}-" + chr(92) + f"d{{{digits}}}", f"{prefix}-*.md"
+
+
+def record_file_patterns(tool: str) -> tuple:
+    """(regex text, file glob) for a decision record's file NAME. The regex matches the whole name and captures the
+    digits as `n`. With `decisions.records.file_prefix` true (the default) a name is PREFIX-<digits>-<slug>.md;
+    with false it is <digits>-<slug>.md. The record id is PREFIX-<digits> either way."""
+    prefix, digits = record_id(tool)
+    d = chr(92) + "d"
+    if _CACHE["record_file_prefix"]:
+        return f"{prefix}-(?P<n>{d}{{{digits}}})-.+" + chr(92) + ".md", f"{prefix}-*.md"
+    return f"(?P<n>{d}{{{digits}}})-.+" + chr(92) + ".md", "[0-9]" * digits + "-*.md"
+
+
+def record_id_of_file(tool: str, name: str):
+    """The record id (PREFIX-<digits>) a record file name carries, or None when the name is not a record file."""
+    import re
+    m = re.fullmatch(record_file_patterns(tool)[0], name)
+    return f"{record_id(tool)[0]}-{m.group('n')}" if m else None
+
+
+def record_file_prefixed(tool: str) -> bool:
+    """Whether record file names carry the prefix (`decisions.records.file_prefix`, default true)."""
+    record_id(tool)
+    return _CACHE["record_file_prefix"]
 
 
 def record_form(tool: str) -> str:

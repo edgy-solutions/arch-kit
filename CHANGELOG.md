@@ -8,6 +8,7 @@ output is unchanged.
 - `files.*`: the content file names (`profiles`, `slots`, `appendix`, `inventory`, `readme`, `record`, `adr_exemptions`, `annotation_exceptions`).
 - `decisions.index.readme` is also read by `capability_phases` when the other `decisions.index` keys are absent.
 - `decisions.records.prefix` and `.digits`: the decision record id and file name.
+- `decisions.records.file_prefix`: false names a record file `<digits>-<slug>.md`; the record id keeps its prefix.
 - `decisions.index.register_id.letters` and `.digits`: the register id grammar of `check_decision_indexes`.
 - `derived.roadmap.increments` and `.fold_ins`: the roadmap note's table headers.
 

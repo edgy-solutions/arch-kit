@@ -99,7 +99,8 @@ def main(argv: list[str] | None = None) -> int:
     if len(argv) != 1:
         print(f"usage: adr_sections.py {declared.record_form('adr_sections')}", file=sys.stderr)
         return 2
-    found = sorted(DECISIONS.glob(f"{argv[0]}-*.md"))
+    found = sorted(f for f in DECISIONS.glob(declared.record_file_patterns("adr_sections")[1])
+                   if declared.record_id_of_file("adr_sections", f.name) == argv[0])
     if len(found) != 1:
         print(f"error: {argv[0]} is {len(found)} files in {DECISIONS}, expected one", file=sys.stderr)
         return 2
