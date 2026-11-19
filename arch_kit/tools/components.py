@@ -11,7 +11,7 @@ path is dotted (`components.0.id`), a later check's is `components[i].<key>`.
 A list is checked in this order: the schema (arch_kit/schema/components.schema.json), then the checks in check().
 One check does not refuse: a `measured` component with no evidence under `components.results` is reported on stderr.
 
-render() makes the Components page and the front page's nav items, and nav() wraps the items; lane 02's render_html
+render() makes the Components page and the front page's nav items, and nav() wraps the items; render_html
 wires them in. CSS goes to the page style. This module must not import render_html.
 """
 from __future__ import annotations
