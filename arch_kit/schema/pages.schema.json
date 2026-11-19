@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Prose pages",
+  "description": "The project's overview and walkthroughs, written as prose. Each page has an id, a title, a kind, an optional order and a body whose [[...]] citations the kit checks against the records.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["pages"],
+  "properties": {
+    "pages": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/page"}}
+  },
+  "$defs": {
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "kind", "body"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "not": {"pattern": "[\\r\\n]"}},
+        "title": {"type": "string", "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
+        "kind": {"enum": ["overview", "walkthrough"]},
+        "order": {"type": "integer", "minimum": 1},
+        "body": {"type": "string", "pattern": "\\S"}
+      }
+    }
+  }
+}

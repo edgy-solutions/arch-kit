@@ -321,6 +321,51 @@ order: a repeated id, a repeated increment, a date in `increment` or `isolates`,
 `depends_on` item that is the increment itself, comes later or is no increment id, and a `home` that is missing (and
 the status is not `proposed`) or does not resolve.
 
+### The prose pages: `files.pages` and `load_pages`
+
+A project may write its overview and walkthroughs as prose pages. Every record a page cites is checked to exist, and a
+status it claims is checked against the record, so prose cannot claim more than the records do. `files.pages` names a
+directory under `paths.root`, with no default. Every `*.md` file directly in it (not in a subdirectory) is one page,
+read in sorted order, and its id is the file stem (lowercase letters, digits and hyphens). A directory that does not
+exist exits 2 as `<dir>: (record): is not a directory`. A file opens with front matter between a first line `---` and
+the next line that is exactly `---`; the body is everything after it:
+
+```markdown
+---
+title: A parcel arrives offline   # one non-empty line
+kind: walkthrough                 # overview or walkthrough; at most one page may be the overview
+order: 2                          # optional integer >= 1; walkthroughs sort by (order, id), none last
+---
+A courier puts a parcel in a locker. The first step is [[RM-001|built]], on the flow [[FL-001|built]].
+```
+
+The front matter holds only `title`, `kind` and `order`; any other key (`id` and `body` included) exits 2 as
+`<file>: <key>: unknown key`. A file with no front matter exits 2 as `<file>: (record): must open with front matter
+between --- lines`.
+
+A loader may instead define `load_pages(root)`, where `root` is `paths.root`, returning a list of
+`{id, title, kind, body}` with an optional `order`. It is optional, as `load_roadmap` is, and is not one of the names
+every loader provides. Declaring `files.pages` and defining `load_pages` together exits 2 naming both.
+
+A citation is `[[ident]]` or `[[ident|status]]`, in the body only. It is not one inside a fenced code block (a line of
+at most three spaces then ``` or ~~~, closed by the same marker) or an inline code span; an indented code block is not
+special-cased. The ident is resolved in this order: `CO-...` against the components, `RM-...` against the roadmap,
+`FL-...` against the flows, `alignment:<name>` against the alignment records, and anything else as a decision id, local
+or `<prefix>:<id>` for a declared foreign prefix. A status is one of `measured`, `built`, `accepted`, `proposed`, and
+applies to components and increments (it must equal the record's status) and to flows (only `|built`, which holds when
+the flow's `built` is true). A decision or an alignment record carries no status.
+
+The checks run in this order, and the first failure exits 2: the schema (`<file>: <key>: <why>` on the directory route,
+`load_pages: pages[i].<key>: <why>` on the loader route), a repeated id (loader route), a second overview
+(`only one page may be the overview; <id> already is`), then each citation, as `<where>: line N: <why>`. N is the
+1-based line in the file, front matter counted, on the directory route (where `<where>` is the file), and the line in
+`body` on the loader route (where `<where>` is `load_pages: pages[i].body`). The reasons are `[[X]] does not resolve`
+(with `: the project declares no components`, `increments`, `flows` or `alignment records` when the project declares
+none), `[[X|s]]: s is not a status (measured, built, accepted, proposed)`, `[[X|s]]: a flow is built or not; only
+|built applies`, `[[X|built]] says built; X is not built`, `[[X|s]]: only components, increments and flows carry a
+status` and `[[X|s]] says s; X is <the record's status>`. Each record set is loaded at most once, and only when a
+citation needs it.
+
 ### The decision index
 
 ```yaml
