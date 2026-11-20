@@ -101,10 +101,9 @@ It checks:
 With `portal.mode: decisions` it runs only these checks: the barred list and the relabel list, each page's
 provenance line, the content security policy and the size of the file, the internal links, and the decision pages
 (one page per record file, each with its stamp; a roadmap page only when the roadmap file exists). It does not
-read the views, the record or the declarations, and it does not count diagrams. `check_views` and the browser check
-are not run in this mode (the Action skips them). A browser check for decisions mode is an open follow-up, due before
-the first decisions-only portal is published. `check_decision_indexes` runs as in full mode, except that checks 1,
-3 and 4 do not run when `decisions.index.register` is `none`.
+read the views, the record or the declarations, and it does not count diagrams. `check_views` is not run in this
+mode. The browser check runs its decisions-mode assertions (see below). `check_decision_indexes` runs as in full
+mode, except that checks 1, 3 and 4 do not run when `decisions.index.register` is `none`.
 
 ## `check_export_browser.mjs`: the file in a browser
 
@@ -120,6 +119,19 @@ browser state, not words on the page:
 - that the counts match.
 
 Run `npm ci` in `arch_kit/tools/export` first.
+
+In decisions mode (`portal.mode: decisions`) the facts file says `mode: decisions` and the script runs only the
+assertions in `check_export_browser_decisions.mjs`, on state, at 1280x900 unless stated:
+1. Load: exactly one `.page` is displayed, the front page.
+2. Page count: the `section.page` elements are the front page and then `page_ids`, in order.
+3. Navigation: each page opens alone and hides the front page (one aggregate check).
+4. Front-page link: every page holds a link to `#front`; clicking it on the first and last page shows the front page.
+5. Back: the browser's back button returns through the page before, then the front page.
+6. Internal links: every `#href` in the document names an id that exists.
+7. Search: a nonsense term finds nothing, Esc clears the box, the declared phrase finds the declared decision's page.
+8. Width: at 390 and at 1280, no page scrolls sideways and a table wider than its container scrolls inside `.scroll`.
+9. Print: every page is displayed, the bar and search panel are hidden, the PDF has `min_pages` pages, all landscape.
+10. Screenshots: `front.png`, `decision-<first page id>.png` and `phone-front.png`.
 
 ## Names in the published file
 

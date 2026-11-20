@@ -44,7 +44,7 @@ def copy_example(tmp: Path) -> Path:
     return root
 
 
-class Example(unittest.TestCase):
+class Example(td.BrowserCase, unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)

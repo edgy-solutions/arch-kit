@@ -23,3 +23,9 @@ decisions:
     register_homes: ["[0-9]*.md"]
     indexed: ["[0-9]*.md", FOLLOW-UPS.md]
     local_prefix: larkspur
+export:
+  browser:                 # what the browser check expects of the decisions-mode portal; nothing else is read
+    search:
+      phrase: cargo van    # two words that occur in one decision record's body only
+      finds: ADR-0002      # that record: the search result for the phrase links its page
+    min_pages: 4           # a floor for the printed PDF's page count: at least one page for each page of the portal
