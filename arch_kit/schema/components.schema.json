@@ -33,8 +33,37 @@
         "data_path": {"$ref": "#/$defs/line"},
         "serves": {"type": "array", "items": {"$ref": "#/$defs/line"}},
         "status": {"enum": ["measured", "built", "accepted", "proposed"]},
-        "evidence": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+        "evidence": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "connections": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/connection"}}
       }
+    },
+    "oneline": {"type": "string", "not": {"pattern": "[\\r\\n]"}},
+    "connection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["other", "direction", "protocol", "sign_in", "what_passes", "status", "evidence"],
+      "properties": {
+        "other": {"$ref": "#/$defs/oneline"},
+        "direction": {"enum": ["calls", "is called by", "reads", "writes"]},
+        "protocol": {"$ref": "#/$defs/line"},
+        "sign_in": {"$ref": "#/$defs/line"},
+        "what_passes": {"$ref": "#/$defs/line"},
+        "status": {"enum": ["measured", "built", "accepted", "proposed"]},
+        "evidence": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "protected_by": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/protection"}}
+      }
+    },
+    "protection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "evidence"],
+      "properties": {
+        "by": {"$ref": "#/$defs/oneline"},
+        "none": {"$ref": "#/$defs/line"},
+        "status": {"enum": ["measured", "built", "accepted", "proposed"]},
+        "evidence": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      },
+      "oneOf": [{"required": ["by"]}, {"required": ["none"]}]
     }
   }
 }
