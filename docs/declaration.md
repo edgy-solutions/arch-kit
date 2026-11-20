@@ -668,6 +668,7 @@ export:
     min_pages: 30           # the least pages the print PDF may have
     min_tables: 30          # the least tables with a min-width header
     min_tokens: 1000        # the least words the mid-word wrap check must measure
+    expect_wide_table: true # optional: the table view holds a table wider than its container at 1280
 ```
 
 `browser_facts` reads these with the model, the record, the decision records and the views, and writes the counts

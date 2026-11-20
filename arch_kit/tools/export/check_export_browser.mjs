@@ -315,11 +315,11 @@ try {
   // Words: measure every whitespace-delimited token in the visible tables; wrapped if its last character sits
   // below the bottom of its first. Details are opened for the measure and restored.
   const measure = (firstCol, lastCol) =>
-    page.evaluate((c0, c1) => {
+    page.evaluate((c0, c1, idMax) => {
       const dets = [...document.querySelectorAll("details")];
       const was = dets.map((d) => d.open);
       dets.forEach((d) => { d.open = true; });
-      const out = { tokens: 0, wrapped: 0, unmeasured: 0, fails: [] };
+      const out = { tokens: 0, wrapped: 0, unmeasured: 0, long: 0, fails: [] };
       const tables = [...document.querySelectorAll("table")].filter((t) => t.getClientRects().length > 0);
       for (const t of tables) {
         const sec = t.closest("section,.grid");
@@ -331,6 +331,11 @@ try {
             let cur = null;
             const end = () => {
               if (!cur) return;
+              if (cur.text.length > idMax) {
+                out.long++;
+                cur = null;
+                return;
+              }
               const rect = (n, o) => {
                 const r = document.createRange();
                 r.setStart(n, o);
@@ -363,13 +368,14 @@ try {
       }
       dets.forEach((d, i) => { d.open = was[i]; });
       return out;
-    }, firstCol, lastCol);
+    }, firstCol, lastCol, facts.id_max);
   const sweep = async (firstCol, lastCol, profiles, pagesAtOnce) => {
-    const tot = { tokens: 0, wrapped: 0, unmeasured: 0, fails: [] };
+    const tot = { tokens: 0, wrapped: 0, unmeasured: 0, long: 0, fails: [] };
     const add = (r, tag) => {
       tot.tokens += r.tokens;
       tot.wrapped += r.wrapped;
       tot.unmeasured += r.unmeasured;
+      tot.long += r.long;
       for (const f of r.fails) if (tot.fails.length < 5) tot.fails.push(`${f} ${tag}`);
     };
     for (const p of profiles) {
@@ -388,11 +394,12 @@ try {
     if (!pagesAtOnce) await click("uaf");
     return tot;
   };
-  const midWord = { tokens: 0, wrapped: 0, unmeasured: 0, fails: [] };
+  const midWord = { tokens: 0, wrapped: 0, unmeasured: 0, long: 0, fails: [] };
   const fold = (r) => {
     midWord.tokens += r.tokens;
     midWord.wrapped += r.wrapped;
     midWord.unmeasured += r.unmeasured;
+    midWord.long += r.long;
     midWord.fails.push(...r.fails);
   };
   const info = [];
@@ -407,9 +414,10 @@ try {
   info.push(["print 980", await sweep(3, 99, ["uaf"], "print 980")]);
   await page.emulateMediaType("screen");
   await page.setViewport({ width: 1280, height: 900 });
+  check(Number.isInteger(facts.id_max), "mid-word: the facts carry id_max", `facts.id_max is ${JSON.stringify(facts.id_max)}; regenerate the facts with browser_facts`);
   check(midWord.wrapped === 0 && midWord.unmeasured === 0 && midWord.tokens >= facts.min_tokens,
-    `mid-word: no word wraps in the first three columns (${midWord.tokens} tokens, ${midWord.wrapped} wrapped, ${midWord.unmeasured} unmeasured)`,
-    `${midWord.tokens} tokens, ${midWord.wrapped} wrapped, ${midWord.unmeasured} unmeasured; first: ${midWord.fails.slice(0, 5).join("; ")}`);
+    `mid-word: no word wraps in the first three columns (${midWord.tokens} tokens, ${midWord.wrapped} wrapped, ${midWord.unmeasured} unmeasured, ${midWord.long} long, not counted)`,
+    `${midWord.tokens} tokens, ${midWord.wrapped} wrapped, ${midWord.unmeasured} unmeasured, ${midWord.long} long, not counted; first: ${midWord.fails.slice(0, 5).join("; ")}`);
   for (const [tag, r] of info) console.log(`info: columns 4 and later, ${tag}: ${r.tokens} tokens, ${r.wrapped} wrapped, ${r.unmeasured} unmeasured`);
 
   // Styling, by computed style.
@@ -459,13 +467,18 @@ try {
   if (capWide) await page.setViewport({ width: 1280, height: 900 });
   if (!NO_MODEL) check(cap !== null && cap[0] === 7 && capFit, `tables: the seven-column capability table does not scroll at ${capWide ? 1600 : 1280} (ch ${cap && cap[3].toFixed(2)} px)`, String(cap));
   await go(`#view-${TABLE}`);
-  const nine = await page.evaluate((view, cols) => {
-    const t = [...document.querySelectorAll(`#view-${view} table`)].find((x) => x.rows[0] && x.rows[0].cells.length === cols);
-    if (!t) return null;
-    const s = t.closest(".scroll");
-    return [s.scrollWidth, s.clientWidth, document.documentElement.scrollWidth, document.documentElement.clientWidth];
-  }, TABLE, facts.wide_table_columns);
-  check(nine !== null && nine[0] > nine[1] && nine[2] <= nine[3], "tables: the nine-column table scrolls inside .scroll while the page does not (known sideways scroll at 1280)", String(nine));
+  const wide = await page.evaluate(() => {
+    const tables = [...document.querySelectorAll("table")].filter((t) => t.offsetParent !== null && t.parentElement);
+    const over = tables.filter((t) => t.scrollWidth > t.parentElement.clientWidth + 1);
+    const stuck = over.filter((t) => {
+      const s = t.closest(".scroll");
+      return !s || getComputedStyle(s).overflowX !== "auto" || s.scrollWidth <= s.clientWidth;
+    });
+    return { wider: over.length, stuck: stuck.length, scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth };
+  });
+  check(wide.scrollWidth <= wide.clientWidth, "tables: the page does not scroll sideways at 1280", `${wide.scrollWidth},${wide.clientWidth}`);
+  check(wide.stuck === 0, "tables: every table wider than its container scrolls inside its .scroll at 1280", `${wide.wider} wider, ${wide.stuck} not scrolling`);
+  if (facts.expect_wide_table) check(wide.wider >= 1, "tables: the example has a table wider than its container at 1280", `${wide.wider} wider`);
 
   await go(PHASES_VIEW);
   const badges = await inPage(`

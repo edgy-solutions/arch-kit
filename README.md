@@ -254,6 +254,15 @@ fixtures use made-up names only.
 
 Changes reach `main` through pull requests, and merge on green CI after review.
 
+### Test runner notes
+
+CI runs the suite with `unittest`. `pytest` also runs it: `python -m pytest arch_kit/tools` passed all 612 tests at
+0.3.1, with Chrome named.
+
+| Tests | Seen | What it means |
+|---|---|---|
+| `test_composed.Build.test_the_build_and_the_check`, `test_composed.Refused.test_a_consumer_without_a_consumes_list`, `test_consumes.CheckConsumes.test_an_explicit_declaration_path` | Failed once under `pytest` at 0.3.0, while other test suites ran on the same machine. The run was stopped at 900 s. | They passed under `unittest` at the same commit. Under `pytest` they passed alone, in their original order from the start of the suite, and in a full run. No cause found. A failure here under load is not by itself a regression. Re-run before acting on it. |
+
 ## Licence
 
 MIT. See [LICENSE](LICENSE).

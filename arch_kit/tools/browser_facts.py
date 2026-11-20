@@ -23,6 +23,7 @@ the page agrees with itself. The fields:
     wide_table_columns  the largest column count of any table in the export.browser.views.table view's source;
                         when the data-exchange home is that view, also the kit's fixed Exchanges table
                         (data_exchange.exchange_header)
+    expect_wide_table   the optional export.browser.expect_wide_table, false when absent
     roles, search, capability_link, min_pages, min_tables, min_tokens   the declaration's export.browser.* and
                         the first of views.capability_links
 
@@ -59,6 +60,12 @@ def source_tables(markdown: str) -> list:
         if parsed is not None:
             out.append(parsed)
     return out
+
+
+def expect_wide_table() -> bool:
+    """Whether the declaration says its table view holds a table wider than its container at 1280: the optional
+    `export.browser.expect_wide_table`. The kit's examples say so; a project that does not skips that check."""
+    return bool((project.CONFIG.get("export", {}).get("browser") or {}).get("expect_wide_table", False))
 
 
 def facts(root: Path) -> dict:
@@ -123,6 +130,8 @@ def facts(root: Path) -> dict:
         "min_pages": browser["min_pages"],
         "min_tables": browser["min_tables"],
         "min_tokens": browser["min_tokens"],
+        "id_max": render_html.ID_MAX,
+        "expect_wide_table": expect_wide_table(),
     }
 
 
@@ -147,6 +156,8 @@ def facts_no_model(root: Path, tree: check_views.Tree) -> dict:
         "min_pages": browser["min_pages"],
         "min_tables": browser["min_tables"],
         "min_tokens": browser["min_tokens"],
+        "id_max": render_html.ID_MAX,
+        "expect_wide_table": expect_wide_table(),
     }
 
 

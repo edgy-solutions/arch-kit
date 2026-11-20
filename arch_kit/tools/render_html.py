@@ -56,6 +56,7 @@ import yaml
 
 try:
     from markdown_it import MarkdownIt
+    from markdown_it.common.utils import escapeHtml
 except ImportError:  # reported as an input error by main
     MarkdownIt = None
 
@@ -443,18 +444,113 @@ class Decisions:
         return self.page_id(key)
 
 
+BREAK_AFTER = re.compile(r"[^/#?&=_\-.:]*[/#?&=_\-.:]|[^/#?&=_\-.:]+")
+LONG_RUN = re.compile(r"\S{24,}")
+ID_MAX = 47  # the longest token treated as an id; a longer token in columns 1 to 3 gets breaks
+
+
+def _break_run(run: str, escape) -> str:
+    """One unbroken run, escaped piece by piece with a <wbr> between the pieces: after each of / # ? & = _ - . :
+    and, inside a piece longer than 20 characters, after every 20th character."""
+    pieces: list[str] = []
+    for seg in BREAK_AFTER.findall(run):
+        pieces += [seg[i:i + 20] for i in range(0, len(seg), 20)]
+    return "<wbr>".join(escape(p) for p in pieces)
+
+
+def escape_breaks(text: str, escape=esc, minimum: int = 24) -> str:
+    """`text` escaped, with break opportunities in each run of `minimum` or more characters without whitespace."""
+    out, at = [], 0
+    pattern = LONG_RUN if minimum == 24 else re.compile(r"\S{%d,}" % minimum)
+    for m in pattern.finditer(text):
+        out.append(escape(text[at:m.start()]))
+        out.append(_break_run(m.group(0), escape))
+        at = m.end()
+    out.append(escape(text[at:]))
+    return "".join(out)
+
+
+def github_slug(text: str) -> str:
+    """GitHub's heading slug: lower case, every character that is not a letter, digit, space, - or _ removed, each
+    space a hyphen."""
+    kept = "".join(c for c in text.lower() if c.isalnum() or c in " -_")
+    return kept.replace(" ", "-")
+
+
+def heading_slugs(tokens) -> list[str]:
+    """The slug of each h2 to h4 heading in the parsed tokens, in order; a repeat takes -1, -2 ... as GitHub does."""
+    seen: dict[str, int] = {}
+    out: list[str] = []
+    for i, t in enumerate(tokens):
+        if t.type != "heading_open" or t.tag not in ("h2", "h3", "h4"):
+            continue
+        kids = tokens[i + 1].children or []
+        base = github_slug("".join(k.content for k in kids if k.type in ("text", "code_inline")))
+        slug = base
+        while slug in seen:
+            seen[base] = seen.get(base, 0) + 1
+            slug = f"{base}-{seen[base]}"
+        seen.setdefault(slug, 0)
+        out.append(slug)
+    return out
+
+
+def declared_page_text(p: dict) -> tuple[Path, str]:
+    """A declared page's file and the markdown that renders: the file less its h1 line."""
+    path = ROOT / p["file"]
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as e:
+        raise InputError(f"pages: {p['id']}: cannot read {path}: {e.strerror or e}") from None
+    lines = text.split("\n")
+    if lines and lines[0].startswith("# "):
+        lines = lines[1:]
+        while lines and not lines[0].strip():
+            lines.pop(0)
+    return path, "\n".join(lines).rstrip("\n") + "\n"
+
+
+def collect_pages() -> dict[Path, dict]:
+    """Each declared page, keyed by its resolved file: its id, its markdown and its heading slugs. Parsed here, before
+    any view or page renders, so a view can link to a heading on a page."""
+    if MarkdownIt is None:
+        return {}
+    md = MarkdownIt("commonmark", {"html": False}).enable("table")
+    out: dict[Path, dict] = {}
+    for p in declared.pages("render_html"):
+        path, text = declared_page_text(p)
+        out[path.resolve()] = {"id": p["id"], "path": path, "text": text,
+                               "slugs": heading_slugs(md.parse(strip_comments(text), {}))}
+    return out
+
+
 class Page:
     """Markdown to html for one view, with the link, slot, table and diagram rules applied."""
 
-    def __init__(self, vid: str, views: dict, diagram: Diagram, dec: Decisions | None = None):
+    breaks = True  # long tokens in table cells get <wbr> break opportunities
+
+    def __init__(self, vid: str, views: dict, diagram: Diagram, dec: Decisions | None = None,
+                 pages: dict[Path, dict] | None = None, own: str | None = None):
+        """`pages` is collect_pages(); `own` is the id of the declared page this renders, which gets heading ids."""
         self.vid, self.views, self.diagram, self.dec = vid, views, diagram, dec
+        self.pages, self.own = pages or {}, own
+        self.slugs: list[str] = []
+        self.heads = 0
         self.base = ROOT / "views"
         self.n = 0
         self.stack: list[tuple[str, str, str]] = []
         self.exceptions = 0
         self.in_h1 = False
+        self.in_cell = False
+        self.col = 0
         md = MarkdownIt("commonmark", {"html": False}).enable("table")
         md.renderer.rules["fence"] = self.fence
+        md.renderer.rules["tr_open"] = self.row_open
+        for tag in ("td_open", "th_open"):
+            md.renderer.rules[tag] = self.cell_open
+        for tag in ("td_close", "th_close"):
+            md.renderer.rules[tag] = self.cell_close
+        md.renderer.rules["code_inline"] = self.code_inline
         md.renderer.rules["text"] = self.text
         md.renderer.rules["link_open"] = self.link_open
         md.renderer.rules["link_close"] = self.link_close
@@ -477,11 +573,45 @@ class Page:
 
     def heading_open(self, tokens, idx, options, env) -> str:
         self.in_h1 = tokens[idx].tag == "h1"
+        if self.own and tokens[idx].tag in ("h2", "h3", "h4"):
+            tokens[idx].attrSet("id", f"page-{self.own}--{self.slugs[self.heads]}")
+            self.heads += 1
         return self.md.renderer.renderToken(tokens, idx, options, env)
 
     def heading_close(self, tokens, idx, options, env) -> str:
         self.in_h1 = False
         return self.md.renderer.renderToken(tokens, idx, options, env)
+
+    def row_open(self, tokens, idx, options, env) -> str:
+        self.col = 0
+        return self.md.renderer.renderToken(tokens, idx, options, env)
+
+    def cell_open(self, tokens, idx, options, env) -> str:
+        self.in_cell = True
+        self.col += 1
+        return self.md.renderer.renderToken(tokens, idx, options, env)
+
+    def cell_close(self, tokens, idx, options, env) -> str:
+        self.in_cell = False
+        return self.md.renderer.renderToken(tokens, idx, options, env)
+
+    def breaking(self) -> bool:
+        """True in a table cell. Columns 1 to 3 never wrap, so only a token longer than ID_MAX gets breaks there."""
+        return self.breaks and self.in_cell
+
+    def minimum(self) -> int:
+        """The shortest run that gets breaks in the current cell."""
+        return 24 if self.col >= 4 else ID_MAX + 1
+
+    def esc_text(self, text: str) -> str:
+        """Escaped text; in a table cell, with break opportunities in long tokens."""
+        return escape_breaks(text, minimum=self.minimum()) if self.breaking() else esc(text)
+
+    def code_inline(self, tokens, idx, options, env) -> str:
+        if not self.breaking():
+            return self.md.renderer.code_inline(tokens, idx, options, env)
+        tok = tokens[idx]
+        return f"<code{self.md.renderer.renderAttrs(tok)}>{escape_breaks(tok.content, escapeHtml, self.minimum())}</code>"
 
     def text(self, tokens, idx, options, env) -> str:
         parts = rp.SLOT_RE.split(tokens[idx].content)
@@ -493,17 +623,17 @@ class Page:
     def cited(self, text: str) -> str:
         """Escaped text, with each `ADR-NNNN §LABEL` a link to its section. Not inside a link or an h1."""
         if self.dec is None or self.stack or self.in_h1:
-            return esc(text)
+            return self.esc_text(text)
         out, at = [], 0
         for m in adr_sections.CITATION_IN_TEXT_RE.finditer(text):
-            out.append(esc(text[at:m.start()]))
+            out.append(self.esc_text(text[at:m.start()]))
             try:
                 anchor = self.dec.cite(m.group(1), m.group(2))
             except LookupError as e:
                 raise CheckError(f"{self.vid}: {m.group(0)}: {e.args[0]}\n") from None
             out.append(f'<a href="#{esc(anchor)}">{esc(m.group(1))} §{esc(self.dec.shown(m.group(1), m.group(2)))}</a>')
             at = m.end()
-        out.append(esc(text[at:]))
+        out.append(self.esc_text(text[at:]))
         return "".join(out)
 
     @staticmethod
@@ -537,6 +667,10 @@ class Page:
             self.stack.append(("url", href, tok.markup))
             return ""
         if href.startswith("#") or not href:
+            anchor = self.own_heading(href[1:]) if self.own and len(href) > 1 else None
+            if anchor:
+                self.stack.append(("view", "", tok.markup))
+                return f'<a href="#{esc(anchor)}">'
             self.stack.append(("ref", "", tok.markup))
             return '<span class="ref">'
         path, _, fragment = href.partition("#")
@@ -545,6 +679,10 @@ class Page:
             if target == (ROOT / e["file"]).resolve():
                 self.stack.append(("view", vid, tok.markup))
                 return f'<a href="#view-{esc(vid)}">'
+        if target in self.pages:
+            info = self.pages[target]
+            self.stack.append(("view", info["id"], tok.markup))
+            return f'<a href="#{esc(self.page_anchor(info, fragment))}">'
         key = self.dec.key_of(target) if self.dec else None
         if key:
             anchor = self.decision_link(key, fragment, self.link_text(tokens, idx))
@@ -553,13 +691,33 @@ class Page:
         self.stack.append(("ref", "", tok.markup))
         return f'<span class="ref" title="{esc(repo_relative(href, self.base))}">'
 
+    @staticmethod
+    def page_anchor(info: dict, fragment: str) -> str:
+        """The anchor a link to a declared page becomes: the page, or its heading when the fragment names one. A
+        fragment that names none is a warning on stderr, not a refusal."""
+        if not fragment:
+            return f"page-{info['id']}"
+        if fragment in info["slugs"]:
+            return f"page-{info['id']}--{fragment}"
+        print(f"pages: {info['id']}: no heading for #{fragment}", file=sys.stderr)
+        return f"page-{info['id']}"
+
+    def own_heading(self, fragment: str) -> str | None:
+        """The anchor of a heading on the page being rendered, or None (with the warning) when there is none."""
+        if fragment in self.slugs:
+            return f"page-{self.own}--{fragment}"
+        print(f"pages: {self.own}: no heading for #{fragment}", file=sys.stderr)
+        return None
+
     def link_close(self, tokens, idx, options, env) -> str:
         kind, value, markup = self.stack.pop()
         if kind == "view":
             return "</a>"
         if kind == "ref":
             return "</span>"
-        return "" if markup == "autolink" else f" ({esc(value)})"
+        if markup == "autolink":
+            return ""
+        return f" ({escape_breaks(value, minimum=self.minimum()) if self.breaking() else esc(value)})"
 
     @staticmethod
     def image(tokens, idx, options, env) -> str:
@@ -567,6 +725,8 @@ class Page:
 
     def render(self, text: str) -> str:
         tokens = self.md.parse(strip_comments(text), {})
+        if self.own:
+            self.slugs = heading_slugs(tokens)
         out: list = []
         i = 0
         while i < len(tokens):
@@ -594,6 +754,8 @@ class Page:
 
 class DecisionPage(Page):
     """One decision record's body: links to the other records and the views, a heading id per h2 to h4."""
+
+    breaks = False
 
     def __init__(self, key: str, views: dict, dec: Decisions):
         super().__init__(key, views, lambda source, svg_id: "", dec)
@@ -893,7 +1055,8 @@ def style_table(t: str, view: bool = True) -> str:
             if col < len(r):
                 text = plain(r[col][2])
                 cell = max(cell, len(text))
-                words = max([words] + [len(w) for w in text.split()])
+                broken = plain(r[col][2].replace("<wbr>", " "))
+                words = max([words] + [len(w) for w in broken.split()])
         mins[col] = min(cell, max(words, PROSE_MIN_CH))
     state = {"row": -1, "prev": None, "body": 0}
 
@@ -1535,23 +1698,16 @@ def with_flows_css(style: str, fl_nav) -> str:
 COUNT_MARK = "RELABEL-COUNT-PLACEHOLDER"  # the front page sentence, until the HTML pass has counted
 
 
-def extra_pages(diagram: Diagram, views: dict, dec: Decisions, prov: str) -> tuple[list[str], list[str]]:
-    """(page sections, nav items) for the declared `pages:`, in order. Each file renders as a view body does."""
+def extra_pages(diagram: Diagram, views: dict, dec: Decisions, prov: str,
+                pages: dict[Path, dict]) -> tuple[list[str], list[str]]:
+    """(page sections, nav items) for the declared `pages:`, in order. Each file renders as a view body does, with
+    an id on each h2 to h4 heading. `pages` is collect_pages()."""
     sections, items = [], []
     for p in declared.pages("render_html"):
-        path = ROOT / p["file"]
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError as e:
-            raise InputError(f"pages: {p['id']}: cannot read {path}: {e.strerror or e}") from None
-        lines = text.split("\n")
-        if lines and lines[0].startswith("# "):
-            lines = lines[1:]
-            while lines and not lines[0].strip():
-                lines.pop(0)
-        page = Page("page-" + p["id"], views, checked(diagram, "page-" + p["id"]), dec)
-        page.base = path.parent
-        body_html = style_tables(page.render("\n".join(lines).rstrip("\n") + "\n"))
+        got = next(v for v in pages.values() if v["id"] == p["id"])
+        page = Page("page-" + p["id"], views, checked(diagram, "page-" + p["id"]), dec, pages, p["id"])
+        page.base = got["path"].parent
+        body_html = style_tables(page.render(got["text"]))
         sections.append(
             f'<section id="page-{esc(p["id"])}" class="page" data-page="{esc(p["id"])}">'
             f'<h1>{esc(p["title"])}</h1><p><a href="#front">Front page</a></p>'
@@ -1592,6 +1748,7 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
 
     # names that change, per view
     sources = {p: renderers[p].export_sources() for p in ("dodaf202", "naf4")}
+    pidx = collect_pages()
     sections = []
     nav = []
     total_exceptions = 0
@@ -1611,7 +1768,7 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
                 only.append(f'<p class="profile-only" data-profile-only data-for="{p}">{esc(reason)}</p>')
         attrs = " ".join(f'data-{p}="{esc(h1[p])}"' for p in PROFILE_NAMES)
         _, body = uaf.view_text(vid, rp.demote(dx_text))
-        page = Page(vid, views, checked(diagram, vid), dec)
+        page = Page(vid, views, checked(diagram, vid), dec, pidx)
         body_html = page.render(body.rstrip("\n") + "\n")
         if vid in declared.views("render_html")["capability_links"]:
             body_html = link_capability_names(vid, body_html, list(capability_phases.model_capabilities(uaf.sysml)))
@@ -1648,7 +1805,7 @@ def assemble(a: argparse.Namespace, diagram: Diagram, date: str) -> tuple[str, l
         cap_sections = flows_on_capabilities(cap_sections, fl)
     fl_sections, fl_nav = flows_pages(fl, dec, prov, pre)
     sections += cap_sections + dec_sections + al_sections + fl_sections
-    page_sections, page_items = extra_pages(diagram, views, dec, prov)
+    page_sections, page_items = extra_pages(diagram, views, dec, prov, pidx)
     sections += page_sections
 
     shown = COUNT_MARK if rules else "Decision records are shown verbatim."
