@@ -549,6 +549,52 @@ class Citations(unittest.TestCase):
         self.assertEqual(message(r.stderr), "error: load_pages: pages[0].body: line 1: [[ADR-0099]] does not resolve")
 
 
+class OutsideElements(unittest.TestCase):
+    def test_an_outside_system_resolves_by_form_and_loads_nothing(self):
+        for route in ("dir", "loader"):
+            with self.subTest(route=route):
+                p = Project(self, route)
+                for key in ("components", "roadmap", "flows", "alignment"):
+                    del p.decl["files"][key]
+                p.write_decl()
+                p.put([page("a", "overview", "See [[XE-LEDGER]] and [[XE-LEDGER-API]].\n")])
+                for name in ("components.yaml", "roadmap.yaml", "flows.yaml"):
+                    (p.root / name).write_text("not: [valid", encoding="utf-8")
+                r = p.render()
+                self.assertEqual((r.returncode, r.stdout.strip()), (0, "1"), r.stdout + r.stderr)
+
+    def test_a_status_on_an_outside_system_is_refused(self):
+        p = Project(self)
+        p.put([page("a", "overview", body_at_line_3("[[XE-LEDGER|built]]"))])
+        r = p.render()
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertEqual(message(r.stderr), "error: pages/a.md: line 7: [[XE-LEDGER|built]]: "
+                         "only components, increments and flows carry a status")
+
+    def test_a_malformed_outside_id_does_not_resolve(self):
+        for cite in ("[[XE-ledger]]", "[[XE-LEDGER-]]"):
+            with self.subTest(cite):
+                p = Project(self)
+                p.put([page("a", "overview", body_at_line_3(cite))])
+                r = p.render()
+                self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+                self.assertTrue(message(r.stderr).endswith(f"{cite} does not resolve"), r.stderr)
+
+    def test_href_receives_the_element_kind_and_a_link_is_made(self):
+        seen = []
+
+        def href(kind, ident):
+            seen.append((kind, ident))
+            return "#ledger"
+        sections, _ = pages.render([page("a", "overview", "See [[XE-LEDGER]].\n")], href)
+        self.assertEqual(seen, [("element", "XE-LEDGER")])
+        self.assertIn('<a class="cite" href="#ledger" data-cite="XE-LEDGER">XE-LEDGER</a>', sections[0])
+
+    def test_no_href_gives_code(self):
+        sections, _ = pages.render([page("a", "overview", "See [[XE-LEDGER]].\n")], lambda kind, ident: None)
+        self.assertIn('<code class="cite" data-cite="XE-LEDGER">XE-LEDGER</code>', sections[0])
+
+
 class Scan(unittest.TestCase):
     """_citations(): what counts as a citation, and where."""
 

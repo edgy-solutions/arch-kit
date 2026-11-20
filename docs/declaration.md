@@ -394,10 +394,12 @@ every loader provides. Declaring `files.pages` and defining `load_pages` togethe
 A citation is `[[ident]]` or `[[ident|status]]`, in the body only. It is not one inside a fenced code block (a line of
 at most three spaces then ``` or ~~~, closed by the same marker) or an inline code span; an indented code block is not
 special-cased. The ident is resolved in this order: `CO-...` against the components, `RM-...` against the roadmap,
-`FL-...` against the flows, `alignment:<name>` against the alignment records, and anything else as a decision id, local
+`FL-...` against the flows, `alignment:<name>` against the alignment records, `XE-...` as an outside system (defined
+once in the member's README and checked by form only, so no record is loaded), and anything else as a decision id, local
 or `<prefix>:<id>` for a declared foreign prefix. A status is one of `measured`, `built`, `accepted`, `proposed`, and
 applies to components and increments (it must equal the record's status) and to flows (only `|built`, which holds when
-the flow's `built` is true). A decision or an alignment record carries no status.
+the flow's `built` is true). A decision, an alignment record or an outside system carries no status. The renderer's
+`href(kind, ident)` receives the kind `decision`, `component`, `increment`, `flow`, `alignment` or `element`.
 
 The checks run in this order, and the first failure exits 2: the schema (`<file>: <key>: <why>` on the directory route,
 `load_pages: pages[i].<key>: <why>` on the loader route), a repeated id (loader route), a second overview
