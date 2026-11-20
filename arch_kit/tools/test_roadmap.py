@@ -471,5 +471,35 @@ class Declaration(unittest.TestCase):
         self.assertIn("files.roadmap: must be a plain relative path with no '..'", r.stderr)
 
 
+class CensusHome(unittest.TestCase):
+    """A census key as a decision record for `home`."""
+
+    S = "\u00a7"
+
+    def render(self, home, census=None):
+        p = Project(self)
+        if census is not None:
+            p.decl["census"] = census
+            p.write_decl()
+            (p.root / census).write_text("# Guide\n", encoding="utf-8")
+        items = good()
+        items[0]["home"] = home
+        p.put(items)
+        return p.render()
+
+    def test_a_census_key_resolves_with_a_census_declared(self):
+        r = self.render(f"{self.S}4p.3", census="GUIDE.md")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_a_member_key_resolves_without_a_census(self):
+        r = self.render(f"other-member {self.S}2")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_a_census_key_without_a_census_is_refused(self):
+        r = self.render(f"{self.S}4p.3")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("declares no census (census:)", message(r.stderr))
+
+
 if __name__ == "__main__":
     unittest.main()

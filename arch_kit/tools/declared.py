@@ -407,6 +407,21 @@ def roadmap_file(tool: str) -> str | None:
     return _CACHE["files"].get(ROADMAP_KEY)
 
 
+def census_file(tool: str) -> str | None:
+    """The top-level `census:` key: the repository path (a file or a directory) whose numbered sections hold the decisions,
+    or None. Existence is checked where it is used, not here."""
+    if "census" not in _CACHE:
+        node = project.CONFIG.get("census")
+        if node is not None:
+            if not isinstance(node, str):
+                _bad("census", "must be a repository path")
+            node = node.replace("\\", "/")
+            if node.startswith("/") or re.match(r"^[A-Za-z]:", node) or ".." in node.split("/"):
+                _bad("census", "must be a relative path inside the repository")
+        _CACHE["census"] = node
+    return _CACHE["census"]
+
+
 def components_declaration(tool: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """(planes, results) from the top-level `components:` map: the plane names a component may sit on, and the
     repository paths (files or directories) whose contents count as measured results. `planes` is required;

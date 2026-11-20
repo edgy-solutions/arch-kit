@@ -121,6 +121,13 @@ def _under(path: str, results: tuple[str, ...]) -> bool:
     return False
 
 
+def census_only_built(components: list[dict], ctx: alignment.Context) -> tuple[str, ...]:
+    """The ids, in record order, of the `built` components whose evidence has no `path:N` and at least one census key."""
+    return tuple(c["id"] for c in components
+                 if c["status"] == "built" and not any(_file_line(ctx, e) for e in c["evidence"])
+                 and any(ctx.census_key(e) for e in c["evidence"]))
+
+
 def check(where: str, components: list[dict], tool: str, ctx: alignment.Context) -> list[str]:
     """The checks after the schema. Each names the first offending component. Returns the reports (not refusals)."""
     def bad(i: int, key: str, why: str):
@@ -143,15 +150,24 @@ def check(where: str, components: list[dict], tool: str, ctx: alignment.Context)
                 bad(i, key, f"{dup} is listed twice")
     for i, c in enumerate(components):
         for k, item in enumerate(c["evidence"]):
-            if not (ctx.decision_id(item) or ctx.path_exists(item) or _file_line(ctx, item)):
+            if ctx.decision_id(item) or ctx.path_exists(item) or _file_line(ctx, item):
+                continue
+            problem = ctx.census_problem(item)
+            if problem is not None:
+                bad(i, f"evidence[{k}]", problem)
+            if not ctx.census_key(item):
                 bad(i, f"evidence[{k}]", f"{item} does not resolve to a decision record or a repository path")
     for i, c in enumerate(components):
-        if c["status"] == "built" and not any(_file_line(ctx, e) for e in c["evidence"]):
+        if (c["status"] == "built" and not any(_file_line(ctx, e) for e in c["evidence"])
+                and not any(ctx.census_key(e) for e in c["evidence"])):
             bad(i, "evidence", "built needs a file and line (path:N) in evidence")
-        if c["status"] == "accepted" and not any(ctx.decision_id(e) for e in c["evidence"]):
+        if c["status"] == "accepted" and not any(ctx.decision_id(e) or ctx.census_key(e) for e in c["evidence"]):
             bad(i, "evidence", "accepted needs a decision record in evidence")
     reports = []
+    census_only = set(census_only_built(components, ctx))
     for i, c in enumerate(components):
+        if c["id"] in census_only:
+            reports.append(f"{where}: components[{i}].evidence: built, but the only evidence is a census key (no path:N)")
         if c["status"] == "measured" and not any(_under(_evidence_path(e), results) for e in c["evidence"]):
             reports.append(f"{where}: components[{i}].evidence: measured, but no evidence is under components.results")
     return reports

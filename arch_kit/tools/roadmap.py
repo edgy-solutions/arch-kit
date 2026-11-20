@@ -127,7 +127,11 @@ def check(where: str, items: list[dict], tool: str, ctx: alignment.Context) -> N
             if r["status"] != "proposed":
                 bad(i, "home", "is required unless the status is proposed")
         elif not ctx.decision_id(home):
-            bad(i, "home", f"{home} does not resolve to a decision record")
+            problem = ctx.census_problem(home)
+            if problem is not None:
+                bad(i, "home", problem)
+            if not ctx.census_key(home):
+                bad(i, "home", f"{home} does not resolve to a decision record")
 
 
 def validate(where: str, record, tool: str, local_ids) -> tuple[dict, ...]:
