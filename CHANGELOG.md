@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.3.3 (2026-11-20)
+
+Connections with Protected by, and the UAF 1.3 Mi row. Pull requests #31, #32 and #34.
+
 ### Added
 
 - **UAF Mi row.** The UAF grid places `Mi-` ids (Mission, UAF 1.3) in a Mi row between En and Me. The row is drawn
@@ -13,6 +19,28 @@
   as `components[i].connections[j].protected_by[k]: gap: none: <why>` and renders with a gap badge. A connection with
   no `protected_by` renders "not written" and is not reported. The Components page gains a Connections table, and
   `components.connection_rows`, `components.gaps` and `components.protected_by_cell` give the rows to other views.
+
+### Fixed
+
+- **The version string.** `arch_kit.__version__`, which `pip` reports as the package version, said `0.2.0` from
+  0.3.0 to 0.3.2. It now says `0.3.3`, and a test fails when it differs from the newest numbered heading here.
+- **Tests that failed for reasons outside the code under test (#32):**
+  - The composed-build tests each use a private temporary directory, so another suite building at the same time no
+    longer fails them.
+  - The `test_consumes` assertions print the tool's output when they fail.
+  - The `test_no_chart` tests pass a mermaid-cli stub, so they pass in a checkout with no `node_modules`.
+
+## 0.3.2 (2026-11-20)
+
+Census keys as evidence, and outside systems in prose-page citations. Pull requests #28 and #29.
+
+### Added
+
+- **Census keys are a fourth evidence form,** next to a decision id, a repository path and `path:N`. The kit checks
+  a key's form; resolving it to a section at the pinned commit is the consuming project's job (#28).
+- **Prose pages may cite an outside system by its `XE-` id.** The kit checks the id by form only (#29).
+
+The tag's `arch_kit.__version__` still says `0.2.0`; see 0.3.3.
 
 ## 0.3.1 (2026-11-19)
 
