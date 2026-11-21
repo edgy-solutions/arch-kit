@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.4.0 (2026-11-21)
+
+Two builds of the same commits write the same bytes, and the page names the commit of the chart, of each bundle
+repository and of the kit. Breaking for Action callers that pass `chart`: they must pass `chart-ref` and
+`bundle-ref`, and pin the Action to a commit. Pull requests #39 and #40.
+
 ### Checks
 
 - **Two builds, same bytes.** The tests build the minimal example twice and a composed example twice, without
