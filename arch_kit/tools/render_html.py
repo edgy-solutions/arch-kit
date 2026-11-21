@@ -387,7 +387,8 @@ class Decisions:
         elif declared.portal_mode("render_html") != "decisions":
             raise InputError(f"decisions/{capability_phases.roadmap_file()} does not exist")
         self.resolved = {k: f.resolve() for k, f in self.files.items()}
-        self.raw = {k: f.read_text(encoding="utf-8").replace("\r\n", "\n") for k, f in self.files.items()}
+        self.raw = {k: adr_sections.strip_front_matter(f.read_text(encoding="utf-8").replace("\r\n", "\n"))
+                    for k, f in self.files.items()}
         self.texts = {}
         for k, t in self.raw.items():
             self.texts[k], n = relabel.apply(t, self.rules)

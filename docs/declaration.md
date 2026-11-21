@@ -782,6 +782,12 @@ With `file_prefix: false` a record file is `0007-use-a-queue.md`, and its id is 
 cites and what page ids are made from, and only the mapping between a file name and an id changes. The prefix itself
 cannot be empty, because an id of bare digits would match years in prose. A value that is not true or false exits 2.
 
+A record may begin with YAML front matter: line 1 is exactly `---`, and the block runs to the next line that is
+exactly `---` or `...`. The kit skips the block when it reads headings and renders the page from the text after it,
+and it does not display the block. The block's lines are blanked, not removed, so line numbers are the file's. A `---`
+on line 1 with no closing line is not front matter and is read as the text it is. Status and dates in the block
+are the project loader's to read, through `adr_status`.
+
 ### The roadmap note's tables
 
 ```yaml
