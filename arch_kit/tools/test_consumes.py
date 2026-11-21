@@ -260,13 +260,13 @@ class CheckConsumes(Base):
 
     def test_an_explicit_declaration_path(self):
         p = self.check(self.c2, ["DR-002"], name="example-platform")
-        self.assertEqual(p.returncode, 0)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         p = self.run_tool(self.consumer(commit=self.c2, records=["DR-002"]), "check_consumes", "--checkout",
                           f"example-platform={self.repo}:docs/arch/arch-kit.yaml")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         p = self.run_tool(self.consumer(commit=self.c2, records=["DR-002"]), "check_consumes", "--checkout",
                           f"example-platform={self.repo}:docs/arch/missing.yaml")
-        self.assertEqual(p.returncode, 1)
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
         self.assertIn("declaration docs/arch/missing.yaml not found at " + self.c2[:7], p.stdout)
 
     def test_pin_not_found(self):
@@ -306,7 +306,7 @@ class CheckConsumes(Base):
 
     def test_a_malformed_checkout(self):
         p = self.run_tool(self.consumer(), "check_consumes", "--checkout", "example-platform")
-        self.assertEqual(p.returncode, 2)
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
 
 
 class ByteIdentical(Base):

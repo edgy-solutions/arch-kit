@@ -261,7 +261,8 @@ CI runs the suite with `unittest`. `pytest` also runs it: `python -m pytest arch
 
 | Tests | Seen | What it means |
 |---|---|---|
-| `test_composed.Build.test_the_build_and_the_check`, `test_composed.Refused.test_a_consumer_without_a_consumes_list`, `test_consumes.CheckConsumes.test_an_explicit_declaration_path` | Failed once under `pytest` at 0.3.0, while other test suites ran on the same machine. The run was stopped at 900 s. | They passed under `unittest` at the same commit. Under `pytest` they passed alone, in their original order from the start of the suite, and in a full run. No cause found. A failure here under load is not by itself a regression. Re-run before acting on it. |
+| `test_composed.Build.test_the_build_and_the_check`, `test_composed.Refused.test_a_consumer_without_a_consumes_list`, `test_consumes.CheckConsumes.test_an_explicit_declaration_path` | Failed once under `pytest` at 0.3.0, while other test suites ran on the same machine. | Not a `pytest` effect. The two composed tests looked for `arch-kit-fragment-*` in the machine's shared temp directory, so another suite's build at the same moment failed them under either runner; each build now gets a temp directory of its own. The consumes test left no output; its assertions now print the tool's output. |
+| `test_no_chart` (16 tests) | Failed with "mermaid-cli not found" in a checkout without `arch_kit/tools/export/node_modules`, under either runner. | A full-mode render asks for the mermaid-cli file even when nothing is drawn; the cases now pass a stub that is never run. |
 
 ## Licence
 

@@ -2,7 +2,8 @@
 
 Each case copies examples/no-chart (or examples/minimal, for pages in a full-mode project) into a temporary git
 repository, with the mermaid fence turned into a plain one so the cases need no Node or Chrome, except the
-full-mode pages case, which skips with its reason when they are missing, as test_example does.
+full-mode pages case, which skips with its reason when they are missing, as test_example does. A full-mode render
+still asks for a mermaid-cli file, so the cases pass a stub that is never run.
 """
 from __future__ import annotations
 
@@ -60,6 +61,9 @@ class Base(unittest.TestCase):
             args += ["--source", s]
         if kit:
             args += ["--kit-commit", kit]
+        stub = self.tmp / "mmdc-stub"
+        stub.write_text("never run: the cases have no mermaid fence" + chr(10), encoding="utf-8")
+        args += ["--mmdc", str(stub)]
         return td.tool(self.root, "render_html", *args, *extra)
 
     def check(self):
