@@ -4,7 +4,10 @@ The example (examples/decisions-only) declares `portal.mode: decisions` and `dec
 Its loader has only the decision functions. The test copies it into a temporary git repository (the render stamps
 each record from git, so it needs history), runs render_html, check_export and check_decision_indexes, and compares the
 export with examples/decisions-only/expected/export.html after the same normalising test_example does. The example draws
-no diagram, so the test needs neither Node nor Chrome.
+no diagram, so those tests need neither Node nor Chrome. The browser tests (here and in test_example_flows and
+test_example_alignment) run browser_facts and check_export_browser.mjs on the export, and are skipped, with the
+reason, when Node, the export node_modules or Chrome (PUPPETEER_EXECUTABLE_PATH) is missing. CI installs all three,
+and a skipped test fails the job.
 
 The test never writes the snapshot. To regenerate it after an intended change to the example, from the kit root:
 
@@ -49,6 +52,59 @@ def copy_example(tmp: Path) -> Path:
     return root
 
 
+def browser_missing() -> str | None:
+    """Why the browser check cannot run here, or None. It needs Node, puppeteer in export/node_modules and Chrome."""
+    if shutil.which("node") is None:
+        return "node is not installed"
+    if not (HERE / "export" / "node_modules" / "puppeteer").is_dir():
+        return f"puppeteer is not installed: run `npm ci` in {HERE / 'export'}"
+    chrome = os.environ.get("PUPPETEER_EXECUTABLE_PATH")
+    if not chrome or not Path(chrome).is_file():
+        return "PUPPETEER_EXECUTABLE_PATH does not name a Chrome binary"
+    return None
+
+
+def browser_check(root: Path, export: Path, out: Path) -> tuple[int, int, str]:
+    """browser_facts then the browser check on EXPORT, with their logs in OUT; (facts rc, check rc, browser log)."""
+    (out / "puppeteer.json").write_text('{"args": ["--no-sandbox"]}\n', encoding="utf-8")
+    p = tool(root, "browser_facts", "--root", ".", "--out", str(out / "facts.json"))
+    (out / "browser_facts.log").write_text(p.stdout + p.stderr, encoding="utf-8")
+    if p.returncode:
+        return p.returncode, -1, p.stdout + p.stderr
+    env = dict(os.environ, PYTHONPATH=str(KIT), PYTHONIOENCODING="utf-8")
+    q = subprocess.run(["node", "check_export_browser.mjs", str(export), "--shots", str(out / "shots"),
+                        "--facts", str(out / "facts.json"), "--puppeteer-config", str(out / "puppeteer.json")],
+                       cwd=HERE / "export", env=env, capture_output=True, text=True, encoding="utf-8")
+    log = q.stdout + q.stderr
+    (out / "browser.log").write_text(log, encoding="utf-8")
+    return 0, q.returncode, log
+
+
+class BrowserCase:
+    """The browser test every decisions-mode example has: set `root`, `out` and `tmp` in setUp. `defaults` is True
+    for an example that declares no export.browser, so its search and page-floor lines must say they were derived."""
+
+    defaults = False
+
+    def test_the_browser_check_passes_on_the_export(self):
+        why = browser_missing()
+        if why:
+            self.skipTest(why)
+        p = render(self.root, self.out)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        facts_rc, check_rc, log = browser_check(self.root, self.out, self.tmp)
+        self.assertEqual(facts_rc, 0, "browser_facts failed")
+        self.assertEqual(check_rc, 0, "check_export_browser failed:\n" + log[-1500:])
+        self.assertEqual([ln for ln in log.splitlines() if ln.startswith("FAIL")], [])
+        self.assertIn(" passed, 0 failed", log)
+        if self.defaults:
+            how = ("the default phrase (the first decision record's id)", "(the default floor (one page per portal page))")
+        else:
+            how = ("the declared phrase", "(min_pages, declared)")
+        for words in how:
+            self.assertIn(words, log)
+
+
 def tool(root: Path, name: str, *args: str, config: str = "arch-kit.yaml") -> subprocess.CompletedProcess:
     env = dict(os.environ, PYTHONPATH=str(KIT), PYTHONIOENCODING="utf-8")
     return subprocess.run([sys.executable, "-m", "arch_kit", "--config", config, name, *args], cwd=root, env=env,
@@ -63,7 +119,9 @@ def check(root: Path, out: Path) -> subprocess.CompletedProcess:
     return tool(root, "check_export", "--export", str(out), "--barred", "barred.txt")
 
 
-class Example(unittest.TestCase):
+class Example(BrowserCase, unittest.TestCase):
+    defaults = True  # the decisions-only example declares no export.browser
+
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
@@ -83,6 +141,23 @@ class Example(unittest.TestCase):
             import difflib
             diff = list(difflib.unified_diff(want.split("\n"), got.split("\n"), "expected", "built", lineterm="", n=0))
             self.fail("the export differs from expected/export.html after normalising:\n" + "\n".join(diff[:40]))
+
+    def test_a_dangling_internal_link_fails_only_the_internal_links_check(self):
+        why = browser_missing()
+        if why:
+            self.skipTest(why)
+        render(self.root, self.out)
+        text = self.out.read_text(encoding="utf-8")
+        link = '<a href="#adr-0003">'
+        self.assertIn(link, text)
+        self.out.write_text(text.replace(link, '<a href="#adr-9999">', 1), encoding="utf-8")
+        facts_rc, check_rc, log = browser_check(self.root, self.out, self.tmp)
+        self.assertEqual(facts_rc, 0)
+        self.assertEqual(check_rc, 1, log[-1500:])
+        fails = [ln for ln in log.splitlines() if ln.startswith("FAIL")]
+        self.assertEqual(len(fails), 1, fails)
+        self.assertIn("internal links", fails[0])
+        self.assertIn("#adr-9999", fails[0])
 
     def test_the_export_holds_the_records_and_no_capability_or_roadmap_page(self):
         render(self.root, self.out)

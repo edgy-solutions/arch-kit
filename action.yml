@@ -144,7 +144,8 @@ runs:
         mmdc="$GITHUB_ACTION_PATH/arch_kit/tools/export/node_modules/.bin/mmdc"
         [ -f "$mmdc.cmd" ] && mmdc="$mmdc.cmd"   # Windows
         ak() { arch-kit --config "$IN_CONFIG" "$@"; }
-        # portal.mode decisions: no views, record or diagrams, so no check_views and no browser check.
+        # portal.mode decisions: no views, record or diagrams, so no check_views. The browser check runs its own
+        # decisions-mode assertions (browser_facts reads export.browser.search and min_pages, each with a default).
         mode="$(ak portal --mode)" || exit 2
         if [ "$mode" != decisions ]; then
           missing=""; noun="input is"
@@ -161,7 +162,7 @@ runs:
         step render_html ak render_html --out "$IN_OUT/export.html" "${chart[@]}" "${release[@]}" \
           "${values[@]}" "${readiness[@]}" "${relabel[@]}" "${barred[@]}" --mmdc "$mmdc" --puppeteer-config "$IN_OUT/puppeteer.json"
         step check_export ak check_export --export "$IN_OUT/export.html" "${relabel[@]}" "${barred[@]}"
-        if [ "$IN_BROWSER" = true ] && [ "$mode" != decisions ]; then
+        if [ "$IN_BROWSER" = true ]; then
           step browser_facts ak browser_facts --out "$IN_OUT/facts.json"
           step browser node "$GITHUB_ACTION_PATH/arch_kit/tools/export/check_export_browser.mjs" "$IN_OUT/export.html" \
             --shots "$IN_OUT/shots" --facts "$IN_OUT/facts.json" --puppeteer-config "$IN_OUT/puppeteer.json"

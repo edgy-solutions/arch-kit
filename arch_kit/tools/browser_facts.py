@@ -27,6 +27,25 @@ the page agrees with itself. The fields:
     roles, search, capability_link, min_pages, min_tables, min_tokens   the declaration's export.browser.* and
                         the first of views.capability_links
 
+In `portal.mode: decisions` the facts are these, from facts_decisions; nothing of the views, profiles, record or
+model is read:
+
+    mode                "decisions"
+    page_ids            every page's section id but the front's, in document order: the decision pages, the
+                        alignment pages, then the Flows page when there are flows
+    decision_pages      how many of page_ids are decision pages, the roadmap note included
+    alignment_pages     how many are alignment pages
+    flows_pages         1 when there is a Flows page, else 0
+    search              {phrase, finds}: export.browser.search.phrase, and the page id of the decision named by
+                        export.browser.search.finds (a decision id such as ADR-0002). When export.browser.search
+                        is absent: the first decision record's id as the phrase, and that record's page
+    min_pages           export.browser.min_pages; when absent, one printed page for each page of the portal,
+                        the front page included (every page starts a new printed page)
+    defaulted           the keys of search and min_pages that were not declared and took their defaults, so the
+                        browser check's lines can say which values were derived
+
+Both keys are optional in this mode. A declared search needs both phrase and finds.
+
 A missing declared key exits 2 through project.need. Stdlib, PyYAML and markdown-it-py only.
 """
 from __future__ import annotations
@@ -69,6 +88,8 @@ def expect_wide_table() -> bool:
 
 
 def facts(root: Path) -> dict:
+    if declared.portal_mode(TOOL) == "decisions":
+        return facts_decisions(root)
     tree = check_views.Tree(root)
     if declared.model_none(TOOL):
         return facts_no_model(root, tree)
@@ -132,6 +153,42 @@ def facts(root: Path) -> dict:
         "min_tokens": browser["min_tokens"],
         "id_max": render_html.ID_MAX,
         "expect_wide_table": expect_wide_table(),
+    }
+
+
+def facts_decisions(root: Path) -> dict:
+    """The facts of a `portal.mode: decisions` portal, from the declaration and the sources (render_html's own
+    readers, called as `decisions_parts` calls them with no relabel rules). No views, profiles, record or model."""
+    browser = (project.CONFIG.get("export") or {}).get("browser") or {}
+    dec = render_html.Decisions(project.DECISIONS)
+    keys = dec.keys()
+    records_only = [k for k in keys if k != render_html.ROADMAP_KEY]
+    defaulted = [k for k in ("search", "min_pages") if k not in browser]
+    if "search" in browser:
+        search = {k: str(project.need("export.browser.search." + k, TOOL)) for k in ("phrase", "finds")}
+    elif records_only:
+        search = {"phrase": records_only[0], "finds": records_only[0]}
+    else:
+        raise check_views.InputError("there is no decision record to search for: declare export.browser.search")
+    if search["finds"] not in keys or search["finds"] == render_html.ROADMAP_KEY:
+        raise check_views.InputError(f"export.browser.search.finds {search['finds']!r} is not a decision record id "
+                                     f"(the records are {', '.join(k for k in keys if k != render_html.ROADMAP_KEY)})")
+    records = render_html.alignment_records(dec)
+    flow_list = render_html.flows_records(dec)
+    decision_ids = [dec.page_id(k) for k in keys]
+    alignment_ids = [f"alignment-{name}" for name in sorted(records)]
+    flows_ids = ["flows"] if flow_list else []
+    page_ids = decision_ids + alignment_ids + flows_ids
+    min_pages = browser["min_pages"] if "min_pages" in browser else 1 + len(page_ids)
+    return {
+        "mode": "decisions",
+        "page_ids": page_ids,
+        "decision_pages": len(decision_ids),
+        "alignment_pages": len(alignment_ids),
+        "flows_pages": len(flows_ids),
+        "search": {"phrase": search["phrase"], "finds": dec.page_id(search["finds"])},
+        "min_pages": min_pages,
+        "defaulted": defaulted,
     }
 
 
