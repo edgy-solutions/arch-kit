@@ -98,9 +98,9 @@ class BrowserCase:
         self.assertEqual([ln for ln in log.splitlines() if ln.startswith("FAIL")], [])
         self.assertIn(" passed, 0 failed", log)
         if self.defaults:
-            how = ("default (the first record's id) phrase", "(min_pages, default: ")
+            how = ("the default phrase (the first decision record's id)", "(the default floor (one page per portal page))")
         else:
-            how = ("declared phrase", "(min_pages, declared)")
+            how = ("the declared phrase", "(min_pages, declared)")
         for words in how:
             self.assertIn(words, log)
 
