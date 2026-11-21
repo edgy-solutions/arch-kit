@@ -17,7 +17,8 @@
 #
 # The `action` job runs the kit's own Action from the checkout on examples/minimal, twice. The example declares
 # hosting: none, so the first run must upload nothing. The second run uses a copy of the declaration with
-# hosting: ci-artifact, and must upload the export.
+# hosting: ci-artifact, and must upload the export. The two pass the commits the chart and the values are
+# checked out at (the checkout's own sha); a third run with a malformed chart-ref must fail.
 name: tests
 
 on:
@@ -89,6 +90,8 @@ jobs:
           chart: examples/minimal/chart
           release: larkspur
           values: examples/minimal/values.yaml
+          chart-ref: ${{ github.sha }}
+          bundle-ref: ${{ github.sha }}
           readiness: examples/minimal/READINESS.md
           relabel: examples/minimal/relabel.txt
           barred: examples/minimal/barred.txt
@@ -109,6 +112,8 @@ jobs:
           chart: examples/minimal/chart
           release: larkspur
           values: examples/minimal/values.yaml
+          chart-ref: ${{ github.sha }}
+          bundle-ref: ${{ github.sha }}
           readiness: examples/minimal/READINESS.md
           relabel: examples/minimal/relabel.txt
           barred: examples/minimal/barred.txt
@@ -121,6 +126,29 @@ jobs:
         run: |
           test "$HOSTING" = ci-artifact
           if [ -z "$ARTIFACT" ]; then echo "no artifact was uploaded with hosting ci-artifact"; exit 1; fi
+
+      # A chart-ref that is not 40 hex characters is refused before any tool runs.
+      - name: Run the Action, malformed chart-ref
+        id: bad
+        continue-on-error: true
+        uses: ./
+        with:
+          config: examples/minimal/arch-kit.yaml
+          chart: examples/minimal/chart
+          release: larkspur
+          values: examples/minimal/values.yaml
+          chart-ref: master
+          bundle-ref: ${{ github.sha }}
+          readiness: examples/minimal/READINESS.md
+          relabel: examples/minimal/relabel.txt
+          barred: examples/minimal/barred.txt
+          out: ${{ runner.temp }}/arch-kit-export-bad
+
+      - name: The malformed chart-ref failed the step
+        env:
+          OUTCOME: ${{ steps.bad.outcome }}
+        run: |
+          test "$OUTCOME" = failure
 
       # portal.mode: decisions skips check_views; the browser check runs its decisions-mode assertions in the
       # Chrome for Testing build the Action installs.

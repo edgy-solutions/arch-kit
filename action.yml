@@ -21,6 +21,19 @@ inputs:
     description: Values files, newline-separated, in order.
     required: false
     default: ''
+  chart-ref:
+    description: >-
+      The 40-character commit the chart is checked out at. Required when chart is given. The Action does not check the
+      chart out: the caller does, and the build refuses unless the chart is at this commit and has no changes.
+    required: false
+    default: ''
+  bundle-ref:
+    description: >-
+      The 40-character commits the values files are checked out at, newline-separated, one per repository holding a
+      values file. Required when chart is given. The build refuses unless the values are at these commits and have no
+      changes.
+    required: false
+    default: ''
   readiness:
     description: The readiness document, as render_html takes it.
     required: false
@@ -107,6 +120,8 @@ runs:
         IN_CHART: ${{ inputs.chart }}
         IN_RELEASE: ${{ inputs.release }}
         IN_VALUES: ${{ inputs.values }}
+        IN_CHART_REF: ${{ inputs.chart-ref }}
+        IN_BUNDLE_REF: ${{ inputs.bundle-ref }}
         IN_READINESS: ${{ inputs.readiness }}
         IN_RELABEL: ${{ inputs.relabel }}
         IN_BARRED: ${{ inputs.barred }}
@@ -117,12 +132,48 @@ runs:
         PYTHONUTF8: '1'
       run: |
         set -u
+        # The commits are checked before any tool runs: 40 lowercase hex characters a line, nothing else.
+        refs=()
+        read_refs() {
+          local input=$1 text=$2 l
+          refs=()
+          while IFS= read -r l; do
+            [ -z "$l" ] && continue
+            if ! [[ $l =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::arch-kit: the $input input must hold 40 lowercase hex characters on each line"
+              exit 2
+            fi
+            refs+=("$l")
+          done <<< "$text"
+        }
+        read_refs chart-ref "$IN_CHART_REF"; chart_refs=("${refs[@]}")
+        read_refs bundle-ref "$IN_BUNDLE_REF"; bundle_refs=("${refs[@]}")
+        if [ "${#chart_refs[@]}" -gt 1 ]; then
+          echo "::error::arch-kit: the chart-ref input must hold one commit"
+          exit 2
+        fi
+        if [ -n "$IN_CHART" ] && { [ "${#chart_refs[@]}" = 0 ] || [ "${#bundle_refs[@]}" = 0 ]; }; then
+          echo "::error::arch-kit: chart-ref and bundle-ref are required with chart: pass the 40-character commits the chart and the values are checked out at"
+          exit 2
+        fi
         mkdir -p "$IN_OUT"
         values=(); relabel=(); barred=()
         while IFS= read -r l; do [ -n "$l" ] && values+=(--values "$l"); done <<< "$IN_VALUES"
         while IFS= read -r l; do [ -n "$l" ] && relabel+=(--relabel "$l"); done <<< "$IN_RELABEL"
         while IFS= read -r l; do [ -n "$l" ] && barred+=(--barred "$l"); done <<< "$IN_BARRED"
         chart=(); [ -n "$IN_CHART" ] && chart=(--chart "$IN_CHART")
+        chart_commit=(); [ "${#chart_refs[@]}" = 1 ] && chart_commit=(--chart-commit "${chart_refs[0]}")
+        bundle_commit=(); for r in "${bundle_refs[@]}"; do bundle_commit+=(--bundle-commit "$r"); done
+        # The kit's commit. The kit runs installed, so render_html can't read it from git itself. It is HEAD of the
+        # Action's own checkout (uses: ./), else the name of the directory a commit-pinned Action is unpacked into.
+        kit_commit=()
+        k="$(git -C "$GITHUB_ACTION_PATH" rev-parse HEAD 2>/dev/null || true)"
+        [[ $k =~ ^[0-9a-f]{40}$ ]] || k="$(basename "$GITHUB_ACTION_PATH")"
+        if [[ $k =~ ^[0-9a-f]{40}$ ]]; then
+          kit_commit=(--kit-commit "$k")
+        else
+          echo "::warning::arch-kit: the kit's commit cannot be read; pin the Action to a 40-character commit"
+        fi
         release=(); [ -n "$IN_RELEASE" ] && release=(--release "$IN_RELEASE")
         readiness=(); [ -n "$IN_READINESS" ] && readiness=(--readiness "$IN_READINESS")
         # mermaid-cli takes its browser from this file; the browser check takes the same path from the environment.
@@ -160,7 +211,7 @@ runs:
           step check_views ak check_views "${chart[@]}" "${release[@]}" "${values[@]}" "${readiness[@]}" "${barred[@]}"
         fi
         step render_html ak render_html --out "$IN_OUT/export.html" "${chart[@]}" "${release[@]}" \
-          "${values[@]}" "${readiness[@]}" "${relabel[@]}" "${barred[@]}" --mmdc "$mmdc" --puppeteer-config "$IN_OUT/puppeteer.json"
+          "${chart_commit[@]}" "${bundle_commit[@]}" "${kit_commit[@]}" "${values[@]}" "${readiness[@]}" "${relabel[@]}" "${barred[@]}" --mmdc "$mmdc" --puppeteer-config "$IN_OUT/puppeteer.json"
         step check_export ak check_export --export "$IN_OUT/export.html" "${relabel[@]}" "${barred[@]}"
         if [ "$IN_BROWSER" = true ]; then
           step browser_facts ak browser_facts --out "$IN_OUT/facts.json"

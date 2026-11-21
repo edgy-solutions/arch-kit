@@ -50,8 +50,9 @@ The [declaration reference](docs/declaration.md#formerly-fixed-now-declared) lis
   the two page by page. The first project does this when its pin moves: every difference must be named with a
   reason, for that pair of pins.
 - **Pinning.** The kit pins pyyaml, markdown-it-py, jsonschema, mermaid-cli, puppeteer and the Chrome build by exact
-  version, and the Action's steps by sha. A chart and its values are read from the directories the caller passes; the
-  kit does not yet require them to be at a pinned commit.
+  version, and the Action's steps by sha. The page names the commit of the chart, of each repository holding a values
+  file and of the kit. The Action requires the chart and bundle commits and refuses a build whose inputs are not at
+  them, or differ from them.
 - **Decisions.** Every decision record has a page, and is listed in the decision index.
 - **Capability record.** One entry per capability, citing its decisions, chart templates and measurements. The phase
   and the evidence are computed from those citations, and can't be written by hand.
@@ -76,8 +77,8 @@ The [declaration reference](docs/declaration.md#formerly-fixed-now-declared) lis
 - **`check_export`** and the **browser check** test the file people will read.
 
 Every page ends with a provenance block. It gives the chart and its version, a digest of the values files read, the
-date, and the line "Declared, not measured": the export reads the views, the model and a chart render, and no running
-system. A table built from a render carries the same stamp. A number counts as "measured" only when a readiness entry
+commit of the chart, of each repository holding a values file and of the kit, the date, and the line "Declared, not
+measured": the export reads the views, the model and a chart render, and no running system. A table built from a render carries the same stamp. A number counts as "measured" only when a readiness entry
 records the run that produced it.
 
 ## Quick start
@@ -153,24 +154,29 @@ check, `check_decision_indexes`):
 - uses: actions/checkout@<sha>
   with:
     fetch-depth: 0        # the render stamps each decision from git
-- uses: edgy-solutions/arch-kit@v0.3.4
+- uses: edgy-solutions/arch-kit@<40-character commit of a release tag>
   with:
     config: docs/arch/arch-kit.yaml
     chart: path/to/chart
     release: myrelease
     values: |
       path/to/values.yaml
+    chart-ref: <40-character commit the chart is checked out at>
+    bundle-ref: <40-character commit the values are checked out at>
     relabel: path/to/relabel.txt
     barred: path/to/barred.txt
 ```
 
-A pushed tag is never moved. A project that wants a pin that cannot move at all pins the tag's commit instead:
-`uses: edgy-solutions/arch-kit@e0b9b3c40520440a09a4e0e6050ea5017de05848` (`v0.1.0`).
+Pin the Action to a release tag's commit, not the tag: `uses: edgy-solutions/arch-kit@<commit>  # v0.3.4`. A build
+with a chart needs it: the page names the kit's commit, and the Action reads it from the name of the directory a
+commit-pinned Action is unpacked into. Pinned to a tag or a branch, the Action warns and a build with a chart stops. A
+pushed tag is never moved, but only a commit cannot move at all.
 
 | Input | Required | Meaning |
 |---|---|---|
 | `config` | yes | path to the project's `arch-kit.yaml` |
 | `chart`, `release` | yes | as `render_html` takes them. The Action does not run Helm itself; a project with no declared exchange needs only a chart directory |
+| `chart-ref`, `bundle-ref` | with `chart` | the 40-character commits the chart and the values are checked out at; `bundle-ref` is newline-separated, one per repository holding a values file. The Action does not check anything out: the caller does, and the build refuses unless the inputs are at these commits and have no uncommitted changes |
 | `values`, `readiness` | no | `values` is newline-separated |
 | `relabel`, `barred` | no | newline-separated lists of files, passed as repeated flags. A public audience requires both |
 | `out` | no | the output directory (default `$RUNNER_TEMP/arch-kit-export`); each tool's log is written there and its tail printed |
