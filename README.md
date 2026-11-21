@@ -67,8 +67,9 @@ The [declaration reference](docs/declaration.md#formerly-fixed-now-declared) lis
  chart ──────┘
 ```
 
-- **`check_views`** checks the sources against each other: links, citations, the model, the capability record, and
-  what the deployment actually renders.
+- **`check_views`** checks the sources against each other: links, citations, the model and the capability record.
+  Against the deployment it checks one direction: rule `floor` fails when the chart render holds a workload, kind,
+  flag or route that no capability claims. A change to something already claimed passes.
 - **`render_profile`** and **`render_html`** fill the generated sections from declared sources, never from text
   written for them:
   - the data-exchange tables from a Helm render (optional: declare `exchange: {reader: helm-annotations}`);
@@ -78,8 +79,19 @@ The [declaration reference](docs/declaration.md#formerly-fixed-now-declared) lis
 
 Every page ends with a provenance block. It gives the chart and its version, a digest of the values files read, the
 commit of the chart, of each repository holding a values file and of the kit, the date, and the line "Declared, not
-measured": the export reads the views, the model and a chart render, and no running system. A table built from a render carries the same stamp. A number counts as "measured" only when a readiness entry
-records the run that produced it.
+measured": the export reads the views, the model and a chart render, and no running system. A table built from a
+render carries the same stamp. A number counts as "measured" only when a readiness entry records the run that
+produced it.
+
+What runs, and what is not checked:
+
+- **No model and no network library runs at build.** Three local tools do: mermaid-cli in Chrome for the diagrams,
+  the `helm template` binary with no cluster for the chart facts, and a Java jar for the SysML check.
+- **Decisions are linked by id, never by similarity.** A citation is `ADR-NNNN §LABEL`. Only a record's Status line
+  is read, and compared with the views' marks; its wording is never compared.
+- **`quotes` and `floor` need the chart, its values, the release name, the readiness document and the barred list.**
+  A run without them exits 2, unless `--allow-partial REASON` names the two rules it skipped.
+- **Nothing checks the inputs against a running system.** The export is as true as the records it reads.
 
 ## Quick start
 

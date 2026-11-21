@@ -2,7 +2,12 @@
 
 ## Unreleased
 
-Nothing yet.
+### Documentation
+
+- **README, "How it works".** `check_views` checks the deployment in one direction only: rule `floor` fails on
+  something the render holds that no capability claims. A new list says what runs at build (no model, no network
+  library; mermaid-cli, `helm template` and a Java jar, all local), that only a decision's Status line is read,
+  what `quotes` and `floor` need, and that nothing checks the inputs against a running system.
 
 ## 0.4.0 (2026-11-21)
 
