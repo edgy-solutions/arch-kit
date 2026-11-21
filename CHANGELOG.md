@@ -7,6 +7,37 @@
 - **Two builds, same bytes.** The tests build the minimal example twice and a composed example twice, without
   `--date`, and require identical bytes, with nothing normalised.
 
+### Added
+
+- **The page names the commit of each input.** `render_html` takes `--chart-commit SHA` (once) and `--bundle-commit SHA`
+  (once per repository holding a `--values` file). It reads the HEAD of each repository with git and refuses a flag that
+  is not that commit, and a chart directory or values file that differs from its commit (modified or untracked files;
+  ignored ones do not count). The provenance block gains `Chart commit`, one `Bundle commit` for each repository in the
+  order first seen, and `Kit`, after the digest. Outside a git repository the part reads `none (not in a git
+  repository)` with a note on stderr, and a flag given there is refused. `check_export` checks the three parts and that
+  every page carries the same ones; in decisions mode they are optional.
+
+### Changed
+
+- **Breaking:** the Action takes two new inputs, `chart-ref` and `bundle-ref`, and requires both whenever `chart` is
+  given: the 40-character commits the chart and the values are checked out at (`bundle-ref` newline-separated, one per
+  repository). A malformed value is refused before any tool runs. The Action does not check the chart or the values out
+  itself; the build refuses unless they are at those commits and have no uncommitted changes. A caller that passes
+  `chart` must add both inputs.
+- **Breaking: the Action passes the kit's commit** to `render_html`, since the installed kit can't read it from git. It
+  is HEAD of the Action's own checkout (`uses: ./`), or else the name of the directory a commit-pinned Action is
+  unpacked into. An Action pinned to a tag or branch gets a warning, and a build with a chart then stops, because its
+  page can't name the kit.
+
+### Fixed
+
+- **The Action shows a failing tool's log.** The runner starts bash with `-e`, so a tool that failed ended the step
+  before its log was printed, and the later tools never ran. Each step now prints its log and exit code, every step
+  runs, and the step fails at the end. The Action's step test runs under the runner's flags.
+- **`render_html` takes `--kit-commit` in every mode.** It used to refuse the flag unless `chart: none` was declared,
+  so the Action's build with a chart stopped there. A malformed value is still refused. `--source` is still taken
+  only with `chart: none`.
+
 ## 0.3.4 (2026-11-21)
 
 A browser check for decisions-only portals, front matter and block-quote headings in decision records, a build

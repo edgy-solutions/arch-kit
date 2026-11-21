@@ -213,6 +213,8 @@ class Example(BrowserCase, unittest.TestCase):
         chart.mkdir()
         (chart / "Chart.yaml").write_text("apiVersion: v2" + chr(10) + "name: demo" + chr(10) + "version: 0.1.0" + chr(10), encoding="utf-8")
         (self.root / "values.yaml").write_text("a: 1" + chr(10), encoding="utf-8")
+        git(self.root, "add", "chart", "values.yaml")   # the render refuses a chart or values that differ from their commit
+        git(self.root, "commit", "-q", "-m", "chart and values")
         p = tool(self.root, "render_html", "--out", str(self.out), "--chart", "chart", "--values", "values.yaml",
                  "--release", "demo", "--barred", "barred.txt", "--date", DATE)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)

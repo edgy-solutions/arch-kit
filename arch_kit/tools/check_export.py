@@ -60,6 +60,9 @@ MAX_BYTES = 16_000_000
 PARTS = {
     "chart": re.compile(r"^Chart: \S+ \S+$"),
     "digest": re.compile(r"^Bundle digest: sha256:[0-9a-f]{64} of the values files read"),
+    "chart-commit": re.compile(r"^Chart commit: ([0-9a-f]{40}|none \(not in a git repository\))$"),
+    "bundle-commit": re.compile(r"^Bundle commit: ([0-9a-f]{40}|none \(not in a git repository\))$"),
+    "kit": re.compile(r"^Kit: [0-9a-f]{40}$"),
     "date": re.compile(r"^Generated: \d{4}-\d{2}-\d{2}$"),
     "declared": re.compile(r"^Declared, not measured: "),
 }
@@ -67,7 +70,7 @@ PARTS = {
 SOURCE_RE = re.compile(r"^Source: [A-Za-z0-9._-]+ [0-9a-f]{40}$")
 KIT_RE = re.compile(r"^Kit: [0-9a-f]{40}$")
 PAGE_RE = re.compile(r'<section id="([^"]+)" class="page[^"]*"[^>]*>(.*?)</section>', re.S)
-PART_RE = re.compile(r'<p data-prov="(\w+)">(.*?)</p>', re.S)
+PART_RE = re.compile(r'<p data-prov="([\w-]+)">(.*?)</p>', re.S)
 ATTR_RE = re.compile(r"""(?<![\w.-])(href|src)\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.I)
 SRC_BARE_RE = re.compile(r"(?<![\w.-])src\s*=", re.I)
 NETWORK = [("@import", "an @import"), ("url(http", "a remote url()"), ("<link", "a <link>"),
@@ -184,23 +187,26 @@ def check_provenance(raw: str) -> list[str]:
     if not any(pid == "front" for pid, _ in pages):
         fails.append("provenance: there is no front page")
     # A decisions-only portal rendered with no chart carries neither the chart nor the digest part.
-    optional = ("chart", "digest") if declared.portal_mode("check_export") == "decisions" else ()
-    seen: dict[str, set[str]] = {k: set() for k in PARTS}
+    optional = ("chart", "digest", "chart-commit", "bundle-commit", "kit") if declared.portal_mode("check_export") == "decisions" else ()
+    seen: dict[str, set] = {k: set() for k in PARTS}
     for pid, body in pages:
         if 'data-provenance' not in body:
             fails.append(f"provenance: page {pid} has no provenance block")
             continue
         block = body[body.index("data-provenance"):]
-        found = {k: plain(v) for k, v in PART_RE.findall(block)}
+        pairs = [(k, plain(v)) for k, v in PART_RE.findall(block)]
         for k, pat in PARTS.items():
-            if k not in found and k in optional:
+            vals = tuple(v for kk, v in pairs if kk == k)
+            if not vals and k in optional:
                 continue
-            if k not in found:
+            if not vals:
                 fails.append(f"provenance: page {pid} lacks the {k} part")
-            elif not pat.match(found[k]):
+            elif len(vals) > 1 and k != "bundle-commit":
+                fails.append(f"provenance: page {pid} has {len(vals)} {k} parts, expected one")
+            elif not all(pat.match(v) for v in vals):
                 fails.append(f"provenance: page {pid} has a malformed {k} part")
             else:
-                seen[k].add(found[k])
+                seen[k].add(vals if k == "bundle-commit" else vals[0])
     for k, vals in seen.items():
         if len(vals) > 1:
             fails.append(f"provenance: pages disagree on the {k} part ({len(vals)} different values)")

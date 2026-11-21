@@ -14,6 +14,7 @@ Usage:
         [--readiness FILE] [--record FILE] [--slots FILE]
         [--date YYYY-MM-DD] [--mmdc PATH] [--puppeteer-config FILE]
         [--relabel FILE ...] [--barred FILE ...]
+        [--chart-commit SHA] [--bundle-commit SHA ...]
 
 --chart, --values and --release are required: there is no partial export.
 Mermaid diagrams are rendered to inline SVG at build time by mermaid-cli
@@ -24,8 +25,17 @@ A diagram that does not render, or whose SVG holds a script, an import or a
 remote reference, is exit 1 naming the view and the diagram. The source is
 never shown in its place.
 
+The chart and the values are read at a stated commit. --chart-commit and
+--bundle-commit (once per repository) are checked against the HEAD that git
+reports there; a mismatch is exit 2. Without a flag the HEAD read is used. A
+chart directory or values file that differs from its commit (modified or
+untracked files; ignored ones do not count) is exit 2. Outside a git repository
+the part reads "none (not in a git repository)" with a stderr note, and a flag
+given then is exit 2.
+
 Every page carries the chart name and version, a digest of the values files
-read, the generation date (--date, default the committer date of HEAD in the repository
+read, the commit of the chart, of each repository holding a values file (in the
+order first seen) and of the kit, the generation date (--date, default the committer date of HEAD in the repository
 holding paths.root, in UTC; today UTC with a stderr note when there is no commit) and the line that says
 this is declared, not measured. The grids are built from the appendix file (files.appendix),
 parsed as check_views parses it. Markdown goes through markdown-it-py with
@@ -964,6 +974,83 @@ def kit_commit(a: argparse.Namespace) -> str:
     return out
 
 
+NOT_IN_REPO = "none (not in a git repository)"
+
+
+def _git(path: Path, *args: str) -> tuple[int, str]:
+    try:
+        r = subprocess.run(["git", "-C", str(path), *args], capture_output=True, text=True, encoding="utf-8")
+    except OSError as e:
+        raise InputError(f"git cannot run: {e.strerror or e}") from None
+    return r.returncode, r.stdout.strip()
+
+
+def _repo_of(path: Path, shown: str) -> tuple[str, str] | None:
+    """(top level, HEAD) of the repository holding path, or None outside one. A path that differs from its commit refuses."""
+    where = path if path.is_dir() else path.parent
+    code, top = _git(where, "rev-parse", "--show-toplevel")
+    if code != 0 or not top:
+        return None
+    code, head = _git(where, "rev-parse", "HEAD")
+    if code != 0 or not COMMIT40_RE.fullmatch(head):
+        raise InputError(f"the commit of the repository holding {shown} cannot be read")
+    code, dirty = _git(where, "status", "--porcelain", "--", str(path.resolve()))
+    if code != 0:
+        raise InputError(f"git status failed for {shown}")
+    if dirty:
+        what = "chart" if path.is_dir() else "values file"
+        raise InputError(f"the {what} at {shown} differs from its commit; commit it, or build from a clean checkout")
+    return top, head
+
+
+def _flag_commits(flag: str, given: list[str]) -> list[str]:
+    for g in given:
+        if not COMMIT40_RE.fullmatch(g):
+            raise InputError(f"{flag} must be 40 lowercase hex characters")
+    return given
+
+
+def input_commits(a: argparse.Namespace) -> tuple[str, list[str]]:
+    """The commit of the chart and of each bundle repository, read from git and checked against the flags."""
+    chart_flag = getattr(a, "chart_commit", None)
+    bundle_flags = _flag_commits("--bundle-commit", list(getattr(a, "bundle_commit", None) or []))
+    if chart_flag is not None:
+        _flag_commits("--chart-commit", [chart_flag])
+    chart = _repo_of(Path(a.chart), a.chart)
+    if chart is None:
+        if chart_flag is not None:
+            raise InputError(f"--chart-commit is given but the chart at {a.chart} is not in a git repository")
+        print(f"note: the chart at {a.chart} is not in a git repository; the page says so", file=sys.stderr)
+        chart_commit = NOT_IN_REPO
+    else:
+        chart_commit = chart[1]
+        if chart_flag is not None and chart_flag != chart_commit:
+            raise InputError(f"--chart-commit {chart_flag} is not the commit the chart is checked out at ({chart_commit})")
+    repos: dict[str, str] = {}
+    outside = False
+    for v in a.values:
+        found = _repo_of(Path(v), v)
+        if found is None:
+            outside = True
+        else:
+            repos.setdefault(found[0], found[1])
+    heads = list(repos.values())
+    if outside:
+        if bundle_flags:
+            raise InputError("--bundle-commit is given but a values file is not in a git repository")
+        print("note: a values file is not in a git repository; the page says so", file=sys.stderr)
+        heads.append(NOT_IN_REPO)
+    elif bundle_flags:
+        if len(bundle_flags) == 1 and len(heads) == 1:
+            if bundle_flags[0] != heads[0]:
+                raise InputError(f"--bundle-commit {bundle_flags[0]} is not the commit the bundle is checked out at ({heads[0]})")
+        elif set(bundle_flags) != set(heads):
+            raise InputError("--bundle-commit does not match the commits the values are checked out at"
+                             + "".join(f"; missing {h}" for h in heads if h not in bundle_flags)
+                             + "".join(f"; extra {g}" for g in dict.fromkeys(bundle_flags) if g not in heads))
+    return chart_commit, heads
+
+
 def source_parts(a: argparse.Namespace) -> list[tuple[str, str]]:
     """The --source NAME=COMMIT flags, checked, in the order given."""
     given = getattr(a, "source", None) or []
@@ -996,10 +1083,14 @@ def provenance(a: argparse.Namespace, date: str) -> str:
     if not name or version is None:
         raise InputError(f"{a.chart}/Chart.yaml names no chart name and version")
     files = ", ".join(Path(v).name for v in a.values)
+    chart_commit, bundle_commits = input_commits(a)
     return ('<div class="provenance" data-provenance>'
             f'<p data-prov="chart">Chart: {esc(str(name))} {esc(str(version))}</p>'
             f'<p data-prov="digest">Bundle digest: sha256:{values_digest(a.values)} '
             f'<span class="note">of the values files read, in order: {esc(files)}</span></p>'
+            f'<p data-prov="chart-commit">Chart commit: {chart_commit}</p>'
+            + "".join(f'<p data-prov="bundle-commit">Bundle commit: {c}</p>' for c in bundle_commits)
+            + f'<p data-prov="kit">Kit: {kit_commit(a)}</p>'
             f'<p data-prov="date">Generated: {esc(date)}</p>'
             f'<p data-prov="declared">{esc(DECLARED)}</p></div>')
 
@@ -2092,7 +2183,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--puppeteer-config", help="a puppeteer config file for mermaid-cli")
     ap.add_argument("--source", action="append", default=[], metavar="NAME=COMMIT",
                     help="with chart: none, a source the views were written from: its name and 40-hex commit (repeatable)")
-    ap.add_argument("--kit-commit", help="with chart: none, the kit's commit (default: HEAD of the kit's checkout)")
+    ap.add_argument("--kit-commit", help="the kit's 40-hex commit, named on the page (default: HEAD of the kit's checkout)")
+    ap.add_argument("--chart-commit", metavar="SHA",
+                    help="with a chart: the 40-hex commit the chart is checked out at; the build refuses if it is not (default: read from git)")
+    ap.add_argument("--bundle-commit", action="append", default=[], metavar="SHA",
+                    help="with a chart: the commit of a repository holding a --values file, once per repository (repeatable); "
+                         "the set must equal the commits read from git")
     a = ap.parse_args(argv)
     a.composition = comp
     if comp:
@@ -2107,8 +2203,13 @@ def main(argv: list[str] | None = None) -> int:
             if given:
                 print(f"error: chart: none is declared; {flag} is not taken", file=sys.stderr)
                 return EXIT_INPUT
-    elif a.source or a.kit_commit:
-        print("error: --source and --kit-commit are taken only with chart: none", file=sys.stderr)
+    elif a.source:
+        print("error: --source is taken only with chart: none", file=sys.stderr)
+        return EXIT_INPUT
+    # --kit-commit is taken in every mode: the Action passes it whenever it can read it, because the installed kit
+    # can't read its own commit from git. A page that names no kit doesn't use it, but a malformed one is refused.
+    if a.kit_commit is not None and not COMMIT40_RE.fullmatch(a.kit_commit):
+        print("error: --kit-commit must be 40 lowercase hex characters", file=sys.stderr)
         return EXIT_INPUT
     if declared.portal_mode("render_html") != "decisions" and not no_chart:
         # --chart, --values and --release are required in full mode; a portal of decisions needs no chart.

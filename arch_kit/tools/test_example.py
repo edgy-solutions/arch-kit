@@ -6,6 +6,7 @@ check_decision_indexes (bash). Then it compares the export with examples/minimal
 normalising what changes between machines and commits:
   - each inline <svg> (a diagram's drawing differs by renderer) becomes <svg/>;
   - the build date becomes DATE;
+  - the chart, bundle and kit commits (`Chart commit: <sha>`, `Bundle commit: <sha>`, `Kit: <sha>`) become SHA;
   - a decision stamp, `Commit abc1234, 2026-01-01`, becomes `Commit SHA, DATE`, and the note that the working
     tree differs from the commit is dropped.
 The example declares no data exchange, so this test does not cover the data-exchange reader; the unit tests of
@@ -47,6 +48,7 @@ SVG_RE = re.compile(r"<svg\b.*?</svg>", re.S)
 STAMP_RE = re.compile(r"Commit [0-9a-f]{7,40}, \d{4}-\d{2}-\d{2}")
 DIRTY_RE = re.compile(r" \(working tree differs from this commit\)")
 DATE_RE = re.compile(r"Generated: \d{4}-\d{2}-\d{2}")
+COMMIT_RE = re.compile(r"(Chart commit|Bundle commit|Kit): [0-9a-f]{40}")
 
 
 def normalise(html: str) -> str:
@@ -54,6 +56,7 @@ def normalise(html: str) -> str:
     html = SVG_RE.sub("<svg/>", html)
     html = STAMP_RE.sub("Commit SHA, DATE", html)
     html = DIRTY_RE.sub("", html)
+    html = COMMIT_RE.sub(lambda m: m.group(1) + ": SHA", html)
     return DATE_RE.sub("Generated: DATE", html)
 
 
