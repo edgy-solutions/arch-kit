@@ -25,7 +25,8 @@ remote reference, is exit 1 naming the view and the diagram. The source is
 never shown in its place.
 
 Every page carries the chart name and version, a digest of the values files
-read, the generation date (--date, default today UTC) and the line that says
+read, the generation date (--date, default the committer date of HEAD in the repository
+holding paths.root, in UTC; today UTC with a stderr note when there is no commit) and the line that says
 this is declared, not measured. The grids are built from the appendix file (files.appendix),
 parsed as check_views parses it. Markdown goes through markdown-it-py with
 raw html off.
@@ -2042,6 +2043,26 @@ def build(a: argparse.Namespace, diagram: Diagram, date: str) -> str:
     return finish(doc, rules, barred, record_replaced)[0]
 
 
+def default_date() -> str:
+    """The committer date of HEAD, in UTC, in the git repository that holds paths.root.
+
+    With no repository or no commit: today in UTC, and one stderr line saying so."""
+    try:
+        r = subprocess.run(["git", "-C", str(ROOT), "log", "-1", "--format=%cI", "HEAD"],
+                           capture_output=True, text=True, encoding="utf-8")
+        out = r.stdout.strip() if r.returncode == 0 else ""
+    except OSError:
+        out = ""
+    if out:
+        try:
+            return datetime.datetime.fromisoformat(out).astimezone(datetime.timezone.utc).date().isoformat()
+        except ValueError:
+            pass
+    today = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+    print(f"render_html: no commit to date the build from; using today ({today})", file=sys.stderr)
+    return today
+
+
 def main(argv: list[str] | None = None) -> int:
     if declared.portal_none("render_html"):
         print("portal: none: nothing to render")
@@ -2066,7 +2087,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="a list of PATTERN<TAB>REPLACEMENT lines applied to the whole export")
     ap.add_argument("--barred", action="append", default=[],
                     help="a barred list: the render refuses to write a file that carries one of its values")
-    ap.add_argument("--date", help="YYYY-MM-DD (default: today, UTC)")
+    ap.add_argument("--date", help="YYYY-MM-DD (default: the committer date of HEAD in the repository holding paths.root, in UTC)")
     ap.add_argument("--mmdc", help="the mermaid-cli binary (default: docs/arch/tools/export/node_modules/.bin/mmdc)")
     ap.add_argument("--puppeteer-config", help="a puppeteer config file for mermaid-cli")
     ap.add_argument("--source", action="append", default=[], metavar="NAME=COMMIT",
@@ -2099,7 +2120,7 @@ def main(argv: list[str] | None = None) -> int:
     if comp:
         a.slots_given = composed.list_files("render_html", a.list, comp)
     try:
-        date = a.date or datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+        date = a.date or default_date()
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
             raise InputError("--date must be YYYY-MM-DD")
         if fragment:

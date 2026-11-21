@@ -38,6 +38,22 @@ Pin a tag, such as `v0.3.3`, or a full commit sha, never a branch. The content f
 grammar and the roadmap table headers, once fixed, are now declared as optional keys whose defaults are the old values.
 The [declaration reference](docs/declaration.md#formerly-fixed-now-declared) lists them.
 
+## What a build guarantees
+
+- **Byte identity.** Given the same inputs and the same kit commit, `render_html` writes the same bytes. The build
+  date is the committer date of the project's HEAD unless `--date` is given, and the diagrams are drawn by a pinned
+  mermaid-cli in a pinned Chrome for Testing build. The kit's tests compare its example exports with committed
+  copies, with the date and the diagram drawings normalised.
+- **Golden.** A consuming project can build its export with the kit at its old pin and at its new pin, and compare
+  the two page by page. The first project does this when its pin moves: every difference must be named with a
+  reason, for that pair of pins.
+- **Pinning.** The kit pins pyyaml, markdown-it-py, jsonschema, mermaid-cli, puppeteer and the Chrome build by exact
+  version, and the Action's steps by sha. A chart and its values are read from the directories the caller passes; the
+  kit does not yet require them to be at a pinned commit.
+- **Decisions.** Every decision record has a page, and is listed in the decision index.
+- **Capability record.** One entry per capability, citing its decisions, chart templates and measurements. The phase
+  and the evidence are computed from those citations, and can't be written by hand.
+
 ## How it works
 
 ```
@@ -66,7 +82,7 @@ records the run that produced it.
 
 ### Requirements
 
-- Python 3.10 or later (CI uses 3.12), with `pyyaml`, `markdown-it-py==4.0.0` and `jsonschema==4.26.0`.
+- Python 3.10 or later (CI uses 3.12), with `pyyaml==6.0.3`, `markdown-it-py==4.0.0` and `jsonschema==4.26.0`.
 - For diagrams and the browser check: Node.js 22 or later, and Chrome. Run `npm ci` in `arch_kit/tools/export`, and set
   `PUPPETEER_EXECUTABLE_PATH` to Chrome.
 - For the deployment-backed checks and the data-exchange tables: `helm`, and the project's chart.
@@ -241,7 +257,7 @@ scan ran. See [the checks](docs/rules.md#names-in-the-published-file).
 ## Development
 
 ```sh
-pip install pyyaml markdown-it-py==4.0.0 jsonschema==4.26.0
+pip install pyyaml==6.0.3 markdown-it-py==4.0.0 jsonschema==4.26.0
 python -m unittest discover -s arch_kit/tools -p 'test_*.py'
 ```
 

@@ -19,12 +19,29 @@
   closed by `---` or `...`). The heading reader and the rendered page both skip it, so the heading count agrees and
   the block is not shown. Its lines are blanked, so line numbers stay the file's. An unclosed `---` is left alone.
 
+### Changed
+
+- **The build date.** `render_html` without `--date` now dates the build from the committer date of `HEAD`, in UTC,
+  in the git repository that holds `paths.root`, not from today. `--date` still overrides it. When the root is not in
+  a git repository, or the repository has no commit, the build uses today in UTC and prints
+  `render_html: no commit to date the build from; using today (YYYY-MM-DD)` on stderr. A composed build uses the
+  composing project's root.
+
 ### Fixed
 
 - **Headings inside block quotes were not counted, so such a record failed to render.** A heading written inside a
   block quote (`> ## Note`, also nested) is a heading on the rendered page, but the heading reader skipped it, and the
   render stopped on the mismatch. The reader now strips the quote markers before matching, and a fence opened inside a
   quote ends with it.
+
+### Pinned
+
+- **pyyaml 6.0.3.** `pyproject.toml` requires `pyyaml==6.0.3`.
+- **Chrome for Testing 155.0.8059.79.** The Action installs the build puppeteer 25.14.0 names, with
+  `@puppeteer/browsers` 3.2.5, into the runner temp directory, and points `PUPPETEER_EXECUTABLE_PATH` and
+  mermaid-cli's `--puppeteer-config` at it. A caller that sets `PUPPETEER_EXECUTABLE_PATH` keeps its own browser.
+- **The browser check's final line** now ends with the browser's version, for example
+  `42 passed, 0 failed (Chrome/155.0.8059.79)`.
 
 ## 0.3.3 (2026-11-20)
 

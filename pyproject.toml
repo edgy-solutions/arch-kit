@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "arch-kit"
 dynamic = ["version"]
 requires-python = ">=3.10"
-dependencies = ["pyyaml", "markdown-it-py==4.0.0", "jsonschema==4.26.0"]
+dependencies = ["pyyaml==6.0.3", "markdown-it-py==4.0.0", "jsonschema==4.26.0"]
 
 [project.scripts]
 arch-kit = "arch_kit.__main__:cli"
