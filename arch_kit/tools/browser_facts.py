@@ -41,6 +41,8 @@ model is read:
                         is absent: the first decision record's id as the phrase, and that record's page
     min_pages           export.browser.min_pages; when absent, one printed page for each page of the portal,
                         the front page included (every page starts a new printed page)
+    defaulted           the keys of search and min_pages that were not declared and took their defaults, so the
+                        browser check's lines can say which values were derived
 
 Both keys are optional in this mode. A declared search needs both phrase and finds.
 
@@ -161,6 +163,7 @@ def facts_decisions(root: Path) -> dict:
     dec = render_html.Decisions(project.DECISIONS)
     keys = dec.keys()
     records_only = [k for k in keys if k != render_html.ROADMAP_KEY]
+    defaulted = [k for k in ("search", "min_pages") if k not in browser]
     if "search" in browser:
         search = {k: str(project.need("export.browser.search." + k, TOOL)) for k in ("phrase", "finds")}
     elif records_only:
@@ -185,6 +188,7 @@ def facts_decisions(root: Path) -> dict:
         "flows_pages": len(flows_ids),
         "search": {"phrase": search["phrase"], "finds": dec.page_id(search["finds"])},
         "min_pages": min_pages,
+        "defaulted": defaulted,
     }
 
 

@@ -63,6 +63,7 @@ class Facts(unittest.TestCase):
             "decision_pages": 3, "alignment_pages": 0, "flows_pages": 1,
             "search": {"phrase": "cargo van", "finds": "adr-0002"},
             "min_pages": 5,
+            "defaulted": [],
         })
 
     def test_the_alignment_example_lists_its_alignment_page_after_the_decisions(self):
@@ -82,6 +83,7 @@ class Facts(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertEqual(facts["search"], {"phrase": "ADR-0001", "finds": "adr-0001"})
         self.assertEqual(facts["min_pages"], 4)
+        self.assertEqual(facts["defaulted"], ["search", "min_pages"])
 
     def test_a_missing_min_pages_is_one_per_page_with_the_front(self):
         root = self.copy("flows")
@@ -89,6 +91,7 @@ class Facts(unittest.TestCase):
         p, facts = self.run_facts(root)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertEqual(facts["min_pages"], 1 + len(facts["page_ids"]))
+        self.assertEqual(facts["defaulted"], ["min_pages"])
         self.assertEqual(facts["search"], {"phrase": "cargo van", "finds": "adr-0002"})
 
     def test_a_missing_search_takes_the_first_record(self):
@@ -98,6 +101,7 @@ class Facts(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertEqual(facts["search"], {"phrase": "ADR-0001", "finds": "adr-0001"})
         self.assertEqual(facts["min_pages"], 5)
+        self.assertEqual(facts["defaulted"], ["search"])
 
     def test_a_declared_search_without_its_phrase_exits_2(self):
         root = self.copy("flows")

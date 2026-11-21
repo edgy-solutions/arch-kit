@@ -5,6 +5,9 @@
 
 export async function runDecisions({ page, check, go, display, shot, facts }) {
   const IDS = facts.page_ids;
+  const defaulted = new Set(facts.defaulted || []);
+  const searchFrom = defaulted.has("search") ? "default (the first record's id)" : "declared";
+  const floorFrom = defaulted.has("min_pages") ? "default: one per page with the front" : "declared";
   const ALL = ["front", ...IDS];
   const sel = (id) => `[id="${id}"]`;
   const shown = () =>
@@ -78,9 +81,9 @@ export async function runDecisions({ page, check, go, display, shot, facts }) {
   check((await page.evaluate(() => document.getElementById("q").value)) === "", "search: Esc clears the box");
   await page.keyboard.type(facts.search.phrase);
   n = await page.evaluate(() => document.querySelectorAll("#results li").length);
-  check(n >= 1, "search: the declared phrase gives results", String(n));
+  check(n >= 1, `search: the ${searchFrom} phrase "${facts.search.phrase}" gives results`, String(n));
   const hit = await page.evaluate((id) => !!document.querySelector(`#results a[href="#${id}"]`), facts.search.finds);
-  check(hit, "search: a result links the declared decision page");
+  check(hit, `search: a result links the ${searchFrom} decision page #${facts.search.finds}`);
   if (hit) {
     await page.click(`#results a[href="#${facts.search.finds}"]`);
     await frame();
@@ -121,7 +124,7 @@ export async function runDecisions({ page, check, go, display, shot, facts }) {
   check((await display("#results")) === "none", "print: the search panel is hidden");
   const pdf = Buffer.from(await page.pdf({ format: "A4", printBackground: true, preferCSSPageSize: true }));
   const count = (pdf.toString("latin1").match(/\/Type\s*\/Page(?![A-Za-z])/g) || []).length;
-  check(count >= facts.min_pages, `print: the PDF has at least ${facts.min_pages} pages`, String(count));
+  check(count >= facts.min_pages, `print: the PDF has at least ${facts.min_pages} pages (min_pages, ${floorFrom})`, String(count));
   const boxes = [...pdf.toString("latin1").matchAll(/\/MediaBox\s*\[\s*0 0 ([\d.]+) ([\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
   check(boxes.length >= facts.min_pages && boxes.every(([w, h]) => w > h), "print: the PDF's pages are landscape", `${boxes.length} boxes, first ${boxes[0]}`);
   await page.emulateMediaType("screen");

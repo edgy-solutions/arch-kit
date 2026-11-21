@@ -81,7 +81,10 @@ def browser_check(root: Path, export: Path, out: Path) -> tuple[int, int, str]:
 
 
 class BrowserCase:
-    """The browser test every decisions-mode example has: set `root`, `out` and `tmp` in setUp."""
+    """The browser test every decisions-mode example has: set `root`, `out` and `tmp` in setUp. `defaults` is True
+    for an example that declares no export.browser, so its search and page-floor lines must say they were derived."""
+
+    defaults = False
 
     def test_the_browser_check_passes_on_the_export(self):
         why = browser_missing()
@@ -94,6 +97,12 @@ class BrowserCase:
         self.assertEqual(check_rc, 0, "check_export_browser failed:\n" + log[-1500:])
         self.assertEqual([ln for ln in log.splitlines() if ln.startswith("FAIL")], [])
         self.assertIn(" passed, 0 failed", log)
+        if self.defaults:
+            how = ("default (the first record's id) phrase", "(min_pages, default: ")
+        else:
+            how = ("declared phrase", "(min_pages, declared)")
+        for words in how:
+            self.assertIn(words, log)
 
 
 def tool(root: Path, name: str, *args: str, config: str = "arch-kit.yaml") -> subprocess.CompletedProcess:
@@ -111,6 +120,8 @@ def check(root: Path, out: Path) -> subprocess.CompletedProcess:
 
 
 class Example(BrowserCase, unittest.TestCase):
+    defaults = True  # the decisions-only example declares no export.browser
+
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
