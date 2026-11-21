@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.3.4 (2026-11-21)
+
+A browser check for decisions-only portals, front matter and block-quote headings in decision records, a build
+dated from its commit, and pinned pyyaml and Chrome. Pull requests #33, #36 and #37.
+
 ### Checks
 
 - **A browser check for `portal.mode: decisions`.** `browser_facts` writes the decisions-mode facts (the page ids in

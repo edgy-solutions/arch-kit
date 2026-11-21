@@ -18,7 +18,7 @@ assume.
 
 ## Status
 
-**`0.3.3`, tagged `v0.3.3`.** See [the changelog](CHANGELOG.md). The kit was extracted from the first project that used it. That project's export
+**`0.3.4`, tagged `v0.3.4`.** See [the changelog](CHANGELOG.md). The kit was extracted from the first project that used it. That project's export
 is the acceptance test: after every step it must come out byte-identical, or each difference is listed and explained.
 
 | Step | | State |
@@ -34,7 +34,7 @@ is the acceptance test: after every step it must come out byte-identical, or eac
 | 6d | Caught up with the first project's later tool changes: `check_views --record`, and the CV-3 text naming a passed record | done |
 | 7 | The first project pins the kit by commit, with a golden comparison in its CI. The comparison against its old tools is being replaced by one between the kit's old and new pins | in review |
 
-Pin a tag, such as `v0.3.3`, or a full commit sha, never a branch. The content file names, the decision record and register id
+Pin a tag, such as `v0.3.4`, or a full commit sha, never a branch. The content file names, the decision record and register id
 grammar and the roadmap table headers, once fixed, are now declared as optional keys whose defaults are the old values.
 The [declaration reference](docs/declaration.md#formerly-fixed-now-declared) lists them.
 
@@ -151,7 +151,7 @@ check, `check_decision_indexes`):
 - uses: actions/checkout@<sha>
   with:
     fetch-depth: 0        # the render stamps each decision from git
-- uses: edgy-solutions/arch-kit@v0.3.3
+- uses: edgy-solutions/arch-kit@v0.3.4
   with:
     config: docs/arch/arch-kit.yaml
     chart: path/to/chart
