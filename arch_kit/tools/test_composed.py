@@ -133,8 +133,20 @@ class Composed(unittest.TestCase):
     def run_tool(self, script, args, config=None):
         repo = self.repo["example-portal"]
         env = dict(os.environ, ARCH_KIT_CONFIG=str(config or repo / DECL), PYTHONIOENCODING="utf-8", PYTHONDONTWRITEBYTECODE="1")
+        env.update(self.private_temp())
         return subprocess.run([sys.executable, str(script), *args], cwd=repo, capture_output=True, text=True,
                               encoding="utf-8", env=env)
+
+    def private_temp(self):
+        """TMP, TEMP and TMPDIR for a build: a directory of this test's own, so that the fragment check sees only this
+        build's temporary files, not those of another suite running on the same machine."""
+        d = self.tmp / "temp"
+        d.mkdir(exist_ok=True)
+        return {"TMP": str(d), "TEMP": str(d), "TMPDIR": str(d)}
+
+    def fragments(self):
+        """The fragment directories this test's builds left behind."""
+        return list((self.tmp / "temp").glob("arch-kit-fragment-*"))
 
     def render(self, names=None, extra=()):
         out = self.tmp / "out.html"
@@ -164,7 +176,7 @@ class Build(Composed):
         self.assertEqual(c.returncode, 0, c.stdout + c.stderr)
         self.assertIn("composed: 3 groups", c.stdout)
         self.assertEqual(self.states(), before)
-        self.assertFalse(list(Path(tempfile.gettempdir()).glob("arch-kit-fragment-*")))
+        self.assertFalse(self.fragments())
 
     def test_one_front_block_per_group_in_order(self):
         _, doc = self.render()
@@ -362,7 +374,7 @@ class Refused(Composed):
         self.head["example-hidden"] = tick(self.repo["example-hidden"])
         self.commit_portal(consumers=("example-app", "example-hidden"))
         self.assertIn("consumers[1]", self.refused())
-        self.assertFalse(list(Path(tempfile.gettempdir()).glob("arch-kit-fragment-*")))
+        self.assertFalse(self.fragments())
 
 
 if __name__ == "__main__":

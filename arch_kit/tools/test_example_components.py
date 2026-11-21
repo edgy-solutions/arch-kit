@@ -23,6 +23,8 @@ KIT = HERE.parents[1]
 EXAMPLE = KIT / "examples" / "components"
 EXPECTED = EXAMPLE / "expected" / "components.html"
 LOCAL_IDS = ["ADR-0001", "ADR-0002", "ADR-0003"]
+GAP = (b"components_example: components.yaml: components[2].connections[0].protected_by[0]: gap: none: "
+       b"the start log is readable by every local account\n")
 
 RENDER = '''
 import sys
@@ -54,7 +56,7 @@ class Example(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp, True)
         p = run_in(copy_example(tmp))
         self.assertEqual(p.returncode, 0, p.stderr.decode("utf-8", "replace"))
-        self.assertEqual(p.stderr, b"")
+        self.assertEqual(p.stderr.replace(b"\r\n", b"\n"), GAP)
         want = EXPECTED.read_bytes()
         if p.stdout != want:
             diff = list(difflib.unified_diff(want.decode("utf-8").split("\n"), p.stdout.decode("utf-8").split("\n"),
@@ -65,7 +67,7 @@ class Example(unittest.TestCase):
 def write_expected() -> int:
     with tempfile.TemporaryDirectory() as t:
         p = run_in(copy_example(Path(t)))
-        if p.returncode or p.stderr:
+        if p.returncode or p.stderr.replace(b"\r\n", b"\n") != GAP:
             print(p.stderr.decode("utf-8", "replace"), file=sys.stderr)
             return 1
     EXPECTED.parent.mkdir(exist_ok=True)

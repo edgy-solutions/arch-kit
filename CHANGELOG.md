@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- **UAF Mi row.** The UAF grid places `Mi-` ids (Mission, UAF 1.3) in a Mi row between En and Me. The row is drawn
+  only when Appendix A places an id in it, so a project with no `Mi-` id renders as before.
+- **Connections and Protected by.** A component may carry `connections`: who it talks to (a component of the record,
+  `<prefix>:CO-...` of a declared foreign member, or an outside system `XE-...`), the direction, protocol, sign-in,
+  what passes, status and evidence. Each connection may carry `protected_by`, a list of `by` entries (a protecting
+  component or outside system) and at most one `none` entry. A `none` entry is a known gap: it is reported on stderr
+  as `components[i].connections[j].protected_by[k]: gap: none: <why>` and renders with a gap badge. A connection with
+  no `protected_by` renders "not written" and is not reported. The Components page gains a Connections table, and
+  `components.connection_rows`, `components.gaps` and `components.protected_by_cell` give the rows to other views.
+
 ### Checks
 
 - **A browser check for `portal.mode: decisions`.** `browser_facts` writes the decisions-mode facts (the page ids in
@@ -9,8 +21,8 @@
   them: load, page count, navigation, front-page links, back, internal links, search, width at 390 and 1280, print and
   the PDF, and screenshots. The Action runs it in decisions mode too. `export.browser.search` and
   `export.browser.min_pages` are optional in this mode: with no search, the first decision record's id must find its
-  page, and with no `min_pages` the PDF must have one page for each page of the portal. A decisions-only portal needs
-  no change to its declaration. The full-mode check is unchanged.
+  page, and with no `min_pages` the PDF must have one page for each page of the portal. The check's lines say which
+  values were declared and which are defaults. A decisions-only portal needs no change to its declaration. The full-mode check is unchanged.
 
 ## 0.3.1 (2026-11-19)
 

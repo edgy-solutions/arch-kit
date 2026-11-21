@@ -82,7 +82,8 @@ PROFILE_NAMES = rp.PROFILE_NAMES
 DECLARED = ("Declared, not measured: this export reads the views, the model and a chart render, "
             "and read no running system.")
 CSP = "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; font-src data:"
-UAF_ROWS = ["Am", "St", "Op", "Sv", "Ps", "Rs", "Sc", "Pj", "Sd", "Ar", "En", "Me", "Rk", "Rq", "Sm"]
+UAF_ROWS = ["Am", "St", "Op", "Sv", "Ps", "Rs", "Sc", "Pj", "Sd", "Ar", "En", "Mi", "Me", "Rk", "Rq", "Sm"]
+UAF_ROWS_IF_USED = frozenset({"Mi"})  # rows added in UAF 1.3, drawn only when an id falls in them
 UAF_COLS = ["Mv", "Tx", "Sr", "Cn", "Pr", "St", "Sq", "If", "Pm", "Ct", "Rm", "Tr", "Ov"]
 DODAF_ROWS = ["AV", "CV", "DIV", "OV", "PV", "SV", "SvcV", "StdV"]
 NAF_ROWS = ["A", "C", "L", "P", "S"]
@@ -206,6 +207,8 @@ def grid_uaf(rows, views: dict, names: dict[str, str], label: str) -> str:
     head = "".join(f"<th scope=\"col\">{c}</th>" for c in UAF_COLS)
     body = []
     for rw in UAF_ROWS:
+        if rw in UAF_ROWS_IF_USED and not any(k[0] == rw for k in cells):
+            continue
         row = [f'<th scope="row">{rw}</th>']
         for c in UAF_COLS:
             row.append(td(cells[(rw, c)], targets, names) if (rw, c) in cells else "<td></td>")
