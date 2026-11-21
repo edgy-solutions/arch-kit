@@ -122,10 +122,23 @@ jobs:
           test "$HOSTING" = ci-artifact
           if [ -z "$ARTIFACT" ]; then echo "no artifact was uploaded with hosting ci-artifact"; exit 1; fi
 
-      # portal.mode: decisions skips check_views and the browser check; the rest of the chain must pass.
+      # portal.mode: decisions skips check_views; the browser check runs its decisions-mode assertions, so this
+      # step needs Chrome, as the Tests job does.
       - name: Run the Action, decisions-only portal
         uses: ./
+        env:
+          PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome
         with:
           config: examples/decisions-only/arch-kit.yaml
           barred: examples/decisions-only/barred.txt
           out: ${{ runner.temp }}/arch-kit-export-3
+
+      - name: The decisions-only run wrote its facts and browser log
+        run: |
+          out="$RUNNER_TEMP/arch-kit-export-3"
+          for f in export.html facts.json browser.log; do
+            test -s "$out/$f" || { echo "the decisions-only run left no $f"; exit 1; }
+          done
+          grep -q '"mode": "decisions"' "$out/facts.json"
+          grep -Eq '^[0-9]+ passed, 0 failed$' "$out/browser.log"
+          test -s "$out/shots/front.png"
