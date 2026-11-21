@@ -32,7 +32,7 @@ SHA = "0123456789abcdef0123456789abcdef01234567"
 
 @unittest.skipIf(BASH is None, "bash is not on the PATH")
 class ActionInputs(unittest.TestCase):
-    def run_step(self, mode, chart, release, chart_ref=SHA, bundle_ref=SHA, action_dir=None):
+    def run_step(self, mode, chart, release, chart_ref=SHA, bundle_ref=SHA, action_dir=None, fail=""):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             action = tmp / action_dir if action_dir else tmp
@@ -46,6 +46,7 @@ class ActionInputs(unittest.TestCase):
                 'shift 2\n'   # --config FILE
                 f'if [ "$1" = portal ] && [ "$2" = --mode ]; then echo {mode}; exit 0; fi\n'
                 f'echo "$@" >> "{log.as_posix()}"\n'
+                f'if [ "$1" = "{fail}" ]; then echo "refused: the stub says no"; exit 2; fi\n'
                 "exit 0\n", encoding="utf-8", newline="\n")
             stub.chmod(0o755)
             script = tmp / "step.sh"
@@ -55,7 +56,7 @@ class ActionInputs(unittest.TestCase):
                        IN_BUNDLE_REF=bundle_ref, IN_READINESS="",
                        IN_RELABEL="", IN_BARRED="", IN_OUT=(tmp / "out").as_posix(), IN_BROWSER="false",
                        IN_INDEX_CHECK="false", GITHUB_ACTION_PATH=action.as_posix(), PUPPETEER_EXECUTABLE_PATH="x")
-            p = subprocess.run([BASH, str(script)], env=env, capture_output=True, text=True, encoding="utf-8")
+            p = subprocess.run([BASH, "--noprofile", "--norc", "-eo", "pipefail", str(script)], env=env, capture_output=True, text=True, encoding="utf-8")
             calls = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
             return p, calls
 
@@ -128,6 +129,14 @@ class ActionInputs(unittest.TestCase):
         self.assertTrue(render, p.stdout + p.stderr)
         self.assertNotIn("--kit-commit", render[0])
         self.assertIn("the kit's commit cannot be read", p.stdout)
+
+    def test_a_failing_tool_prints_its_log_and_the_later_steps_run(self):
+        # The runner starts bash with -e; a failing tool must not end the step before its log is shown.
+        p, calls = self.run_step("full", "c", "r1", fail="render_html")
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("render_html (exit 2)", p.stdout)
+        self.assertIn("refused: the stub says no", p.stdout)
+        self.assertTrue(any(c.startswith("check_export") for c in calls), calls)
 
     def test_decisions_needs_no_refs(self):
         p, calls = self.run_step("decisions", "", "", "", "")

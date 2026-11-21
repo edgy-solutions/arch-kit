@@ -29,6 +29,12 @@
   unpacked into. An Action pinned to a tag or branch gets a warning, and a build with a chart then stops, because its
   page can't name the kit.
 
+### Fixed
+
+- **The Action shows a failing tool's log.** The runner starts bash with `-e`, so a tool that failed ended the step
+  before its log was printed, and the later tools never ran. Each step now prints its log and exit code, every step
+  runs, and the step fails at the end. The Action's step test runs under the runner's flags.
+
 ## 0.3.4 (2026-11-21)
 
 A browser check for decisions-only portals, front matter and block-quote headings in decision records, a build

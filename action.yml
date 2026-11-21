@@ -181,15 +181,16 @@ runs:
         printf '{"executablePath": "%s", "args": ["--no-sandbox"]}\n' "$chrome_json" > "$IN_OUT/puppeteer.json"
         failed=0
         # step NAME COMMAND...: run, log to $IN_OUT/NAME.log, print the tail and the exit code.
+        # The runner starts bash with -e: a failing tool must not end the script before its log is printed, and
+        # every step runs, so step itself never fails; the script exits with $failed at the end.
         step() {
-          local name=$1; shift
-          "$@" > "$IN_OUT/$name.log" 2>&1
-          local rc=$?
+          local name=$1 rc=0; shift
+          "$@" > "$IN_OUT/$name.log" 2>&1 || rc=$?
           echo "::group::$name (exit $rc)"
           tail -n 15 "$IN_OUT/$name.log"
           echo "::endgroup::"
           if [ "$rc" != 0 ]; then echo "$name exited $rc"; failed=1; fi
-          return $rc
+          return 0
         }
         # The installed package has no node_modules: mermaid-cli is the one `npm ci` put in the Action's checkout.
         mmdc="$GITHUB_ACTION_PATH/arch_kit/tools/export/node_modules/.bin/mmdc"
