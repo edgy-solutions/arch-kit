@@ -26,6 +26,7 @@ RECORD_ID = declared.record_patterns("adr_sections")[0]
 CITATION_RE = re.compile(r"^(" + RECORD_ID + r") §([0-9A-Za-z](?:[\w-]|\.(?=\w))*)$")
 CITATION_IN_TEXT_RE = re.compile(r"(?<![\w-])(" + RECORD_ID + r") §([0-9A-Za-z](?:[\w-]|\.(?=\w))*)")
 HEADING_RE = re.compile(r"^ {0,3}(#{2,4})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$")
+QUOTE_RE = re.compile(r"^ {0,3}> ?")
 FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 NUMBER_RE = re.compile(r"^(\d+[a-z]?(?:\.\d+)*)(?=[.\s])")
 DECISIONS = project.DECISIONS
@@ -52,15 +53,53 @@ def base_slug(text: str) -> str:
     return kept.replace(" ", "-")
 
 
+def strip_front_matter(text: str) -> str:
+    """The record text with a leading YAML front matter block blanked, line for line.
+
+    The block starts with a line that is exactly `---` as line 1 and ends at the next line that is exactly `---` or
+    `...`. Each of its lines becomes an empty line, so every later line keeps its number. A `---` on line 1 with no
+    closing line is not front matter, and the text comes back as it is.
+    """
+    lines = text.replace("\r\n", "\n").split("\n")
+    if not lines or lines[0] != "---":
+        return text
+    for i, line in enumerate(lines[1:], 1):
+        if line in ("---", "..."):
+            return "\n".join([""] * (i + 1) + lines[i + 1:])
+    return text
+
+
+def unquote(line: str, limit: int | None = None) -> tuple[int, str]:
+    """(depth, rest) of a line: the number of leading block quote markers, and the line after them.
+    With `limit`, at most that many markers are taken off."""
+    depth = 0
+    while limit is None or depth < limit:
+        m = QUOTE_RE.match(line)
+        if not m:
+            break
+        depth += 1
+        line = line[m.end():]
+    return depth, line
+
+
 def headings(text: str) -> list[Heading]:
-    """The ATX headings of levels 2 to 4, outside fenced code, with GitHub's duplicate numbering."""
+    """The ATX headings of levels 2 to 4, outside fenced code, with GitHub's duplicate numbering.
+    A leading front matter block is skipped. A heading inside a block quote counts, and a fence opened inside one
+    ends with it."""
     out: list[Heading] = []
     seen: dict[str, int] = {}
     fence = None
-    for line in text.replace("\r\n", "\n").split("\n"):
+    fence_depth = 0
+    for source in strip_front_matter(text).replace("\r\n", "\n").split("\n"):
+        depth, line = unquote(source)
+        if fence is not None:
+            if depth < fence_depth:
+                fence = None
+            else:
+                _, line = unquote(source, fence_depth)
         f = FENCE_RE.match(line)
         if fence is None and f:
-            fence = f.group(1)
+            fence, fence_depth = f.group(1), depth
             continue
         if fence is not None:
             if f and f.group(1)[0] == fence[0] and len(f.group(1)) >= len(fence) and not line.strip().strip(fence[0]):
