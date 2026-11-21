@@ -4,6 +4,8 @@
 
 ### Added
 
+- **UAF Mi row.** The UAF grid places `Mi-` ids (Mission, UAF 1.3) in a Mi row between En and Me. The row is drawn
+  only when Appendix A places an id in it, so a project with no `Mi-` id renders as before.
 - **Connections and Protected by.** A component may carry `connections`: who it talks to (a component of the record,
   `<prefix>:CO-...` of a declared foreign member, or an outside system `XE-...`), the direction, protocol, sign-in,
   what passes, status and evidence. Each connection may carry `protected_by`, a list of `by` entries (a protecting
