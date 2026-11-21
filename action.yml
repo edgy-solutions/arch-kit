@@ -83,6 +83,22 @@ runs:
       run: |
         npm ci
 
+    # The browser is the Chrome for Testing build puppeteer 25.14.0 names, so the diagrams and the browser check
+    # do not move with the runner's own Chrome. A caller that sets PUPPETEER_EXECUTABLE_PATH keeps its own browser.
+    - name: Install Chrome for Testing
+      shell: bash
+      run: |
+        set -eu
+        if [ -n "${PUPPETEER_EXECUTABLE_PATH:-}" ]; then
+          echo "PUPPETEER_EXECUTABLE_PATH is set; keeping $PUPPETEER_EXECUTABLE_PATH"
+          exit 0
+        fi
+        out="$(npx --yes @puppeteer/browsers@3.2.5 install chrome@155.0.8059.79 --path "$RUNNER_TEMP/chrome")"
+        echo "$out"
+        chrome="$(printf '%s\n' "$out" | tail -n 1 | awk '{print $NF}')"
+        [ -f "$chrome" ] || { echo "the Chrome install printed no binary: $chrome"; exit 1; }
+        echo "PUPPETEER_EXECUTABLE_PATH=$chrome" >> "$GITHUB_ENV"
+
     - name: Check and render
       id: chain
       shell: bash
@@ -109,11 +125,9 @@ runs:
         chart=(); [ -n "$IN_CHART" ] && chart=(--chart "$IN_CHART")
         release=(); [ -n "$IN_RELEASE" ] && release=(--release "$IN_RELEASE")
         readiness=(); [ -n "$IN_READINESS" ] && readiness=(--readiness "$IN_READINESS")
-        if [ -z "${PUPPETEER_EXECUTABLE_PATH:-}" ]; then
-          PUPPETEER_EXECUTABLE_PATH="$(command -v google-chrome || command -v chromium || true)"
-          export PUPPETEER_EXECUTABLE_PATH
-        fi
-        printf '{"args": ["--no-sandbox"]}\n' > "$IN_OUT/puppeteer.json"
+        # mermaid-cli takes its browser from this file; the browser check takes the same path from the environment.
+        chrome_json="$(printf '%s' "${PUPPETEER_EXECUTABLE_PATH:-}" | sed 's/\\/\\\\/g')"
+        printf '{"executablePath": "%s", "args": ["--no-sandbox"]}\n' "$chrome_json" > "$IN_OUT/puppeteer.json"
         failed=0
         # step NAME COMMAND...: run, log to $IN_OUT/NAME.log, print the tail and the exit code.
         step() {

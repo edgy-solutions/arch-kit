@@ -67,6 +67,7 @@ const browser = await puppeteer.launch({
   args: extraArgs,
 });
 const written = [];
+const browserVersion = await browser.version();
 try {
   const page = await browser.newPage();
   const badRequests = [];
@@ -584,5 +585,5 @@ try {
   await browser.close();
 }
 for (const w of written) console.log(`shot: ${w}`);
-console.log(`${passed} passed, ${failed} failed`);
+console.log(`${passed} passed, ${failed} failed (${browserVersion})`);
 process.exit(failed ? 1 : 0);
