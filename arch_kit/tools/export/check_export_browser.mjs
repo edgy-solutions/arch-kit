@@ -16,6 +16,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { runDecisions } from "./check_export_browser_decisions.mjs";
 
 const argv = process.argv.slice(2);
 function opt(name) {
@@ -32,14 +33,16 @@ if (!file || !shots || !factsFile) {
 // Loaded only after the arguments are checked, so a usage error exits 2 without the browser library installed.
 const { default: puppeteer } = await import("puppeteer");
 const facts = JSON.parse(readFileSync(factsFile, "utf8"));
-const TABLE = facts.roles.table;
-const DIAGRAM = facts.roles.diagram;
-const PROFILE_ONLY = facts.roles.profile_only;
+// facts.mode is "decisions" for `portal.mode: decisions`: no roles, views or capability facts, and its own checks.
+const DECISIONS = facts.mode === "decisions";
+const TABLE = facts.roles?.table;
+const DIAGRAM = facts.roles?.diagram;
+const PROFILE_ONLY = facts.roles?.profile_only;
 // facts.model is false for a project with model: none: no capability pages, no phases, no capability links.
 const NO_MODEL = facts.model === false;
 const CAP_LINK = facts.capability_link;
 const GROUP_START = `${facts.group_slug}-start`;
-const PHASES_VIEW = NO_MODEL ? `#view-${facts.roles.table}` : `#view-${facts.phases_home}`;
+const PHASES_VIEW = NO_MODEL ? `#view-${TABLE}` : `#view-${facts.phases_home}`;
 const extraArgs = opt("--puppeteer-config")
   ? JSON.parse(readFileSync(opt("--puppeteer-config"), "utf8")).args ?? []
   : [];
@@ -122,6 +125,11 @@ try {
       })));
   const hash = (t) => createHash("sha256").update(t).digest("hex");
 
+  if (DECISIONS) {
+    await runDecisions({ page, check, go, display, shot, facts });
+  }
+  // The full-mode checks below run in a block that is not indented, so that the diff of this file stays small.
+  if (!DECISIONS) {
   // --- front, UAF ---
   check(views.length === facts.views, `${facts.views} view sections`, String(views.length));
   check((await display("#front")) === "block", "front is visible on load");
@@ -577,6 +585,7 @@ try {
   check(pr3 === 0, "print: no table is wider than its parent at 980 under a wide font", String(pr3));
   const boxes = [...pdf.toString("latin1").matchAll(/\/MediaBox\s*\[\s*0 0 ([\d.]+) ([\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
   check(boxes.length >= facts.min_pages && boxes.every(([w, h]) => w > h), "print: the PDF's pages are landscape", `${boxes.length} boxes, first ${boxes[0]}`);
+  }
 
   check(badRequests.length === 0, "no request but file: and data:", badRequests.slice(0, 3).join(" "));
   check(consoleErrors.length === 0, "no console error", consoleErrors.slice(0, 3).join(" | "));

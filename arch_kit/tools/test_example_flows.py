@@ -54,7 +54,7 @@ def page(text: str, pid: str) -> str:
     return text[start:text.index("</section>", start)]
 
 
-class Example(unittest.TestCase):
+class Example(td.BrowserCase, unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)

@@ -2,7 +2,16 @@
 
 ## Unreleased
 
-Nothing yet.
+### Checks
+
+- **A browser check for `portal.mode: decisions`.** `browser_facts` writes the decisions-mode facts (the page ids in
+  document order, the page counts by kind, the declared search) and `check_export_browser.mjs` runs ten assertions on
+  them: load, page count, navigation, front-page links, back, internal links, search, width at 390 and 1280, print and
+  the PDF, and screenshots. The Action runs it in decisions mode too. `export.browser.search` and
+  `export.browser.min_pages` are optional in this mode: with no search, the first decision record's id must find its
+  page, and with no `min_pages` the PDF must have one page for each page of the portal. The check's lines say which
+  values were declared and which are defaults. A decisions-only portal needs no change to its declaration. The
+  full-mode check is unchanged.
 
 ## 0.3.3 (2026-11-20)
 
