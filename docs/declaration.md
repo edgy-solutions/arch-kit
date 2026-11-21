@@ -723,8 +723,15 @@ group starts and the ids above. The script exits 2 without `--facts`. `wide_tabl
 `table` view's source; when the data-exchange home is that view, the generated Exchanges table counts too.
 
 With `portal.mode: decisions` only `search.phrase`, `search.finds` (a decision id such as `ADR-0002`) and `min_pages`
-are read, and `views`, `min_tables`, `min_tokens` and `expect_wide_table` are not needed. `browser_facts` then reads
-the decision records, the alignment records and the flows, and no view, profile, record or model.
+are read, and `views`, `min_tables`, `min_tokens` and `expect_wide_table` are not needed. All of them are optional
+in this mode, and `export.browser` may be left out:
+- with no `search`, the phrase is the first decision record's id, and the record found is that one. A declared
+  `search` needs both `phrase` and `finds`;
+- with no `min_pages`, the floor is one printed page for each page of the portal, the front page included, since
+  every page starts a new printed page.
+
+`browser_facts` then reads the decision records, the alignment records and the flows, and no view, profile, record
+or model.
 
 ### Decision record and register ids
 

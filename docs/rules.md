@@ -128,9 +128,11 @@ assertions in `check_export_browser_decisions.mjs`, on state, at 1280x900 unless
 4. Front-page link: every page holds a link to `#front`; clicking it on the first and last page shows the front page.
 5. Back: the browser's back button returns through the page before, then the front page.
 6. Internal links: every `#href` in the document names an id that exists.
-7. Search: a nonsense term finds nothing, Esc clears the box, the declared phrase finds the declared decision's page.
+7. Search: a nonsense term finds nothing, Esc clears the box, the declared phrase finds the declared decision's page
+   (by default, the first record's id finds that record's page).
 8. Width: at 390 and at 1280, no page scrolls sideways and a table wider than its container scrolls inside `.scroll`.
-9. Print: every page is displayed, the bar and search panel are hidden, the PDF has `min_pages` pages, all landscape.
+9. Print: every page is displayed, the bar and search panel are hidden, the PDF has at least `min_pages` pages, all
+   landscape.
 10. Screenshots: `front.png`, `decision-<first page id>.png` and `phone-front.png`.
 
 ## Names in the published file

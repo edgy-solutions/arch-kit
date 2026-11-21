@@ -131,7 +131,7 @@ runs:
         [ -f "$mmdc.cmd" ] && mmdc="$mmdc.cmd"   # Windows
         ak() { arch-kit --config "$IN_CONFIG" "$@"; }
         # portal.mode decisions: no views, record or diagrams, so no check_views. The browser check runs its own
-        # decisions-mode assertions (browser_facts reads export.browser.search and min_pages).
+        # decisions-mode assertions (browser_facts reads export.browser.search and min_pages, each with a default).
         mode="$(ak portal --mode)" || exit 2
         if [ "$mode" != decisions ]; then
           missing=""; noun="input is"

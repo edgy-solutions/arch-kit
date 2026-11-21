@@ -77,19 +77,34 @@ class Facts(unittest.TestCase):
         self.assertEqual(facts["page_ids"], ["adr-0001", "adr-0002", "adr-0003"])
         self.assertEqual((facts["alignment_pages"], facts["flows_pages"]), (0, 0))
 
-    def test_a_missing_search_phrase_exits_2(self):
+    def test_with_no_export_browser_both_settings_take_their_defaults(self):
+        p, facts = self.run_facts(self.copy("decisions-only"))
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(facts["search"], {"phrase": "ADR-0001", "finds": "adr-0001"})
+        self.assertEqual(facts["min_pages"], 4)
+
+    def test_a_missing_min_pages_is_one_per_page_with_the_front(self):
+        root = self.copy("flows")
+        self.edit(root, lambda d: d["export"]["browser"].pop("min_pages"))
+        p, facts = self.run_facts(root)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(facts["min_pages"], 1 + len(facts["page_ids"]))
+        self.assertEqual(facts["search"], {"phrase": "cargo van", "finds": "adr-0002"})
+
+    def test_a_missing_search_takes_the_first_record(self):
+        root = self.copy("flows")
+        self.edit(root, lambda d: d["export"]["browser"].pop("search"))
+        p, facts = self.run_facts(root)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(facts["search"], {"phrase": "ADR-0001", "finds": "adr-0001"})
+        self.assertEqual(facts["min_pages"], 5)
+
+    def test_a_declared_search_without_its_phrase_exits_2(self):
         root = self.copy("flows")
         self.edit(root, lambda d: d["export"]["browser"]["search"].pop("phrase"))
         p, _ = self.run_facts(root)
         self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
         self.assertIn("export.browser.search.phrase", p.stderr)
-
-    def test_a_missing_min_pages_exits_2(self):
-        root = self.copy("flows")
-        self.edit(root, lambda d: d["export"]["browser"].pop("min_pages"))
-        p, _ = self.run_facts(root)
-        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
-        self.assertIn("export.browser.min_pages", p.stderr)
 
     def test_a_finds_id_that_is_not_a_decision_exits_2(self):
         root = self.copy("flows")
