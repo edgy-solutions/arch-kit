@@ -17,6 +17,10 @@ from pathlib import Path
 
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from bytes_diff import same_bytes_message  # noqa: E402
+
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "testdata" / "composed"
 RENDER = HERE / "render_html.py"
@@ -148,9 +152,11 @@ class Composed(unittest.TestCase):
         """The fragment directories this test's builds left behind."""
         return list((self.tmp / "temp").glob("arch-kit-fragment-*"))
 
-    def render(self, names=None, extra=()):
-        out = self.tmp / "out.html"
-        p = self.run_tool(RENDER, ["--out", str(out), "--date", DATE, *self.checkouts(names), *extra])
+    def render(self, names=None, extra=(), out=None, date=DATE):
+        """Build into `out` (default out.html in this test's directory); `date=None` leaves out --date."""
+        out = out or self.tmp / "out.html"
+        p = self.run_tool(RENDER, ["--out", str(out), *(["--date", date] if date else []), *self.checkouts(names),
+                                   *extra])
         return p, (out.read_text(encoding="utf-8") if out.exists() else "")
 
     def check(self, names=None, extra=()):
@@ -237,6 +243,27 @@ class Build(Composed):
                            cwd=self.repo["example-platform"], capture_output=True, text=True, encoding="utf-8", env=env)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn("example-portal", out.read_text(encoding="utf-8"))
+
+
+class Reproducible(Composed):
+    def setUp(self):
+        super().setUp()
+        self.standard()
+
+    def test_two_composed_builds_without_a_date_write_the_same_bytes(self):
+        before = self.states()
+        outs = []
+        for n in (1, 2):
+            d = self.tmp / f"build{n}"
+            d.mkdir()
+            outs.append(d / "out.html")
+            p, _ = self.render(out=outs[-1], date=None)
+            self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        msg = same_bytes_message(*outs)
+        if msg:
+            self.fail(msg)
+        self.assertEqual(self.states(), before)
+        self.assertFalse(self.fragments())
 
 
 class Flows(Composed):

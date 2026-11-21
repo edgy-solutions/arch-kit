@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-Nothing yet.
+### Checks
+
+- **Two builds, same bytes.** The tests build the minimal example twice and a composed example twice, without
+  `--date`, and require identical bytes, with nothing normalised.
 
 ## 0.3.4 (2026-11-21)
 
