@@ -9,6 +9,18 @@ components:
     serves: [pickup, drop-off]
     status: built
     evidence: [src/locker_agent.py:6]
+    connections:
+      - other: CO-002
+        direction: writes
+        protocol: parcel topic over TLS
+        sign_in: locker token
+        what_passes: parcel arrival events
+        status: built
+        evidence: [src/locker_agent.py:6]
+        protected_by:
+          - by: other:CO-007
+            status: accepted
+            evidence: [other:ADR-0007]
   - id: CO-002
     name: depot-router
     purpose: sorts parcels by size & weight
@@ -19,6 +31,14 @@ components:
     serves: [routing]
     status: accepted
     evidence: [ADR-0002, other:ADR-0007]
+    connections:
+      - other: XE-PARCEL-API
+        direction: calls
+        protocol: HTTPS request
+        sign_in: depot service account
+        what_passes: parcel size and weight lookups
+        status: accepted
+        evidence: [ADR-0002]
   - id: CO-003
     name: wake-probe
     purpose: times how fast a locker wakes
@@ -29,6 +49,18 @@ components:
     serves: [pickup]
     status: measured
     evidence: [results/locker-wake.txt]
+    connections:
+      - other: CO-001
+        direction: reads
+        protocol: local file read
+        sign_in: none needed
+        what_passes: the start log
+        status: built
+        evidence: [src/locker_agent.py:2]
+        protected_by:
+          - none: the start log is readable by every local account
+            status: built
+            evidence: [src/locker_agent.py:2]
   - id: CO-004
     name: ledger
     purpose: keeps the record of every handover

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Connections and Protected by.** A component may carry `connections`: who it talks to (a component of the record,
+  `<prefix>:CO-...` of a declared foreign member, or an outside system `XE-...`), the direction, protocol, sign-in,
+  what passes, status and evidence. Each connection may carry `protected_by`, a list of `by` entries (a protecting
+  component or outside system) and at most one `none` entry. A `none` entry is a known gap: it is reported on stderr
+  as `components[i].connections[j].protected_by[k]: gap: none: <why>` and renders with a gap badge. A connection with
+  no `protected_by` renders "not written" and is not reported. The Components page gains a Connections table, and
+  `components.connection_rows`, `components.gaps` and `components.protected_by_cell` give the rows to other views.
+
 ## 0.3.1 (2026-11-19)
 
 Long tokens in tables, and links to headings on declared pages.

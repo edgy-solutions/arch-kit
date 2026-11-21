@@ -238,7 +238,7 @@ it, and that a group without flows has neither; a member's `files.flows` is read
 A project may declare its components: each is one part of a system, with what it is for, how it is wired, how it signs
 in, where its data goes, the plane it sits on, what it serves, how far along it is, and the evidence. `files.components`
 names one YAML file under `paths.root`, with no default; its only key is `components:`, a non-empty list. Each
-component has exactly ten keys, all required:
+component has ten required keys, and one optional key (`connections`, below):
 
 ```yaml
 components:
@@ -284,6 +284,44 @@ nothing more.
 `:N`) is, or sits under, a `components.results` path is reported on stderr as
 `<tool>: <file or load_components>: components[i].evidence: measured, but no evidence is under components.results`,
 one line per component in file order, and the load goes on.
+
+#### Connections and Protected by
+
+The ten keys above are required. `connections` is the one optional key: when present it is a non-empty list, one
+entry for each link the component has.
+
+```yaml
+    connections:
+      - other: CO-002               # who is on the other end
+        direction: writes           # calls, is called by, reads or writes
+        protocol: parcel topic over TLS     # protocol, sign_in and what_passes: one non-empty line each
+        sign_in: locker token
+        what_passes: parcel arrival events
+        status: built               # measured, built, accepted or proposed
+        evidence: [src/locker_agent.py:6]   # at least one, checked like component evidence
+        protected_by:               # optional; when present, a non-empty list
+          - by: other:CO-007        # a protecting component or outside system
+            status: accepted
+            evidence: [other:ADR-0007]
+          - none: the topic has no per-message signature   # exactly one of by or none, then status and evidence
+            status: built
+            evidence: [src/locker_agent.py:5]
+```
+
+`other` and `by` take one of three forms: a component id of this record (`other` may not name the component itself;
+`by` may), `<prefix>:CO-...` with a declared foreign prefix, or an outside system id, `XE-` then capitals, digits and
+hyphens, checked by form only. The same `other` and `direction` twice in one component is refused, as is a repeated
+`by`, a second `none` entry, and a repeated evidence item in one list.
+
+The checks run after all the component checks, in this order: `other`, repeats, `by` and `none`, then the evidence and
+status of each connection and each protection entry, by the rules for component evidence. Errors read
+`components[i].connections[j].<key>` and `components[i].connections[j].protected_by[k].<key>`.
+
+A `none` entry is a known gap. It does not refuse. It is reported on stderr, one line per entry in file order, after
+the other reports: `<tool>: <file or load_components>: components[i].connections[j].protected_by[k]: gap: none: <why>`.
+Connection and protection entries get the same two evidence reports as a component (`built` with only a census key,
+`measured` with nothing under `components.results`). A connection with no `protected_by` key renders "not written" in
+its Protected by cell and gives no report: a blank is not a written gap.
 
 ### The census: `census:` and census keys
 
