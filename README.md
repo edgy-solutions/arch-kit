@@ -44,6 +44,8 @@ The [declaration reference](docs/declaration.md#formerly-fixed-now-declared) lis
   date is the committer date of the project's HEAD unless `--date` is given, and the diagrams are drawn by a pinned
   mermaid-cli in a pinned Chrome for Testing build. The kit's tests compare its example exports with committed
   copies, with the date and the diagram drawings normalised.
+  The tests also build the minimal example twice and a composed example twice, without `--date`, and require
+  identical bytes, with nothing normalised.
 - **Golden.** A consuming project can build its export with the kit at its old pin and at its new pin, and compare
   the two page by page. The first project does this when its pin moves: every difference must be named with a
   reason, for that pair of pins.

@@ -23,6 +23,7 @@ and review the diff of examples/minimal/expected/export.html before committing i
 """
 from __future__ import annotations
 
+import datetime
 import os
 import re
 import shutil
@@ -31,6 +32,10 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from bytes_diff import same_bytes_message  # noqa: E402
 
 KIT = Path(__file__).resolve().parents[2]
 EXAMPLE = KIT / "examples" / "minimal"
@@ -70,34 +75,43 @@ def missing() -> str | None:
     return None
 
 
+def tool_env() -> dict[str, str]:
+    return dict(os.environ, PYTHONPATH=str(KIT), PYTHONIOENCODING="utf-8")
+
+
+def tool(out: Path, name: str, *args: str) -> int:
+    cmd = [sys.executable, "-m", "arch_kit", "--config", "arch-kit.yaml", name, *args]
+    p = subprocess.run(cmd, cwd=EXAMPLE, env=tool_env(), capture_output=True, text=True, encoding="utf-8")
+    (out / f"{name}.log").write_text(p.stdout + p.stderr, encoding="utf-8")
+    return p.returncode
+
+
+def render(out: Path, date: str | None) -> int:
+    """Run render_html into out/export.html; `date=None` leaves out --date, so the commit date is used."""
+    (out / "puppeteer.json").write_text('{"args": ["--no-sandbox"]}\n', encoding="utf-8")
+    return tool(out, "render_html", "--out", str(out / "export.html"), "--chart", "chart", "--values", "values.yaml",
+                "--release", "larkspur", "--readiness", "READINESS.md", "--relabel", "relabel.txt",
+                "--barred", "barred.txt", *(["--date", date] if date else []),
+                "--puppeteer-config", str(out / "puppeteer.json"))
+
+
 def build(out: Path) -> dict[str, int]:
     """Run the chain into `out`; return each tool's exit code, in order."""
-    (out / "puppeteer.json").write_text('{"args": ["--no-sandbox"]}\n', encoding="utf-8")
+    rcs: dict[str, int] = {"render_html": render(out, DATE)}
     pcfg = str(out / "puppeteer.json")
-    env = dict(os.environ, PYTHONPATH=str(KIT), PYTHONIOENCODING="utf-8")
+    env = tool_env()
     export = out / "export.html"
-
-    def tool(name: str, *args: str) -> int:
-        cmd = [sys.executable, "-m", "arch_kit", "--config", "arch-kit.yaml", name, *args]
-        p = subprocess.run(cmd, cwd=EXAMPLE, env=env, capture_output=True, text=True, encoding="utf-8")
-        (out / f"{name}.log").write_text(p.stdout + p.stderr, encoding="utf-8")
-        return p.returncode
-
-    rcs: dict[str, int] = {}
-    rcs["render_html"] = tool("render_html", "--out", str(export), "--chart", "chart", "--values", "values.yaml",
-                              "--release", "larkspur", "--readiness", "READINESS.md", "--relabel", "relabel.txt",
-                              "--barred", "barred.txt", "--date", DATE, "--puppeteer-config", pcfg)
-    rcs["check_export"] = tool("check_export", "--export", str(export), "--barred", "barred.txt",
+    rcs["check_export"] = tool(out, "check_export", "--export", str(export), "--barred", "barred.txt",
                                "--relabel", "relabel.txt")
-    rcs["check_views"] = tool("check_views", "--chart", "chart", "--values", "values.yaml", "--release", "larkspur",
+    rcs["check_views"] = tool(out, "check_views", "--chart", "chart", "--values", "values.yaml", "--release", "larkspur",
                               "--readiness", "READINESS.md", "--barred", "barred.txt")
-    rcs["browser_facts"] = tool("browser_facts", "--root", ".", "--out", str(out / "facts.json"))
+    rcs["browser_facts"] = tool(out, "browser_facts", "--root", ".", "--out", str(out / "facts.json"))
     p = subprocess.run(["node", "check_export_browser.mjs", str(export), "--shots", str(out / "shots"),
                         "--facts", str(out / "facts.json"), "--puppeteer-config", pcfg],
                        cwd=TOOLS / "export", env=env, capture_output=True, text=True, encoding="utf-8")
     (out / "browser.log").write_text(p.stdout + p.stderr, encoding="utf-8")
     rcs["check_export_browser"] = p.returncode
-    rcs["check_decision_indexes"] = tool("check_decision_indexes")
+    rcs["check_decision_indexes"] = tool(out, "check_decision_indexes")
     return rcs
 
 
@@ -121,6 +135,27 @@ class Example(unittest.TestCase):
             import difflib
             diff = list(difflib.unified_diff(want.split("\n"), have.split("\n"), "expected", "built", lineterm="", n=0))
             self.fail("the export differs from expected/export.html after normalising:\n" + "\n".join(diff[:40]))
+
+    def test_two_builds_without_a_date_write_the_same_bytes(self):
+        why = missing()
+        if why:
+            self.skipTest(why)
+        with tempfile.TemporaryDirectory() as t1, tempfile.TemporaryDirectory() as t2:
+            a, b = Path(t1), Path(t2)
+            for d in (a, b):
+                rc = render(d, None)
+                log = (d / "render_html.log").read_text(encoding="utf-8")[-1500:]
+                self.assertEqual(rc, 0, f"render_html exited {rc}\n{log}")
+            msg = same_bytes_message(a / "export.html", b / "export.html")
+            if msg:
+                self.fail(msg)
+            page = (a / "export.html").read_text(encoding="utf-8")
+        m = DATE_RE.search(page)
+        self.assertTrue(m, "the page has no Generated: date")
+        iso = subprocess.run(["git", "-C", str(EXAMPLE), "log", "-1", "--format=%cI", "HEAD"], capture_output=True,
+                             text=True, encoding="utf-8", check=True).stdout.strip()
+        want = datetime.datetime.fromisoformat(iso).astimezone(datetime.timezone.utc).date().isoformat()
+        self.assertEqual(m.group(0), f"Generated: {want}")
 
 
 def write_snapshot() -> int:
