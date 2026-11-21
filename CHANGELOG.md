@@ -34,6 +34,9 @@
 - **The Action shows a failing tool's log.** The runner starts bash with `-e`, so a tool that failed ended the step
   before its log was printed, and the later tools never ran. Each step now prints its log and exit code, every step
   runs, and the step fails at the end. The Action's step test runs under the runner's flags.
+- **`render_html` takes `--kit-commit` in every mode.** It used to refuse the flag unless `chart: none` was declared,
+  so the Action's build with a chart stopped there. A malformed value is still refused. `--source` is still taken
+  only with `chart: none`.
 
 ## 0.3.4 (2026-11-21)
 

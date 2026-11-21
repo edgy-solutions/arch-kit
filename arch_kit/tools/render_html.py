@@ -2183,7 +2183,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--puppeteer-config", help="a puppeteer config file for mermaid-cli")
     ap.add_argument("--source", action="append", default=[], metavar="NAME=COMMIT",
                     help="with chart: none, a source the views were written from: its name and 40-hex commit (repeatable)")
-    ap.add_argument("--kit-commit", help="with chart: none, the kit's commit (default: HEAD of the kit's checkout)")
+    ap.add_argument("--kit-commit", help="the kit's 40-hex commit, named on the page (default: HEAD of the kit's checkout)")
     ap.add_argument("--chart-commit", metavar="SHA",
                     help="with a chart: the 40-hex commit the chart is checked out at; the build refuses if it is not (default: read from git)")
     ap.add_argument("--bundle-commit", action="append", default=[], metavar="SHA",
@@ -2203,8 +2203,13 @@ def main(argv: list[str] | None = None) -> int:
             if given:
                 print(f"error: chart: none is declared; {flag} is not taken", file=sys.stderr)
                 return EXIT_INPUT
-    elif a.source or a.kit_commit:
-        print("error: --source and --kit-commit are taken only with chart: none", file=sys.stderr)
+    elif a.source:
+        print("error: --source is taken only with chart: none", file=sys.stderr)
+        return EXIT_INPUT
+    # --kit-commit is taken in every mode: the Action passes it whenever it can read it, because the installed kit
+    # can't read its own commit from git. A page that names no kit doesn't use it, but a malformed one is refused.
+    if a.kit_commit is not None and not COMMIT40_RE.fullmatch(a.kit_commit):
+        print("error: --kit-commit must be 40 lowercase hex characters", file=sys.stderr)
         return EXIT_INPUT
     if declared.portal_mode("render_html") != "decisions" and not no_chart:
         # --chart, --values and --release are required in full mode; a portal of decisions needs no chart.

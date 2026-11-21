@@ -101,6 +101,16 @@ class InputCommits(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertEqual(parts(self.text(), "chart-commit"), [f"Chart commit: {self.chart_head}"])
 
+    def test_a_kit_commit_is_taken_with_a_chart_and_named_on_the_page(self):
+        # The Action passes --kit-commit with a chart; the flag was once taken only with chart: none.
+        kit = "0123456789abcdef0123456789abcdef01234567"
+        p = self.render("--kit-commit", kit)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(parts(self.text(), "kit"), [f"Kit: {kit}"])
+
+    def test_a_malformed_kit_commit_refuses(self):
+        self.refused(self.render("--kit-commit", "main"), "--kit-commit")
+
     def test_a_wrong_chart_commit_refuses(self):
         wrong = "0" * 40
         p = self.render("--chart-commit", wrong)
