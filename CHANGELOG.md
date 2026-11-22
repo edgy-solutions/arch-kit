@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.4.1 (2026-11-21)
+
+A full-mode project may declare that it has no decision register, and the README says what `check_views`
+checks against a deployment and what runs at build. Pull requests #42 and #43.
+
 ### Changed
 
 - **`decisions.index.register: none` is allowed in full mode.** It was refused unless `portal.mode` was

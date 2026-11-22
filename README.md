@@ -18,7 +18,7 @@ assume.
 
 ## Status
 
-**`0.4.0`, tagged `v0.4.0`.** See [the changelog](CHANGELOG.md). The kit was extracted from the first project that used it. That project's export
+**`0.4.1`, tagged `v0.4.1`.** See [the changelog](CHANGELOG.md). The kit was extracted from the first project that used it. That project's export
 is the acceptance test: after every step it must come out byte-identical, or each difference is listed and explained.
 
 | Step | | State |
@@ -34,7 +34,7 @@ is the acceptance test: after every step it must come out byte-identical, or eac
 | 6d | Caught up with the first project's later tool changes: `check_views --record`, and the CV-3 text naming a passed record | done |
 | 7 | The first project pins the kit by commit, with a golden comparison in its CI. The comparison against its old tools is being replaced by one between the kit's old and new pins | in review |
 
-Pin a tag, such as `v0.4.0`, or a full commit sha, never a branch. The content file names, the decision record and register id
+Pin a tag, such as `v0.4.1`, or a full commit sha, never a branch. The content file names, the decision record and register id
 grammar and the roadmap table headers, once fixed, are now declared as optional keys whose defaults are the old values.
 The [declaration reference](docs/declaration.md#formerly-fixed-now-declared) lists them.
 
@@ -179,7 +179,7 @@ check, `check_decision_indexes`):
     barred: path/to/barred.txt
 ```
 
-Pin the Action to a release tag's commit, not the tag: `uses: edgy-solutions/arch-kit@<commit>  # v0.4.0`. A build
+Pin the Action to a release tag's commit, not the tag: `uses: edgy-solutions/arch-kit@<commit>  # v0.4.1`. A build
 with a chart needs it: the page names the kit's commit, and the Action reads it from the name of the directory a
 commit-pinned Action is unpacked into. Pinned to a tag or a branch, the Action warns and a build with a chart stops. A
 pushed tag is never moved, but only a commit cannot move at all.
