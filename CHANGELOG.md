@@ -5,6 +5,7 @@
 ### Added
 
 - View generators over neutral records, and the view catalogue, for a consuming project's loader to call.
+- `arch_kit.generators.records.parse`, which reads a markdown record into a `Record`.
 
 ## 0.4.1 (2026-11-21)
 
