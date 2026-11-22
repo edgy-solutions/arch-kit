@@ -474,10 +474,10 @@ register is `none` (below). `register_homes` and `indexed` are lists of
 file globs with no spaces in them. A prefix is lowercase letters, digits and hyphens, starting with a letter. A bad or
 missing key exits 2, and the message names it.
 
-- **`register: none`** declares that a decisions-only project has no register. It is allowed only with
-  `portal.mode: decisions` (full mode exits 2), `register_homes` and `register_id` must then be absent, and `readme`,
-  `indexed` and `local_prefix` are still required. Checks 1, 3 and 4 do not run, and the run says so. A missing
-  `register` key is not this: it still exits 2.
+- **`register: none`** declares that the project has no register. It is allowed in either portal mode.
+  `register_homes` and `register_id` must then be absent, and `readme`, `indexed` and `local_prefix` are still
+  required. Checks 1, 3 and 4 do not run, and the run says so. A missing `register` key is not this: it still exits
+  2.
 
   ```yaml
   portal: {mode: decisions, hosting: none, audience: private}

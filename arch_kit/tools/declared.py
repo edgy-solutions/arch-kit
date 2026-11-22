@@ -617,8 +617,6 @@ def decisions_index(tool: str) -> DecisionIndex:
         # `register: none` (the string) declares that there is no register; a missing key never does.
         no_register = node.get("register") == "none"
         if no_register:
-            if portal_mode(tool) != "decisions":
-                _bad(base + "register", "`none` needs `portal.mode: decisions`")
             for k in ("register_homes", "register_id"):
                 if k in node:
                     _bad(base + k, "must be absent when `decisions.index.register` is `none`")
