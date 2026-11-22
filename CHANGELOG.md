@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-Nothing yet.
+### Added
+
+- View generators over neutral records, and the view catalogue, for a consuming project's loader to call.
 
 ## 0.4.1 (2026-11-21)
 

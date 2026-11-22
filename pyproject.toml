@@ -12,11 +12,12 @@ dependencies = ["pyyaml==6.0.3", "markdown-it-py==4.0.0", "jsonschema==4.26.0"]
 arch-kit = "arch_kit.__main__:cli"
 
 [tool.setuptools]
-packages = ["arch_kit", "arch_kit.tools"]
+packages = ["arch_kit", "arch_kit.tools", "arch_kit.generators"]
 
 [tool.setuptools.dynamic]
 version = { attr = "arch_kit.__version__" }
 
 [tool.setuptools.package-data]
 "arch_kit.tools" = ["*.py", "*.txt", "*.sh", "*.mjs", "*.json", "export/*", "testdata/*"]
+"arch_kit.generators" = ["views.yaml"]
 "arch_kit" = ["schema/*.json", "references/*.yaml"]

@@ -261,6 +261,10 @@ filled at render time.
 The checks exit 0 when everything passes, 1 when a check fails, and 2 when an input is missing or bad. A check that
 cannot run is never reported as passing.
 
+### View generators
+
+`arch_kit.generators` writes views from neutral records, for a project whose loader reads its own member files. The loader builds `model.Record` and `model.Member` objects from those files, and `model.Connections` with `model.build_edges` when it has connection tables. It then calls `views.GENERATORS[name]` with a `views.Ctx`, and wraps each body with `viewtext.view_text`. `catalogue.load()` returns the packaged view catalogue (`views.yaml`), `catalogue.merge()` replaces fields of a view by key, and `catalogue.check()` validates the result. The loader keeps the mapping from files to records and the finding codes it wants: `build_edges` takes a `kinds` map over `model.DEFAULT_KINDS`.
+
 ## Documentation
 
 - [The declaration](docs/declaration.md): `arch-kit.yaml`, key by key.
@@ -279,6 +283,7 @@ scan ran. See [the checks](docs/rules.md#names-in-the-published-file).
 ```sh
 pip install pyyaml==6.0.3 markdown-it-py==4.0.0 jsonschema==4.26.0
 python -m unittest discover -s arch_kit/tools -p 'test_*.py'
+python -m unittest discover -s arch_kit/generators -p 'test_*.py' -t .
 ```
 
 The example's self-test (`test_example`) also needs Node 22, `npm ci` in `arch_kit/tools/export`, and Chrome named by

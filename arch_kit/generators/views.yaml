@@ -1,0 +1,93 @@
+# The catalogue of views a loader can present: each view with its UAF, DoDAF 2.02 and NAF v4 identifiers, the
+# generator that writes it, and the read status of its source. A consuming project's loader reads it through
+# arch_kit.generators.catalogue and may override a field of a view by key.
+#
+# Sources (all local, none copied into this repository): UAF 1.3 Appendix A (OMG formal-25-10-05) Tables 2-1 and
+# 2-4 (ids uaf13-t21 and uaf13-t24); NAF v4.1, Document Version 2026.03 (naf41). A viewpoint marked naf read had
+# its section's purpose and scope read. DoDAF 2.02 itself is not in hand: every DoDAF id here is the one
+# uaf13-t21 maps to.
+
+catalogue: 1
+
+# Navigation groups: the NAF v4.1 grid rows (naf41 ch.3 Table 3-3), then views NAF gives no viewpoint.
+groups:
+  - {key: C, title: Concepts}
+  - {key: S, title: Service}
+  - {key: L, title: Logical}
+  - {key: P, title: Physical Resource}
+  - {key: A, title: Architecture Foundation}
+  - {key: none, title: No NAF viewpoint}
+
+# status: feeds = generated from the records as written; fields = needs structured fields not yet written;
+# none = no source in the records.
+# naf.read: true = the naf41 section was read; false = the id is uaf13-t24's and the section is not yet read.
+views:
+  - {key: Sm-Ov, title: Summary & Overview, group: none, dodaf: [AV-1], naf: null,
+     naf_note: "uaf13-t24 gives no NAF view", status: feeds, generator: overview}
+  - {key: Am-If, title: "Information: Dictionary", group: A, dodaf: [AV-2], naf: {id: A1, read: false},
+     status: none, needs: "a dictionary of the project's terms"}
+  - {key: Am-Tr, title: Architecture Traceability, group: none, dodaf: [], naf: null,
+     naf_note: "uaf13-t24 gives no NAF view", status: feeds, generator: traceability}
+  - {key: Correspondence, title: Architecture Correspondence, group: A, uaf: null, uaf_note: "uaf13-t24 maps no UAF view to A3",
+     dodaf: [], naf: {id: A3, name: Architecture Correspondence, read: true}, status: feeds, generator: correspondence}
+  - {key: Sd-Tx, title: Standards Taxonomy, group: A, dodaf: [StdV-1], naf: {id: A8, name: Architecture Standards, read: true},
+     status: feeds, generator: standards, needs: "a protocol on each connection, to list the standards the parts use"}
+  - {key: St-Tx, title: Strategic Taxonomy, group: C, dodaf: [CV-2], naf: {id: C1, name: Capability Taxonomy, read: true},
+     status: feeds, generator: strategic-taxonomy, needs: "a capability on the alignment rows of every member"}
+  - {key: St-Pr, title: Strategic Processes, group: C, dodaf: [CV-1], naf: {id: C2, read: false}, status: none,
+     needs: "an enterprise vision record"}
+  - {key: St-Cn, title: Strategic Connectivity, group: C, dodaf: [CV-4],
+     naf: {id: C3, name: Capability Dependencies, read: true}, status: none, needs: "capabilities first (St-Tx)"}
+  - {key: St-Rm-P, title: "Strategic Roadmap: Phasing", group: C, dodaf: [CV-3],
+     naf: {id: Cr, name: Capability Roadmap, read: true}, status: feeds, generator: roadmap,
+     needs: "RM- records with depends_on ids, and a capability per increment"}
+  - {key: Sv-Tx, title: Services Taxonomy, group: S, dodaf: [SvcV-1], naf: {id: S1, name: Service Taxonomy, read: true},
+     status: feeds, generator: services}
+  - {key: Sv-Cn, title: Services Connectivity, group: S, dodaf: [SvcV-3a, SvcV-3b, SvcV-6], naf: {id: S3, read: false},
+     status: none, needs: "service specifications of the members' own"}
+  - {key: Sv-Tr, title: Services Traceability, group: S, dodaf: [CV-7, SvcV-5],
+     naf: {id: C1-S1, name: Service to Capability Mapping, read: true}, status: feeds,
+     generator: services-traceability, needs: "a capability on the service rows of every member"}
+  - {key: Op-Tx, title: Operational Taxonomy, group: L, dodaf: [OV-1, OV-2], naf: {id: L1, read: false}, status: none,
+     needs: "operational nodes"}
+  - {key: Op-Sr, title: Operational Structure, group: L, dodaf: [OV-2],
+     naf: {id: L2, name: Logical Structure, read: true}, status: none, needs: "operational nodes and needlines"}
+  - {key: Op-Cn, title: Operational Connectivity, group: L, dodaf: [OV-2, OV-3],
+     naf: {id: L3, name: Logical Interactions, read: true}, status: fields, needs: "flow steps whose actor and target are roles"}
+  - {key: Op-Pr, title: Operational Processes, group: L, dodaf: [OV-5a, OV-5b],
+     naf: {id: L4, name: Logical Activities, read: true}, status: none, needs: "operational activities"}
+  - {key: Op-St, title: Operational States, group: L, dodaf: [OV-6b], naf: {id: L5, read: false}, status: none,
+     needs: "operational states"}
+  - {key: Op-Sq, title: Operational Sequences, group: L, dodaf: [OV-6c],
+     naf: {id: L6, name: Logical Sequence, read: true}, status: feeds, generator: sequences-roles}
+  - {key: Op-If, title: "Information: Operational", group: L, dodaf: [DIV-2], naf: {id: L7, read: false}, status: none,
+     needs: "an information model"}
+  - {key: Op-Ct, title: Operational Constraints, group: L, dodaf: [OV-6a], naf: {id: L8, read: false}, status: none,
+     needs: "operational rules"}
+  - {key: Rs-Tx, title: Resources Taxonomy, group: P, dodaf: [SV-1, SV-2], naf: {id: P1, read: false},
+     status: feeds, generator: resources}
+  - {key: Rs-Sr, title: Resources Structure, group: P, dodaf: [SV-1, SV-2],
+     naf: {id: P2, name: Resource Structure, read: true}, status: feeds, generator: structure}
+  - {key: Rs-Cn, title: Resources Connectivity, group: P, dodaf: [SV-3, SV-6],
+     naf: {id: P3, name: Resource Interactions, read: true}, status: feeds, generator: connectivity}
+  - {key: Rs-Pr, title: Resources Processes, group: P, dodaf: [SV-4], naf: {id: P4, read: false}, status: none,
+     needs: "resource functions"}
+  - {key: Rs-St, title: Resources States, group: P, dodaf: [SV-10b], naf: {id: P5, read: false}, status: none,
+     needs: "resource states"}
+  - {key: Rs-Sq, title: Resources Sequences, group: P, dodaf: [SV-10c],
+     naf: {id: P6, name: Resource Sequence, read: true}, status: feeds, generator: sequences-parts}
+  - {key: Rs-If, title: "Information: Resources", group: P, dodaf: [DIV-3], naf: {id: P7, read: false}, status: none,
+     needs: "a data model as a record"}
+  - {key: Rs-Ct, title: Resources Constraints, group: P, dodaf: [SV-10a], naf: {id: P8, read: false}, status: fields,
+     needs: "settings as structured rules (not asked for yet)"}
+  - {key: Rs-Tr, title: Resources Traceability, group: P, dodaf: [SV-5a, SV-5b], naf: {id: L4-P4, read: false},
+     status: none, needs: "operational activities"}
+  - {key: Sc-Sr, title: Security Structure, group: none, dodaf: [], naf: null, naf_note: "uaf13-t24 gives no NAF view",
+     status: feeds, generator: security-structure,
+     needs: "Protected by at every point of use, in every member"}
+  - {key: Sc-Cn, title: Security Connectivity, group: none, dodaf: [], naf: null,
+     naf_note: "uaf13-t24 gives no NAF view; DNDAF SecV-2, SecV-3", status: feeds, generator: security-connectivity,
+     needs: "Protected by on each connection, separate from sign-in"}
+  - {key: Sc-Pr, title: Security Processes, group: none, dodaf: [], naf: null, naf_note: "uaf13-t24 gives no NAF view",
+     status: feeds, generator: security-processes,
+     needs: "a Protected by column on the security flows of every member"}
