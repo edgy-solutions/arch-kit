@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Changed
+
+- **`decisions.index.register: none` is allowed in full mode.** It was refused unless `portal.mode` was
+  `decisions`, so a full-mode project with no register could not run `check_decision_indexes` at all. Checks 1,
+  3 and 4 still do not run, and the run still says so.
+
 ### Documentation
 
 - **README, "How it works".** `check_views` checks the deployment in one direction only: rule `floor` fails on

@@ -78,8 +78,8 @@ repository: that a cited file exists at a pinned commit is for a check that can 
 Status is compared, never inferred; an earlier attempt to pattern-match prose gave false positives and false negatives
 both. Exit 0 clean, 1 drift, 2 input.
 
-**No register.** With `decisions.index.register: none` (allowed only when `portal.mode` is `decisions`) the project
-declares that it has no register. Checks 1, 3 and 4 do not run, and every run prints
+**No register.** With `decisions.index.register: none`, in either portal mode, the project declares that it has no
+register. Checks 1, 3 and 4 do not run, and every run prints
 `checks 1, 3 and 4: not run: decisions.index.register is none`, whether it is clean or not. Check 2 and the citation
 checks run as before. Leaving the register out of the declaration is not the same thing: that exits 2, because absence
 must not answer as agreement.

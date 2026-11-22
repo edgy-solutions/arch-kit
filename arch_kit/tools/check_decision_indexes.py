@@ -10,8 +10,8 @@ bash from the declared decisions directory. The script's stdout, stderr and exit
 unchanged. With `files.composition` declared, the foreign prefixes and their commits come from the composition file
 (IDX_FOREIGN_COMMITS) and no pin check runs for them. Set PINS_OUT to a file to receive the list of pins that each foreign pin check printed.
 
-With `decisions.index.register: none` (allowed only when portal.mode is decisions) the project declares that it has
-no register: the script gets IDX_NO_REGISTER=1 and empty IDX_REGISTER and IDX_HOMES, checks 1, 3 and 4 do not run,
+With `decisions.index.register: none`, in either portal mode, the project declares that it has no register: the
+script gets IDX_NO_REGISTER=1 and empty IDX_REGISTER and IDX_HOMES, checks 1, 3 and 4 do not run,
 and every run prints that they did not. Leaving the register out of the declaration is not the same: that exits 2.
 
 The four checks and what they do not prove are in docs/rules.md. Exit codes: 0 clean, 1 drift, 2 input (a missing or

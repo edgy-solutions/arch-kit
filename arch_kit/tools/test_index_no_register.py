@@ -60,12 +60,11 @@ class NoRegister(unittest.TestCase):
         self.assertIn("0004-unlisted-record.md", p.stdout)
         self.assertIn(NOT_RUN, p.stdout)
 
-    def test_none_needs_decisions_mode(self):
+    def test_none_in_full_mode(self):
         self.edit(lambda c: c["portal"].pop("mode"))
         p = self.run_check()
-        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
-        self.assertIn("decisions.index.register", p.stderr)
-        self.assertIn("portal.mode: decisions", p.stderr)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn(NOT_RUN, p.stdout)
 
     def test_a_missing_register_key_still_exits_2(self):
         self.edit(lambda c: c["decisions"]["index"].pop("register"))
