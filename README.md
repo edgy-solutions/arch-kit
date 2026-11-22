@@ -263,7 +263,7 @@ cannot run is never reported as passing.
 
 ### View generators
 
-`arch_kit.generators` writes views from neutral records, for a project whose loader reads its own member files. The loader builds `model.Record` and `model.Member` objects from those files, and `model.Connections` with `model.build_edges` when it has connection tables. It then calls `views.GENERATORS[name]` with a `views.Ctx`, and wraps each body with `viewtext.view_text`. `catalogue.load()` returns the packaged view catalogue (`views.yaml`), `catalogue.merge()` replaces fields of a view by key, and `catalogue.check()` validates the result. The loader keeps the mapping from files to records and the finding codes it wants: `build_edges` takes a `kinds` map over `model.DEFAULT_KINDS`.
+`arch_kit.generators` writes views from neutral records, for a project whose loader reads its own member files. The loader builds `model.Record` and `model.Member` objects from those files, and `model.Connections` with `model.build_edges` when it has connection tables. It then calls `views.GENERATORS[name]` with a `views.Ctx`, and wraps each body with `viewtext.view_text`. `catalogue.load()` returns the packaged view catalogue (`views.yaml`), `catalogue.merge()` replaces fields of a view by key, and `catalogue.check()` validates the result. The loader keeps the mapping from files to records and the finding codes it wants: `build_edges` takes a `kinds` map over `model.DEFAULT_KINDS`. `records.parse` reads a markdown record into a `Record`.
 
 ## Documentation
 
