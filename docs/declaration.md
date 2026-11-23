@@ -341,7 +341,7 @@ A **census key** is a fourth evidence form, beside a decision record, a path and
 `rows.{j}.evidence` in an alignment record, as an item of `components[i].evidence`, and as a roadmap `home`. Its
 grammar, written `[member] [path] §section[ (variant)][.bullet]`:
 
-- `member`: a mesh member name (lower case letters and digits, hyphen-separated), optional, followed by a colon or a space
+- `member`: a member name of a composing project (lower case letters and digits, hyphen-separated), optional, followed by a colon or a space
   (`member:§KEY` or `member §KEY`).
 - `path`: a path, optional, and it contains a `.` or a `/`. It is accepted as written, and contains no `:`.
 - `section`: starts with a digit; its letters are lower case, with hyphens between parts (`4`, `4p`, `4g2`, `4p-2`).
@@ -355,8 +355,8 @@ So `§4p.3`, `AGENTS.md §4p.3`, `other-member §4p.3`, `other-member:§4p.3` an
 The kit checks the form only. With a `member`, it accepts the key: the other members are not known to it. Without one, the
 key must be able to name this project's census: `census:` is declared (otherwise `<key> is a census key, and the
 project declares no census (census:)`), the file or directory exists (`<key> cites the census <census>, which does not exist`). A `path` in a key is accepted as
-written; the mesh loader resolves the key against the declared census. The refusal is at the
-same location as any other unresolved evidence. Resolving the section at the pinned revision is the mesh loader's
+written; the composing loader resolves the key against the declared census. The refusal is at the
+same location as any other unresolved evidence. Resolving the section at the pinned revision is the composing loader's
 job; it reports a key that does not resolve as a finding.
 
 A census key counts as a decision record for a `components` status of `accepted` and for a roadmap `home`. It does not

@@ -1,5 +1,5 @@
-"""Tests that the kit holds no first-consumer name and reads its names from the declaration.
-
+"""Tests that the kit holds no consuming project's name or barred word, anywhere in the tree, and reads its names from
+the declaration.
 Run from the kit root:
     python -m unittest discover -s arch_kit/tools -p "test_*.py"
 """
@@ -20,8 +20,10 @@ os.environ.setdefault("ARCH_KIT_CONFIG", str(HERE / "testdata" / "arch-kit.yaml"
 import data_exchange  # noqa: E402
 import project  # noqa: E402
 
-# The first consumer's name stem, assembled so this file does not hold it.
-STEM = re.compile("d" + "dil", re.IGNORECASE)
+# The consuming projects' names and words the kit must not hold, assembled so this file does not hold them. The
+# last is barred as a whole word only, so a word that merely contains it passes.
+STEM = re.compile("|".join(("d" + "dil", "i" + "agent", "invin" + "cible", "me" + "sh", r"\bla" + r"ne\b")),
+                  re.IGNORECASE)
 
 
 def tracked_files(root: Path):
@@ -55,23 +57,16 @@ def scan(files, names=True):
 
 
 class NoConsumerName(unittest.TestCase):
-    def test_kit_holds_no_first_consumer_name(self):
+    def test_kit_holds_no_barred_name(self):
         files = tracked_files(KIT)
         self.assertTrue(files, "the scan saw no files")
         self.assertEqual(scan(files), [])
 
-    def test_the_scan_covers_the_example_and_it_names_no_consumer_project(self):
-        files = [f for f in tracked_files(KIT) if "examples" in f.relative_to(KIT).parts]
-        self.assertTrue(any(f.name == "arch-kit.yaml" for f in files), "the scan did not see examples/")
-        stems = re.compile("|".join(("d" + "dil", "i" + "agent", "invin" + "cible")), re.IGNORECASE)
-        hits = []
-        for f in files:
-            if stems.search(f.name):
-                hits.append((f.name, 0))
-            for n, line in enumerate(f.read_text(encoding="utf-8", errors="replace").split("\n"), 1):
-                if stems.search(line):
-                    hits.append((f.name, n))
-        self.assertEqual(hits, [])
+    def test_the_scan_covers_the_whole_tree(self):
+        rel = {f.relative_to(KIT).as_posix() for f in tracked_files(KIT)}
+        for path in ("examples/minimal/arch-kit.yaml", "docs/declaration.md", "README.md", "CHANGELOG.md",
+                     "arch_kit/tools/alignment.py", "arch_kit/generators/views.yaml", ".github/workflows/tests.yml"):
+            self.assertIn(path, rel, f"the scan did not see {path}")
 
     def test_the_scanner_reports_a_planted_name(self):
         tmp = Path(tempfile.mkdtemp())
@@ -83,6 +78,14 @@ class NoConsumerName(unittest.TestCase):
         named = tmp / ("x-open" + "dd" + "il.txt")
         named.write_text("clean\n", encoding="utf-8")
         self.assertEqual([h[1] for h in scan([named])], [0])
+
+    def test_the_scanner_reports_each_barred_word_and_passes_a_word_containing_the_last(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        words = ("I" + "AGENT", "Invin" + "cible", "a Me" + "sh member", "one la" + "ne", "La" + "ne-start")
+        planted = tmp / "plant.txt"
+        planted.write_text("\n".join(("a plane", "the planet", *words, "clean")) + "\n", encoding="utf-8")
+        self.assertEqual([h[1] for h in scan([planted])], [3, 4, 5, 6, 7])
 
 
 class MissingKey(unittest.TestCase):
