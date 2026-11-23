@@ -146,9 +146,9 @@ class Context:
 
     def census_problem(self, value: str) -> str | None:
         """None when `value` lacks the census form (see CENSUS_KEY) or has it and is acceptable; otherwise why not.
-        A member-qualified key is not checked here: the mesh loader resolves it. A path in a key is accepted by form:
-        the census document and the directory of resolvable records differ, so the loader resolves the key.
-        The declared census may be a file or a directory."""
+        A member-qualified key is not checked here: the composing loader resolves it.
+        A path in a key is accepted by form: the census document and the directory of resolvable records differ,
+        so the loader resolves the key. The declared census may be a file or a directory."""
         m = CENSUS_KEY.match(value)
         if m is None or m["member"]:
             return None

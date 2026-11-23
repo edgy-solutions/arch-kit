@@ -112,7 +112,7 @@ class Routes(unittest.TestCase):
         self.assertEqual(got, {"K1", "K2"})
 
 
-CAPS = {"Built": "Lane", "Design": "Lane", "Measured": "Lane", "Bare": "Lane"}
+CAPS = {"Built": "Track", "Design": "Track", "Measured": "Track", "Bare": "Track"}
 STATUSES = {"ADR-1": "accepted"}
 BUILT = [{"template": "t.yaml", "contains": "x"}]
 
@@ -179,7 +179,7 @@ class Failures(unittest.TestCase):
         self.assertEqual(self.check({"route": {"r": {"infrastructure": "x"}}}, items(route=("r",))), [])
 
     def test_arrival_declaration_red_case(self):
-        caps = {"ArrivalDeclaration": "Lane"}
+        caps = {"ArrivalDeclaration": "Track"}
         rec = {"capabilities": {"ArrivalDeclaration": {"adrs": ["ADR-1"]}},
                "rendered": {"workload": {"tier-declaration-intake": ["ArrivalDeclaration"]}}}
         have = items(workload=("tier-declaration-intake",))
