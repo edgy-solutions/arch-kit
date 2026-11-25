@@ -6,6 +6,10 @@
 
 - View generators over neutral records, and the view catalogue, for a consuming project's loader to call.
 - `arch_kit.generators.records.parse`, which reads a markdown record into a `Record`.
+- The Security Structure view reads a grants table, `# | role | granted to | grants | granted by | status`, then
+  evidence, under a "security roles" heading in a record of any kind. It shows each grant as written, with a
+  sentence counting grants, roles and statuses. There's no "how closely" count and no gap list, because a grant
+  isn't a correspondence to a reference. The correspondence table is read and shown as before.
 
 ## 0.4.1 (2026-11-21)
 

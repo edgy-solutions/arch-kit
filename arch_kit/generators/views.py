@@ -15,6 +15,7 @@ from .text import cell, fence, linked_paths, rec_link, rewrite_links, table
 
 CORR_HEADER = ["#", "element", "what corresponds", "how closely", "status"]
 CORR_HEADER_CAP = ["#", "element", "capability", "what corresponds", "how closely", "status"]
+GRANTS_HEADER = ["#", "role", "granted to", "grants", "granted by", "status"]
 SECURITY_ROLES = "security roles"
 SERVICE_ID = re.compile(r"^S\d+$")
 DEPENDS = re.compile(r"\brows? (\d+)", re.I)
@@ -700,6 +701,34 @@ def security_role_tables(ctx) -> list:
     return out
 
 
+def security_grant_tables(ctx) -> list:
+    """[(member, record, table)] for the grants tables under a security roles heading. Records of any kind
+    qualify: a grant describes how the system works, it is not a mapping onto a reference."""
+    out = []
+    for m in ctx.members:
+        for r in m.records:
+            for t in r.tables:
+                head = [h.casefold() for h in t.header]
+                if SECURITY_ROLES in (t.heading or "").casefold() and head[:6] == GRANTS_HEADER:
+                    out.append((m, r, t))
+    return out
+
+
+def grants_section(ctx, m, r, t) -> str:
+    ctx.use(m, r)
+    rows = [pad(row, 7) for row in t.rows]
+    words = [model.plain(row[5]).strip().casefold() or "not given" for row in rows]
+    roles = {model.plain(row[1]).strip().casefold() for row in rows}
+    counts = Counter(words)
+    sentence = (f"{counted(len(rows), 'grant')} to {counted(len(roles), 'role')}; status: "
+                + ", ".join(f"{n} {w}" for w, n in counts.items()) + ".") if rows else "No grants are written."
+    body = [[cell(row[0]), inl(ctx, row[1], r, m), inl(ctx, clip(row[2]), r, m), inl(ctx, clip(row[3]), r, m),
+             inl(ctx, row[4], r, m), w if w == "not given" else inl(ctx, row[5], r, m), inl(ctx, row[6], r, m)]
+            for row, w in zip(rows, words)]
+    header = ["Id", "Role", "Granted to", "Grants", "Granted by", "Status", "Evidence"]
+    return f"### {r.title or r.rel} ({m.name})\n\n{sentence}\n\n" + table(header, body)
+
+
 def first_word(text) -> str:
     found = re.search(r"`([^`]*)`", text)
     return " ".join((found.group(1) if found else model.plain(text).split(" ")[0]).split()).casefold()
@@ -775,6 +804,8 @@ def security_structure(ctx, v) -> str:
         out.append(f"### {r.title or r.rel} ({m.name})\n\n{sentence}\n\n#### Gaps\n\n"
                    + ("\n".join(gaps) + "\n" if gaps else "No role is unmet.\n") + "\n"
                    + table(["Id", "Role", "Capability", "What corresponds", "How closely", "Status", "Evidence"], body))
+    for m, r, t in security_grant_tables(ctx):
+        out.append(grants_section(ctx, m, r, t))
     use = protection_section(ctx)
     if use:
         out.append(use)

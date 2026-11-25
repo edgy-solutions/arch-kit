@@ -99,5 +99,78 @@ class ViewTextTests(unittest.TestCase):
         self.assertNotIn("no_target", e)
 
 
+def grants_ctx(kind="components", heading="Security roles", header=None, rows=None):
+    header = header or ["#", "role", "granted to", "grants", "granted by", "status", "evidence"]
+    rows = rows if rows is not None else [
+        ["1", "operator", "group:readers", "read", "policy", "built", "a.md"],
+        ["2", "Operator", "svc:reporter", "write", "policy", "`built`", ""],
+        ["3", "auditor", "group:readers", "list", "policy", "", ""]]
+    rec = model.Record("m", "m/g.md", "g.md", kind, "Grants", None,
+                       tables=[model.Table(heading, "", header, rows)])
+    return views.Ctx([SimpleNamespace(name="m", records=[rec])], {"m": {}}), rec
+
+
+def render(ctx):
+    return views.GENERATORS["security-structure"](ctx, None)
+
+
+CORR = ["#", "element", "what corresponds", "how closely", "status"]
+
+
+class SecurityGrantsTests(unittest.TestCase):
+    def test_a_grants_table_renders_as_grants(self):
+        ctx, _ = grants_ctx()
+        out = render(ctx)
+        self.assertIn("### Grants (m)", out)
+        self.assertIn("3 grants to 2 roles; status: 2 built, 1 not given.", out)
+        self.assertIn("| Id | Role | Granted to | Grants | Granted by | Status | Evidence |", out)
+        self.assertNotIn("Gaps", out)
+        self.assertNotIn("How closely", out)
+
+    def test_the_sentence_counts_distinct_roles_and_statuses(self):
+        ctx, _ = grants_ctx()
+        self.assertIn("\n3 grants to 2 roles; status: 2 built, 1 not given.\n", render(ctx))
+
+    def test_a_blank_status_reads_not_given(self):
+        ctx, _ = grants_ctx()
+        self.assertIn("| 3 | auditor | group:readers | list | policy | not given |  |", render(ctx))
+
+    def test_a_six_column_table_has_an_empty_evidence_cell(self):
+        ctx, _ = grants_ctx(header=["#", "role", "granted to", "grants", "granted by", "status"],
+                            rows=[["1", "operator", "group:readers", "read", "policy", "built"]])
+        out = render(ctx)
+        self.assertIn("| Evidence |", out)
+        self.assertIn("| 1 | operator | group:readers | read | policy | built |  |", out)
+
+    def test_other_tables_give_nothing(self):
+        ctx, _ = grants_ctx(heading="Access")
+        self.assertEqual(render(ctx), "")
+        ctx, _ = grants_ctx(header=["#", "role", "given to", "grants", "granted by", "status"])
+        self.assertEqual(render(ctx), "")
+
+    def test_a_correspondence_section_is_unchanged_by_a_grants_record(self):
+        corr = model.Record("m", "m/c.md", "c.md", "alignment", "Roles", None, tables=[model.Table(
+            "Security roles", "", CORR, [["1", "operator", "reader", "close", "built", ""]])])
+        member = SimpleNamespace(name="m", records=[corr])
+        before = render(views.Ctx([member], {"m": {}}))
+        self.assertIn("#### Gaps", before)
+        _, grants = grants_ctx()
+        member.records.append(grants)
+        after = render(views.Ctx([member], {"m": {}}))
+        self.assertTrue(after.startswith(before))
+        self.assertGreater(len(after), len(before))
+
+    def test_the_grants_record_is_used(self):
+        ctx, rec = grants_ctx()
+        render(ctx)
+        self.assertTrue(any(r is rec for _m, r in ctx.used))
+
+    def test_a_table_with_no_rows_says_so(self):
+        ctx, _rec = grants_ctx(rows=[])
+        out = render(ctx)
+        self.assertIn("No grants are written.", out)
+        self.assertNotIn("status: .", out)
+
+
 if __name__ == "__main__":
     unittest.main()
