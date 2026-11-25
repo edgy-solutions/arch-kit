@@ -76,6 +76,69 @@ def statuses(tool: str) -> list[Status]:
     return _CACHE["statuses"]
 
 
+class Untraced(NamedTuple):
+    record: str
+    decided_by: str
+    reason: str
+
+
+class AccountedFor(NamedTuple):
+    statuses: tuple
+    untraced: tuple
+
+
+def accounted_for(tool: str) -> AccountedFor | None:
+    """`decisions.accounted_for`, or None when it is absent (the rule is opt-in)."""
+    if "accounted_for" in _CACHE:
+        return _CACHE["accounted_for"]
+    decisions = project.CONFIG.get("decisions")
+    node = decisions.get("accounted_for") if isinstance(decisions, dict) else None
+    if node is None:
+        _CACHE["accounted_for"] = None
+        return None
+    key = "decisions.accounted_for"
+    if not isinstance(node, dict):
+        _bad(key, "must be a map")
+    for k in node:
+        if k not in ("statuses", "untraced"):
+            _bad(key, f"unknown key {k!r}")
+    words = node.get("statuses")
+    if not isinstance(words, list) or not words:
+        _bad(f"{key}.statuses", "must be a non-empty list of declared status words")
+    known = [s.word for s in statuses(tool)]
+    for w in words:
+        if not isinstance(w, str) or w not in known:
+            _bad(f"{key}.statuses", f"{w!r} is not a declared status word ({', '.join(known)})")
+    entries = node.get("untraced")
+    if entries is None:
+        entries = []
+    if not isinstance(entries, list):
+        _bad(f"{key}.untraced", "must be a list")
+    prefix, digits = record_id(tool)
+    rid = re.compile(re.escape(prefix) + "-" + chr(92) + "d{" + str(digits) + "}")
+    out, seen = [], set()
+    for i, e in enumerate(entries):
+        k = f"{key}.untraced[{i}]"
+        if not isinstance(e, dict) or set(e) != {"record", "capability", "decided_by", "reason"}:
+            _bad(k, "must be a map with exactly record, capability, decided_by and reason")
+        for f in ("record", "decided_by"):
+            if not isinstance(e[f], str) or not rid.fullmatch(e[f]):
+                _bad(f"{k}.{f}", f"{e[f]!r} is not a record id ({record_form(tool)})")
+        if e["capability"] == "built":
+            _bad(f"{k}.capability", 'built is for things that exist; a deliberate absence is "none, by decision"')
+        if e["capability"] != "none, by decision":
+            _bad(f"{k}.capability", f'{e["capability"]!r} must be exactly "none, by decision"')
+        r = e["reason"]
+        if not isinstance(r, str) or not r.strip() or chr(10) in r or chr(13) in r or len(r) > 160:
+            _bad(f"{k}.reason", "must be one non-empty line of at most 160 characters")
+        if e["record"] in seen:
+            _bad(k, f"{e['record']} is listed twice")
+        seen.add(e["record"])
+        out.append(Untraced(e["record"], e["decided_by"], r))
+    _CACHE["accounted_for"] = AccountedFor(tuple(dict.fromkeys(words)), tuple(out))
+    return _CACHE["accounted_for"]
+
+
 def lead_of(lead: str | None, tool: str) -> Status | None:
     """The declared status a status line's lead (lowercased) starts with, or None."""
     return next((s for s in statuses(tool) if (lead or "").startswith(s.lead)), None)

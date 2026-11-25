@@ -651,6 +651,54 @@ def rule_floor(t: Tree, a: argparse.Namespace) -> list[str]:
         return [str(e)]
 
 
+def rule_accounted_for(t: Tree, ac) -> list[str]:
+    """Every decision record of the named statuses is cited by a capability or listed as untraced by decision."""
+    try:
+        record = capability_phases.load_record(t.record)
+    except data_exchange.InputError as e:
+        raise InputError(str(e))
+    leads = {s.lead for s in declared.statuses("check_views") if s.word in ac.statuses}
+    directory = project.DECISIONS
+    ids = set()
+    if directory.is_dir():
+        pattern = declared.record_file_patterns("check_views")[1]
+        ids = {declared.record_id_of_file("check_views", f.name) for f in directory.glob(pattern)
+               if declared.record_id_of_file("check_views", f.name)}
+    cited: dict[str, str] = {}
+    for name, cap in record["capabilities"].items():
+        cap = cap or {}
+        found = capability_phases.record_adrs(cap) + [i for i, _ in capability_phases.derived_citations(cap)]
+        for i in found:
+            cited.setdefault(i, name)
+    untraced = {u.record: u for u in ac.untraced}
+    def lead(i):
+        raw = capability_phases.adr_lead(directory, i)
+        st = declared.lead_of(raw, "check_views")
+        return st.lead if st else raw
+
+    lead_of = {i: lead(i) for i in ids}
+    fails = []
+    for i in sorted(ids):
+        if lead_of[i] not in leads:
+            continue
+        if i in cited and i in untraced:
+            fails.append(f"accounted-for: {i} is cited by {cited[i]} and also listed as untraced by decision")
+        elif i not in cited and i not in untraced:
+            fails.append(f"accounted-for: {i} ({lead_of[i]}) is cited by no capability and is not listed in "
+                         f"decisions.accounted_for.untraced")
+    for i, u in untraced.items():
+        if i not in ids:
+            fails.append(f"accounted-for: untraced entry {i}: no decision record file")
+        elif lead_of[i] not in leads:
+            fails.append(f"accounted-for: untraced entry {i}: its status is {lead_of[i]}, which the rule doesn't apply to")
+        if u.decided_by not in ids:
+            fails.append(f"accounted-for: untraced entry {i}: decided_by {u.decided_by} has no decision record file")
+    inscope = [i for i in ids if lead_of[i] in leads]
+    rule_accounted_for.counts = (len(inscope), sum(1 for i in inscope if i in cited),
+                                 sum(1 for i in inscope if i in untraced))
+    return fails
+
+
 CHECKS = [rule_exports, rule_appendix, rule_view_files, rule_slots, rule_links, rule_decision_links,
           rule_sources_table,
           rule_marks, rule_model, rule_capabilities, rule_trace, rule_outputs, rule_generated, rule_phases,
@@ -692,6 +740,9 @@ def main(argv: list[str] | None = None) -> int:
         if not missing:
             fails += rule_quotes(tree, a)
             fails += rule_floor(tree, a)
+        ac = declared.accounted_for("check_views")
+        if ac is not None:
+            fails += rule_accounted_for(tree, ac)
     except (InputError, KeyError) as e:
         print(f"error: {e}", file=sys.stderr)
         return EXIT_INPUT
@@ -699,11 +750,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FAIL: {f}", file=sys.stderr)
     if fails:
         return EXIT_CHECK
+    tail = ""
+    if ac is not None:
+        n, c, u = rule_accounted_for.counts
+        tail = f"; accounted for: {n} decision records ({c} cited, {u} untraced by decision)"
     if missing:
-        print(f"ok: {len(CHECKS)} rules, {len(tree.views)} views; not run: quotes, floor ({a.allow_partial})")
+        print(f"ok: {len(CHECKS)} rules, {len(tree.views)} views; not run: quotes, floor ({a.allow_partial}){tail}")
     else:
         skipped = "" if declared.exchange_reader("check_views") else "; not run: floor (no exchange declared)"
-        print(f"ok: {len(RULES)} rules, {len(tree.views)} views{skipped}")
+        print(f"ok: {len(RULES)} rules, {len(tree.views)} views{skipped}{tail}")
     return EXIT_OK
 
 

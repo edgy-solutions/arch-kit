@@ -137,6 +137,7 @@ So a project that never runs the data-exchange generator does not need to declar
 | `files.*` | The content file names under `paths.root`: `profiles`, `slots`, `appendix`, `inventory`, `readme`, `record`, `adr_exemptions`, `annotation_exceptions`. Optional; default is today's name for each (see below) | `check_views`, `check_annotations`, `check_export`, `check_views_canary`, `browser_facts`, `data_exchange`, `derived`, `render_html`, `render_profile` |
 | `decisions.index.readme` | Also the name of the decision document index that `capability_phases` reads when no other `decisions.index` key is declared. Optional; default `README.md` | `capability_phases` |
 | `decisions.records.prefix`, `decisions.records.digits`, `decisions.records.file_prefix` | The decision record id grammar: `PREFIX-<digits>`, file `PREFIX-<digits>-<slug>.md`, or `<digits>-<slug>.md` when `file_prefix` is false. Optional; default `ADR`, `4` and `true` (see below) | `adr_sections`, `capability_phases`, `check_export`, `check_views`, `derived`, `render_html`, `check_decision_indexes` |
+| `decisions.accounted_for.statuses`, `decisions.accounted_for.untraced` | Opt-in. Every decision record of the named statuses is cited by a capability (`adrs` or `derived_from`) or listed as untraced by decision, and not both (see below) | `check_views` |
 | `decisions.index.register_id.letters`, `.digits` | The register id grammar. Optional; default `2` and `[1, 2]` (see below) | `check_decision_indexes` |
 | `derived.roadmap.increments`, `derived.roadmap.fold_ins` | The header cells of the roadmap note's two tables. Optional; default is the original headers (see below) | `derived` |
 
@@ -798,6 +799,34 @@ exactly `---` or `...`. The kit skips the block when it reads headings and rende
 and it does not display the block. The block's lines are blanked, not removed, so line numbers are the file's. A `---`
 on line 1 with no closing line is not front matter and is read as the text it is. Status and dates in the block
 are the project loader's to read, through `adr_status`.
+
+### decisions.accounted_for
+
+```yaml
+decisions:
+  accounted_for:
+    statuses: [Accepted]          # the declared status words the rule applies to
+    untraced:
+      - record: ADR-0017
+        capability: none, by decision
+        decided_by: ADR-0017
+        reason: components that stand in for others identify themselves; a test rule, not a capability
+```
+
+With the key absent, nothing changes. With it declared, `check_views` fails a record of the named statuses that no
+capability cites and that is not listed, a record that is both cited and listed, and a stale entry (no record file,
+a status the rule does not cover, or a `decided_by` with no record file). `still_open` is not a citation. When
+it passes, the ok line ends `; accounted for: <n> decision records (<c> cited, <u> untraced by decision)`.
+
+A bad value exits 2 and names the key:
+
+- `accounted_for` is not a map, or has a key other than `statuses` and `untraced`;
+- `statuses` is missing, empty, or names a word that is not a declared status;
+- `untraced` is not a list, or an entry is not a map of exactly `record`, `capability`, `decided_by` and `reason`;
+- `record` or `decided_by` is not a record id of the declared form;
+- `capability` is not exactly `none, by decision` (`built` is for things that exist);
+- `reason` is empty, has a newline, or is longer than 160 characters;
+- two entries name the same `record`.
 
 ### The roadmap note's tables
 

@@ -10,6 +10,10 @@
   evidence, under a "security roles" heading in a record of any kind. It shows each grant as written, with a
   sentence counting grants, roles and statuses. There's no "how closely" count and no gap list, because a grant
   isn't a correspondence to a reference. The correspondence table is read and shown as before.
+- `check_views` checks, when `decisions.accounted_for` is declared, that every decision record of the named
+  statuses is either cited by a capability or listed as untraced by decision. An untraced entry says
+  `capability: none, by decision`, names the record that decided it, and gives one line of reason. A record in
+  neither place, or in both, fails. Without the key, nothing changes.
 
 ## 0.4.1 (2026-11-21)
 
