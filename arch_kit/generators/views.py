@@ -17,6 +17,8 @@ CORR_HEADER = ["#", "element", "what corresponds", "how closely", "status"]
 CORR_HEADER_CAP = ["#", "element", "capability", "what corresponds", "how closely", "status"]
 GRANTS_HEADER = ["#", "role", "granted to", "grants", "granted by", "status"]
 SECURITY_ROLES = "security roles"
+SERVICES_HEADER = ["#", "service", "provided by", "operations", "status"]
+SERVICES = "services"
 SERVICE_ID = re.compile(r"^S\d+$")
 DEPENDS = re.compile(r"\brows? (\d+)", re.I)
 SOLID = ("measured", "built")
@@ -115,6 +117,35 @@ def alignment_groups(ctx) -> list:
     rows are the rows of the record's tables whose header starts with the correspondence header."""
     return [(name, [(m, r, [row[:2] + row[3:] for row in rows]) for m, r, rows in entries])
             for name, entries in capability_groups(ctx)]
+
+
+def service_tables(ctx) -> list:
+    """[(member, record, table)] for the services tables under a services heading, in member, record, table
+    order. Records of any kind qualify: a declared service describes how the system works, it is not a mapping
+    onto a reference."""
+    out = []
+    for m in ctx.members:
+        for r in m.records:
+            for t in r.tables:
+                head = [h.casefold() for h in t.header]
+                if SERVICES in (t.heading or "").casefold() and head[:5] == SERVICES_HEADER:
+                    out.append((m, r, t))
+    return out
+
+
+def services_section(ctx, m, r, t) -> str:
+    ctx.use(m, r)
+    rows = [pad(row, 6) for row in t.rows]
+    words = [model.plain(row[4]).strip().casefold() or "not given" for row in rows]
+    providers = {model.plain(row[2]).strip().casefold() for row in rows}
+    counts = Counter(words)
+    sentence = (f"{counted(len(rows), 'service')} from {counted(len(providers), 'provider')}; status: "
+                + ", ".join(f"{n} {w}" for w, n in counts.items()) + ".") if rows else "No services are written."
+    body = [[cell(row[0]), inl(ctx, row[1], r, m), inl(ctx, row[2], r, m), inl(ctx, clip(row[3]), r, m),
+             w if w == "not given" else inl(ctx, row[4], r, m), inl(ctx, row[5], r, m)]
+            for row, w in zip(rows, words)]
+    header = ["Id", "Service", "Provided by", "Operations", "Status", "Evidence"]
+    return f"### {r.title or r.rel} ({m.name})\n\n{sentence}\n\n" + table(header, body)
 
 
 def parse_capability(ctx, text) -> list:
@@ -254,6 +285,7 @@ def services(ctx, v) -> str:
                     who.append(f"{m.name}: {inl(ctx, row[3], r, m)}, {inl(ctx, row[4], r, m)}")
             items.append(f"- **{i}** {name} ({'; '.join(who)})\n")
         out.append(f"### {group_title(entries)}\n\n{''.join(items)}")
+    out += [services_section(ctx, m, r, t) for m, r, t in service_tables(ctx)]
     return "\n".join(out)
 
 

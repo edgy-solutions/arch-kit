@@ -14,6 +14,9 @@
   statuses is either cited by a capability or listed as untraced by decision. An untraced entry says
   `capability: none, by decision`, names the record that decided it, and gives one line of reason. A record in
   neither place, or in both, fails. Without the key, nothing changes.
+- The Services Taxonomy view reads a services table, `# | service | provided by | operations | status`, then
+  evidence, under a "services" heading in a record of any kind. It shows each service as written, with a sentence
+  counting services, providers and statuses. The alignment rows are read and shown as before.
 
 ## 0.4.1 (2026-11-21)
 

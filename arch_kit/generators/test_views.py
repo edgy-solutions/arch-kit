@@ -172,5 +172,87 @@ class SecurityGrantsTests(unittest.TestCase):
         self.assertNotIn("status: .", out)
 
 
+SVC_HEADER = ["#", "service", "provided by", "operations", "status", "evidence"]
+
+
+def services_rec(rel="s.md", kind="components", heading="Services", header=None, rows=None, title="Services"):
+    header = header or SVC_HEADER
+    rows = rows if rows is not None else [
+        ["1", "search:find", "ReaderApi", "find, list", "built", "a.md"],
+        ["2", "search:index", "readerapi", "index", "`built`", ""],
+        ["3", "report:run", "reporter", "run", "", ""]]
+    return model.Record("m", "m/" + rel, rel, kind, title, None,
+                        tables=[model.Table(heading, "", header, rows)])
+
+
+def services_ctx(**kw):
+    rec = services_rec(**kw)
+    return views.Ctx([SimpleNamespace(name="m", records=[rec])], {"m": {}}), rec
+
+
+def render_services(ctx):
+    return views.GENERATORS["services"](ctx, None)
+
+
+class ServicesFormTests(unittest.TestCase):
+    def test_a_services_table_renders_as_services(self):
+        ctx, _ = services_ctx()
+        out = render_services(ctx)
+        self.assertIn("### Services (m)", out)
+        self.assertIn("3 services from 2 providers; status: 2 built, 1 not given.", out)
+        self.assertIn("| Id | Service | Provided by | Operations | Status | Evidence |", out)
+
+    def test_the_sentence_counts_distinct_providers_and_statuses(self):
+        ctx, _ = services_ctx()
+        self.assertIn("\n3 services from 2 providers; status: 2 built, 1 not given.\n", render_services(ctx))
+
+    def test_a_blank_status_reads_not_given(self):
+        ctx, _ = services_ctx()
+        self.assertIn("| 3 | report:run | reporter | run | not given |  |", render_services(ctx))
+
+    def test_a_five_column_table_has_an_empty_evidence_cell(self):
+        ctx, _ = services_ctx(header=SVC_HEADER[:5], rows=[["1", "search:find", "ReaderApi", "find", "built"]])
+        out = render_services(ctx)
+        self.assertIn("| Evidence |", out)
+        self.assertIn("| 1 | search:find | ReaderApi | find | built |  |", out)
+
+    def test_a_long_operations_cell_is_clipped(self):
+        long = "op " * 100
+        ctx, _ = services_ctx(rows=[["1", "search:find", "ReaderApi", long, "built", ""]])
+        out = render_services(ctx)
+        self.assertIn(views.clip(long), out)
+        self.assertNotIn(long, out)
+
+    def test_other_tables_give_nothing(self):
+        ctx, _ = services_ctx(heading="Access")
+        self.assertEqual(render_services(ctx), "")
+        ctx, _ = services_ctx(header=["#", "service", "offered by", "operations", "status"])
+        self.assertEqual(render_services(ctx), "")
+
+    def test_the_alignment_output_is_unchanged_by_a_services_record(self):
+        corr = model.Record("m", "m/c.md", "c.md", "alignment", "Map", None, tables=[model.Table(
+            "Correspondence", "", CORR, [["S1", "search: find", "reader", "close", "built"],
+                                         ["S2", "report: run", "reporter", "close", "built"]])])
+        member = SimpleNamespace(name="m", records=[corr])
+        before = render_services(views.Ctx([member], {"m": {}}))
+        self.assertNotEqual(before, "")
+        member.records.append(services_rec())
+        after = render_services(views.Ctx([member], {"m": {}}))
+        self.assertTrue(after.startswith(before))
+        self.assertGreater(len(after), len(before))
+
+    def test_the_services_record_is_used(self):
+        ctx, rec = services_ctx()
+        render_services(ctx)
+        self.assertTrue(any(r is rec for _m, r in ctx.used))
+
+    def test_tables_render_in_member_record_table_order(self):
+        a = services_rec("a.md", title="Alpha")
+        b = services_rec("b.md", kind="flows", title="Beta")
+        ctx = views.Ctx([SimpleNamespace(name="m", records=[a, b])], {"m": {}})
+        out = render_services(ctx)
+        self.assertLess(out.index("### Alpha (m)"), out.index("### Beta (m)"))
+
+
 if __name__ == "__main__":
     unittest.main()
